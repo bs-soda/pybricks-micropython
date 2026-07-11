@@ -87,6 +87,7 @@ PYBRICKS_PYBRICKS_SRC_C = $(addprefix pybricks/,\
 	robotics/pb_module_robotics.c \
 	robotics/pb_type_car.c \
 	robotics/pb_type_drivebase.c \
+	robotics/pb_type_mdrobotbase.c \
 	robotics/pb_type_spikebase.c \
 	tools/pb_module_tools.c \
 	tools/pb_type_async.c \
@@ -212,6 +213,7 @@ PBIO_SRC_C = $(addprefix lib/pbio/,\
 	src/dcmotor.c \
 	src/differentiator.c \
 	src/drivebase.c \
+	src/mdrobotbase.c \
 	src/error.c \
 	src/geometry.c \
 	src/image/image.c \

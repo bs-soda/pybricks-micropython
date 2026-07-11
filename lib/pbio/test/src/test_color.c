@@ -609,6 +609,26 @@ static void test_color_hsv_cost(void *env) {
     tt_want_int_op(dist, <, 410000000);
 }
 
+static void test_colorsensor_rgb_scaling(void *env) {
+    // Test the exact 1024 -> 255 scaling logic used in native C ColorSensor RGB readings
+    int16_t raw_r = 1024;
+    int16_t raw_g = 512;
+    int16_t raw_b = 0;
+
+    int32_t r = raw_r == 1024 ? 255 : raw_r >> 2;
+    int32_t g = raw_g == 1024 ? 255 : raw_g >> 2;
+    int32_t b = raw_b == 1024 ? 255 : raw_b >> 2;
+
+    tt_want_int_op(r, ==, 255);
+    tt_want_int_op(g, ==, 128);
+    tt_want_int_op(b, ==, 0);
+
+    // Test a mid-value close to 1024
+    int16_t raw_mid = 1023;
+    int32_t mid = raw_mid == 1024 ? 255 : raw_mid >> 2;
+    tt_want_int_op(mid, ==, 255); // 1023 >> 2 = 255
+}
+
 struct testcase_t pbio_color_tests[] = {
     PBIO_TEST(test_rgb_to_hsv),
     PBIO_TEST(test_hsv_to_rgb),
@@ -616,5 +636,6 @@ struct testcase_t pbio_color_tests[] = {
     PBIO_TEST(test_color_to_rgb),
     PBIO_TEST(test_color_hsv_compression),
     PBIO_TEST(test_color_hsv_cost),
+    PBIO_TEST(test_colorsensor_rgb_scaling),
     END_OF_TESTCASES
 };

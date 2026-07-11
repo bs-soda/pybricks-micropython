@@ -11,11 +11,14 @@
 #include "py/builtin.h"
 #include "py/runtime.h"
 
+extern const mp_obj_type_t pb_type_MDRobotBase;
+
 static const mp_rom_map_elem_t robotics_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__),    MP_ROM_QSTR(MP_QSTR_robotics)   },
     #if PYBRICKS_PY_COMMON_MOTORS
     { MP_ROM_QSTR(MP_QSTR_Car),         MP_ROM_PTR(&pb_type_car)        },
     { MP_ROM_QSTR(MP_QSTR_DriveBase),   MP_ROM_PTR(&pb_type_drivebase)  },
+    { MP_ROM_QSTR(MP_QSTR_MDRobotBase), MP_ROM_PTR(&pb_type_MDRobotBase) },
     #if PYBRICKS_PY_ROBOTICS_DRIVEBASE_SPIKE
     { MP_ROM_QSTR(MP_QSTR_SpikeBase),   MP_ROM_PTR(&pb_type_spikebase)  },
     #endif

@@ -54,6 +54,21 @@ static mp_obj_t get_reflection(mp_obj_t self_in) {
 }
 static PB_DEFINE_CONST_TYPE_DEVICE_METHOD_OBJ(get_reflection_obj, LEGO_DEVICE_MODE_PUP_COLOR_SENSOR__RGB_I, get_reflection);
 
+// pybricks.pupdevices.ColorSensor.rgb
+static mp_obj_t get_rgb(mp_obj_t self_in) {
+    int16_t *data = pb_type_device_get_data(self_in, LEGO_DEVICE_MODE_PUP_COLOR_SENSOR__RGB_I);
+    int32_t r = data[0] == 1024 ? 255 : data[0] >> 2;
+    int32_t g = data[1] == 1024 ? 255 : data[1] >> 2;
+    int32_t b = data[2] == 1024 ? 255 : data[2] >> 2;
+    mp_obj_t rgb_tuple[] = {
+        mp_obj_new_int(r),
+        mp_obj_new_int(g),
+        mp_obj_new_int(b),
+    };
+    return mp_obj_new_tuple(3, rgb_tuple);
+}
+static PB_DEFINE_CONST_TYPE_DEVICE_METHOD_OBJ(get_rgb_obj, LEGO_DEVICE_MODE_PUP_COLOR_SENSOR__RGB_I, get_rgb);
+
 // pybricks.pupdevices.ColorSensor.ambient
 static mp_obj_t get_ambient(mp_obj_t self_in) {
     // Get ambient from "V" in SHSV (0--10000), scaled to 0 to 100
@@ -171,6 +186,8 @@ static const mp_rom_map_elem_t pupdevices_ColorSensor_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_hsv),         MP_ROM_PTR(&get_hsv_obj)                  },
     { MP_ROM_QSTR(MP_QSTR_color),       MP_ROM_PTR(&get_color_obj)                },
     { MP_ROM_QSTR(MP_QSTR_reflection),  MP_ROM_PTR(&get_reflection_obj)           },
+    { MP_ROM_QSTR(MP_QSTR_rgb),         MP_ROM_PTR(&get_rgb_obj)                  },
+    { MP_ROM_QSTR(MP_QSTR_getRGB),      MP_ROM_PTR(&get_rgb_obj)                  },
     { MP_ROM_QSTR(MP_QSTR_ambient),     MP_ROM_PTR(&get_ambient_obj)              },
     { MP_ROM_QSTR(MP_QSTR_detectable_colors),   MP_ROM_PTR(&detectable_colors_obj)},
 };

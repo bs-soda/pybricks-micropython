@@ -23,6 +23,8 @@ To streamline development and prevent dual-repository overhead, `micropython/lib
    Eliminates the need to commit, push, and update reference SHAs in two separate submodule definitions during active development of Bluetooth-related code.
 4. **Compilation Framework Constraint:**
    Because the firmware is built using the MicroPython compilation infrastructure inside the `micropython/` subtree, the build system expects standard components to reside directly under `micropython/lib/btstack`. Since compilation cannot easily build dependencies located outside the `micropython` directory structure, symlinking the parent's `lib/btstack` into `micropython/lib/btstack` allows the compiler to access custom Pybricks Bluetooth modifications seamlessly.
+5. **Preventing `hci.c` Compiler Errors:**
+   If `micropython/lib/btstack` is not symlinked to `lib/btstack` (i.e. if it falls back to the default upstream MicroPython submodule code), building the firmware will fail with compiler errors inside `hci.c` (e.g. `'hci_stack_t' has no member named 'usable_packet_types_acl'`). Symlinking is required to resolve this mismatch.
 
 ---
 
@@ -38,7 +40,7 @@ cd micropython/lib/
 rm -rf btstack
 
 # Create the relative symbolic link pointing to the parent's btstack
-ln -s ../../../lib/btstack btstack
+ln -s ../../lib/btstack btstack
 ```
 
 ---
@@ -55,14 +57,14 @@ error: expected submodule path 'lib/btstack' not to be a symbolic link
 fatal: 'git status --porcelain=2' failed in submodule micropython
 ```
 
-#### How to temporarily restore the repository for Git status/commits:
-If you need to commit changes or verify git status, temporarily delete the symlink and restore the standard submodule reference:
+#### How to unlink and restore the repository before pushing/git status:
+If you need to run `git status`, commit changes, or push code, you **must** temporarily remove the symbolic link and restore the standard submodule reference folder:
 
 ```bash
-# Remove the symlink
+# Remove the symbolic link
 rm micropython/lib/btstack
 
-# Restore the submodule directory from Git cache
+# Restore the standard submodule folder reference from Git cache
 git submodule update --init --recursive
 ```
 After you are done with the Git operations, you can re-create the symlink to resume development.

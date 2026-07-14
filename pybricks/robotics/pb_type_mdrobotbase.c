@@ -236,7 +236,7 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
         float dy_init = gy - cur_y;
         float total_dist = sqrtf(dx_init * dx_init + dy_init * dy_init);
         float nominal_speed = fabsf(speed) > 1.0f ? fabsf(speed) : 100.0f;
-        timeout = (uint32_t)((total_dist / nominal_speed) * 1500.0f) + 2000;
+        timeout = (uint32_t)((total_dist / nominal_speed) * 1500.0f) + 1200;
     } else {
         timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
     }
@@ -293,6 +293,17 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
 
         if (dist_remaining <= tolerance) {
             break;
+        }
+
+        // Project current position onto the path vector to check if we have crossed the target plane
+        float path_x = gx - start_x;
+        float path_y = gy - start_y;
+        float path_len = sqrtf(path_x * path_x + path_y * path_y);
+        if (path_len > 1.0f) {
+            float dot = path_x * dx + path_y * dy;
+            if (dot <= 0.0f) {
+                break;
+            }
         }
 
         uint32_t now = pbdrv_clock_get_ms();
@@ -748,7 +759,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle_internal(
     uint32_t timeout;
     if (timeout_ms_obj == mp_const_none) {
         float nominal_speed = speed_deg_s > 10.0f ? speed_deg_s : 150.0f;
-        timeout = (uint32_t)((turn_angle / nominal_speed) * 1500.0f) + 1500;
+        timeout = (uint32_t)((turn_angle / nominal_speed) * 1500.0f) + 1000;
     } else {
         timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
     }
@@ -982,7 +993,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle_internal(
     uint32_t timeout;
     if (timeout_ms_obj == mp_const_none) {
         float nominal_speed = speed_deg_s > 10.0f ? speed_deg_s : 100.0f;
-        timeout = (uint32_t)((turn_angle / nominal_speed) * 1500.0f) + 1500;
+        timeout = (uint32_t)((turn_angle / nominal_speed) * 1500.0f) + 1000;
     } else {
         timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
     }
@@ -1279,6 +1290,10 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
     float last_theta = self->rb->theta;
     float integral = 0.0f;
 
+    float final_segment_start_x = cur_x;
+    float final_segment_start_y = cur_y;
+    bool final_segment_started = false;
+
     // We calculate a generous safety timeout based on the total distance of the trajectory
     float total_dist = 0.0f;
     float prev_tx = cur_x;
@@ -1296,7 +1311,7 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
         prev_ty = ty;
     }
     float nominal_speed = fabsf(speed) > 1.0f ? fabsf(speed) : 100.0f;
-    uint32_t timeout = (uint32_t)((total_dist / nominal_speed) * 2000.0f) + 3000;
+    uint32_t timeout = (uint32_t)((total_dist / nominal_speed) * 1500.0f) + 1500;
 
     while (1) {
         uint32_t elapsed_ms = pbdrv_clock_get_ms() - start_time;
@@ -1334,6 +1349,21 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
             // Final point arrival check
             if (dist_remaining <= tolerance) {
                 break;
+            }
+            if (!final_segment_started) {
+                final_segment_start_x = self->rb->x;
+                final_segment_start_y = self->rb->y;
+                final_segment_started = true;
+            }
+            // Project onto the final segment path vector to check if target plane was crossed
+            float path_x = gx - final_segment_start_x;
+            float path_y = gy - final_segment_start_y;
+            float path_len = sqrtf(path_x * path_x + path_y * path_y);
+            if (path_len > 1.0f) {
+                float dot = path_x * dx + path_y * dy;
+                if (dot <= 0.0f) {
+                    break;
+                }
             }
         }
 

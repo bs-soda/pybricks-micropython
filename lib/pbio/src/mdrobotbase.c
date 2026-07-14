@@ -45,6 +45,9 @@ pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbi
     rb->fusion_alpha = 0.95f;
     rb->last_accel_x = 0.0f;
     rb->backlash_filter_enabled = true;
+    rb->max_angular_speed = 300.0f;
+    rb->pid_min_turn = 0.0f;
+    rb->pid_min_turn_threshold = 0.15f;
     
     *rb_address = rb;
     return PBIO_SUCCESS;
@@ -193,5 +196,39 @@ pbio_error_t pbio_mdrobotbase_get_backlash_filter(pbio_mdrobotbase_t *rb, bool *
         return PBIO_ERROR_INVALID_ARG;
     }
     *enabled = rb->backlash_filter_enabled;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_set_max_angular_speed(pbio_mdrobotbase_t *rb, float speed) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    rb->max_angular_speed = speed;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_max_angular_speed(pbio_mdrobotbase_t *rb, float *speed) {
+    if (!rb || !speed) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *speed = rb->max_angular_speed;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_set_pid_min_turn(pbio_mdrobotbase_t *rb, float min_turn, float threshold) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    rb->pid_min_turn = min_turn;
+    rb->pid_min_turn_threshold = threshold;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_pid_min_turn(pbio_mdrobotbase_t *rb, float *min_turn, float *threshold) {
+    if (!rb || !min_turn || !threshold) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *min_turn = rb->pid_min_turn;
+    *threshold = rb->pid_min_turn_threshold;
     return PBIO_SUCCESS;
 }

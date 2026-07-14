@@ -114,6 +114,32 @@ static mp_obj_t pb_type_MDRobotBase_get_pid_gains(mp_obj_t self_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_pid_gains_obj, pb_type_MDRobotBase_get_pid_gains);
 
+// pybricks.robotics.MDRobotBase.set_pid_min_turn
+static mp_obj_t pb_type_MDRobotBase_set_pid_min_turn(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+    PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args,
+        pb_type_MDRobotBase_obj_t, self,
+        PB_ARG_REQUIRED(min_turn),
+        PB_ARG_REQUIRED(threshold));
+
+    float mt = mp_obj_get_float(min_turn_in);
+    float th = mp_obj_get_float(threshold_in);
+
+    pb_assert(pbio_mdrobotbase_set_pid_min_turn(self->rb, mt, th));
+
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_pid_min_turn_obj, 1, pb_type_MDRobotBase_set_pid_min_turn);
+
+// pybricks.robotics.MDRobotBase.get_pid_min_turn
+static mp_obj_t pb_type_MDRobotBase_get_pid_min_turn(mp_obj_t self_in) {
+    pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    mp_obj_t vals[2];
+    vals[0] = mp_obj_new_float_from_f(self->rb->pid_min_turn);
+    vals[1] = mp_obj_new_float_from_f(self->rb->pid_min_turn_threshold);
+    return mp_obj_new_tuple(2, vals);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_pid_min_turn_obj, pb_type_MDRobotBase_get_pid_min_turn);
+
 // pybricks.robotics.MDRobotBase.reset_state
 static mp_obj_t pb_type_MDRobotBase_reset_state(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args,
@@ -174,11 +200,31 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
     bool back,
     float tolerance,
     mp_obj_t timeout_ms_obj,
-    mp_obj_t then_obj) {
+    mp_obj_t then_obj,
+    float kick_speed,
+    float kick_time) {
 
     // Read current pose for initial calculations
     float cur_x = self->rb->x;
     float cur_y = self->rb->y;
+
+    float abs_target_speed = fabsf(speed);
+    float abs_start_speed = fabsf(start_speed);
+    float abs_end_speed = fabsf(end_speed);
+
+    // Dynamically scale ramping distances if default value (50.0mm) is used to prevent motor torque saturation
+    if (accel_d == 50.0f) {
+        float calc_accel = (abs_target_speed * abs_target_speed - abs_start_speed * abs_start_speed) / 1200.0f;
+        if (calc_accel > 50.0f) {
+            accel_d = calc_accel;
+        }
+    }
+    if (decel_d == 50.0f) {
+        float calc_decel = (abs_target_speed * abs_target_speed - abs_end_speed * abs_end_speed) / 1200.0f;
+        if (calc_decel > 50.0f) {
+            decel_d = calc_decel;
+        }
+    }
 
     float comp = get_battery_compensation_factor();
     accel_d *= comp;
@@ -214,6 +260,7 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
     float target_speed = back ? -fabsf(speed) : fabsf(speed);
     float current_start_speed = back ? -fabsf(start_speed) : fabsf(start_speed);
     float current_end_speed = back ? -fabsf(end_speed) : fabsf(end_speed);
+    float last_accel_speed_abs = fabsf(current_start_speed);
 
     // continuous startspeed transition from ongoing servo speed
     int32_t l_dps = 0, r_dps = 0, speed_unused = 0;
@@ -228,6 +275,8 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
     }
 
     uint32_t last_time = start_time;
+    float last_theta = self->rb->theta;
+    float integral = 0.0f;
 
     while (1) {
         uint32_t elapsed_ms = pbdrv_clock_get_ms() - start_time;
@@ -251,6 +300,12 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
         if (dt_sec <= 0.0f) dt_sec = 0.001f;
         last_time = now;
 
+        float delta_theta = self->rb->theta - last_theta;
+        while (delta_theta > 180.0f) delta_theta -= 360.0f;
+        while (delta_theta < -180.0f) delta_theta += 360.0f;
+        float w_raw = delta_theta / dt_sec;
+        last_theta = self->rb->theta;
+
         float dist_traveled = sqrtf((self->rb->x - start_x) * (self->rb->x - start_x) + (self->rb->y - start_y) * (self->rb->y - start_y));
 
         // Speed Profiling Calculation
@@ -270,6 +325,26 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
                 v_profile = v_acc;
             } else {
                 v_profile = v_dec;
+            }
+
+            // Monotonic Speed Filtering during Acceleration phase
+            if (dist_remaining >= decel_d && dist_traveled < accel_d && fabsf(current_start_speed) < fabsf(target_speed)) {
+                float v_profile_abs = fabsf(v_profile);
+                if (v_profile_abs < last_accel_speed_abs) {
+                    v_profile_abs = last_accel_speed_abs;
+                }
+                last_accel_speed_abs = v_profile_abs;
+                v_profile = (target_speed >= 0.0f) ? v_profile_abs : -v_profile_abs;
+            }
+
+            // Apply stiction kick if requested and still within the kick window
+            if (elapsed_ms < (uint32_t)kick_time) {
+                float abs_kick_speed = fabsf(kick_speed);
+                float v_profile_abs = fabsf(v_profile);
+                if (v_profile_abs < abs_kick_speed) {
+                    v_profile_abs = abs_kick_speed;
+                }
+                v_profile = (target_speed >= 0.0f) ? v_profile_abs : -v_profile_abs;
             }
         }
 
@@ -313,8 +388,16 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
             float e_y = e_y_local / 1000.0f;
             float e_theta = e_theta_deg * (3.14159265f / 180.0f);
 
+            // Dynamic LQR gain scheduling based on profile velocity
+            float v_abs = fabsf(v_profile);
+            float sched_scale = sqrtf(v_abs / 300.0f);
+            if (sched_scale < 0.2f) sched_scale = 0.2f;
+
+            float scheduled_k_y = self->rb->k_y * sched_scale;
+            float scheduled_k_theta = self->rb->k_theta * sched_scale;
+
             float u_v = -((self->rb->k_x * comp) * e_x);
-            float u_w = -((self->rb->k_y * comp) * e_y + (self->rb->k_theta * comp) * e_theta);
+            float u_w = -((scheduled_k_y * comp) * e_y + (scheduled_k_theta * comp) * e_theta);
 
             v_cmd = v_profile - u_v * 1000.0f;
             w_cmd = 0.0f - u_w * (180.0f / 3.14159265f);
@@ -327,7 +410,28 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
             while (e_theta > 180.0f) e_theta -= 360.0f;
             while (e_theta < -180.0f) e_theta += 360.0f;
 
-            w_cmd = (self->rb->kp * comp) * e_theta;
+            float i_term = 0.0f;
+            if (self->rb->ki > 0.0f) {
+                integral += e_theta * dt_sec;
+                float max_integral = 100.0f / self->rb->ki;
+                if (integral > max_integral) integral = max_integral;
+                if (integral < -max_integral) integral = -max_integral;
+                i_term = self->rb->ki * integral;
+            }
+
+            float d_term = -(self->rb->kd * comp) * w_raw;
+            w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
+
+            // Stiction and backlash minimum steering command deadband
+            if (self->rb->pid_min_turn > 0.0f && fabsf(e_theta) > self->rb->pid_min_turn_threshold) {
+                float min_turn = self->rb->pid_min_turn * comp;
+                if (w_cmd > 0.0f) {
+                    if (w_cmd < min_turn) w_cmd = min_turn;
+                } else {
+                    if (w_cmd > -min_turn) w_cmd = -min_turn;
+                }
+            }
+
             w_cmd = w_cmd - l_diff * 0.5f;
             v_cmd = v_cmd - l_avg * 0.5f;
         }
@@ -364,6 +468,11 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
             timeout += turn_timeout_add;
         }
 
+        uint32_t final_last_time = pbdrv_clock_get_ms();
+        float final_last_theta = self->rb->theta;
+        float final_integral = 0.0f;
+        float final_stall_time_ms = 0.0f;
+
         while (1) {
             uint32_t elapsed_ms = pbdrv_clock_get_ms() - start_time;
             if (timeout > 0 && elapsed_ms >= timeout) {
@@ -372,6 +481,17 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
 
             float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
             pbio_mdrobotbase_update_state(self->rb, gyro_heading);
+
+            uint32_t now = pbdrv_clock_get_ms();
+            float dt_sec = (float)(now - final_last_time) / 1000.0f;
+            if (dt_sec <= 0.0f) dt_sec = 0.001f;
+            final_last_time = now;
+
+            float delta_theta = self->rb->theta - final_last_theta;
+            while (delta_theta > 180.0f) delta_theta -= 360.0f;
+            while (delta_theta < -180.0f) delta_theta += 360.0f;
+            float w_raw = delta_theta / dt_sec;
+            final_last_theta = self->rb->theta;
 
             float e_theta = gt - self->rb->theta;
             while (e_theta > 180.0f) e_theta -= 360.0f;
@@ -387,10 +507,33 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
             pbio_servo_get_load(self->rb->right, &right_load);
             float l_diff = (float)(right_load - left_load);
 
-            float w_cmd = (self->rb->kp * comp) * e_theta;
+            float i_term = 0.0f;
+            if (self->rb->ki > 0.0f) {
+                final_integral += e_theta * dt_sec;
+                float max_integral = 100.0f / self->rb->ki;
+                if (final_integral > max_integral) final_integral = max_integral;
+                if (final_integral < -max_integral) final_integral = -max_integral;
+                i_term = self->rb->ki * final_integral;
+            }
+
+            float d_term = -(self->rb->kd * comp) * w_raw;
+            float w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
             w_cmd = w_cmd - l_diff * 0.5f;
-            if (w_cmd > 200.0f) w_cmd = 200.0f;
-            if (w_cmd < -200.0f) w_cmd = -200.0f;
+            if (w_cmd > self->rb->max_angular_speed) w_cmd = self->rb->max_angular_speed;
+            if (w_cmd < -self->rb->max_angular_speed) w_cmd = -self->rb->max_angular_speed;
+
+            // Sensor-fused angular stall detection during turn
+            if (elapsed_ms > 200) {
+                if (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f) {
+                    final_stall_time_ms += dt_sec * 1000.0f;
+                } else {
+                    final_stall_time_ms = 0.0f;
+                }
+
+                if (final_stall_time_ms > 200.0f) {
+                    break;
+                }
+            }
 
             float w_rad = w_cmd * (3.14159265f / 180.0f);
             float left_vel = -w_rad * (track_mm / 2.0f);
@@ -423,6 +566,14 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal_internal(
     float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
     pbio_mdrobotbase_update_state(self->rb, gyro_heading);
 
+    // If stop behavior is not coasting, reset low-level encoder hardware registers to zero to synchronize physical angles
+    if (stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
+        pbio_servo_reset_angle(self->rb->left, 0, false);
+        pbio_servo_reset_angle(self->rb->right, 0, false);
+        self->rb->last_left_deg = 0.0f;
+        self->rb->last_right_deg = 0.0f;
+    }
+
     return mp_const_none;
 }
 
@@ -444,6 +595,8 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args, const mp_obj
         { MP_QSTR_tolerance_dist, MP_ARG_INT, {.u_int = 15} },
         { MP_QSTR_timeout_ms, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_then, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_PTR(&pb_Stop_HOLD_obj)} },
+        { MP_QSTR_kick_speed_mm_s, MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_kick_time_ms, MP_ARG_INT, {.u_int = 0} },
     };
 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
@@ -462,10 +615,13 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args, const mp_obj
     float tolerance = (float)parsed_args[10].u_int;
     mp_obj_t timeout_ms_obj = parsed_args[11].u_obj;
     mp_obj_t then_obj = parsed_args[12].u_obj;
+    float kick_speed = (float)parsed_args[13].u_int;
+    float kick_time = (float)parsed_args[14].u_int;
 
     return pb_type_MDRobotBase_navigate_to_goal_internal(
         self, gx, gy, goal_theta_obj, speed, start_speed, end_speed,
-        accel_d, decel_d, ramping, back, tolerance, timeout_ms_obj, then_obj);
+        accel_d, decel_d, ramping, back, tolerance, timeout_ms_obj, then_obj,
+        kick_speed, kick_time);
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_navigate_to_goal_obj, 1, pb_type_MDRobotBase_navigate_to_goal);
 
@@ -483,6 +639,8 @@ static mp_obj_t pb_type_MDRobotBase_go_forward(size_t n_args, const mp_obj_t *po
         { MP_QSTR_use_ramping, MP_ARG_BOOL, {.u_bool = true} },
         { MP_QSTR_timeout_ms, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_then, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_PTR(&pb_Stop_HOLD_obj)} },
+        { MP_QSTR_kick_speed_mm_s, MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_kick_time_ms, MP_ARG_INT, {.u_int = 0} },
     };
 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
@@ -497,6 +655,8 @@ static mp_obj_t pb_type_MDRobotBase_go_forward(size_t n_args, const mp_obj_t *po
     bool ramping = parsed_args[6].u_bool;
     mp_obj_t timeout_ms_obj = parsed_args[7].u_obj;
     mp_obj_t then_obj = parsed_args[8].u_obj;
+    float kick_speed = (float)parsed_args[9].u_int;
+    float kick_time = (float)parsed_args[10].u_int;
 
     float cur_x = self->rb->x;
     float cur_y = self->rb->y;
@@ -505,11 +665,12 @@ static mp_obj_t pb_type_MDRobotBase_go_forward(size_t n_args, const mp_obj_t *po
 
     float gx = cur_x + distance * cosf(rad);
     float gy = cur_y + distance * sinf(rad);
-    mp_obj_t goal_theta_obj = mp_obj_new_float(cur_theta);
+    mp_obj_t goal_theta_obj = mp_const_none;
 
     return pb_type_MDRobotBase_navigate_to_goal_internal(
         self, gx, gy, goal_theta_obj, speed, start_speed, end_speed,
-        accel_d, decel_d, ramping, false, 15.0f, timeout_ms_obj, then_obj);
+        accel_d, decel_d, ramping, false, 15.0f, timeout_ms_obj, then_obj,
+        kick_speed, kick_time);
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_go_forward_obj, 1, pb_type_MDRobotBase_go_forward);
 
@@ -527,6 +688,8 @@ static mp_obj_t pb_type_MDRobotBase_go_backward(size_t n_args, const mp_obj_t *p
         { MP_QSTR_use_ramping, MP_ARG_BOOL, {.u_bool = true} },
         { MP_QSTR_timeout_ms, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_then, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_PTR(&pb_Stop_HOLD_obj)} },
+        { MP_QSTR_kick_speed_mm_s, MP_ARG_INT, {.u_int = 0} },
+        { MP_QSTR_kick_time_ms, MP_ARG_INT, {.u_int = 0} },
     };
 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
@@ -541,6 +704,8 @@ static mp_obj_t pb_type_MDRobotBase_go_backward(size_t n_args, const mp_obj_t *p
     bool ramping = parsed_args[6].u_bool;
     mp_obj_t timeout_ms_obj = parsed_args[7].u_obj;
     mp_obj_t then_obj = parsed_args[8].u_obj;
+    float kick_speed = (float)parsed_args[9].u_int;
+    float kick_time = (float)parsed_args[10].u_int;
 
     float cur_x = self->rb->x;
     float cur_y = self->rb->y;
@@ -549,11 +714,12 @@ static mp_obj_t pb_type_MDRobotBase_go_backward(size_t n_args, const mp_obj_t *p
 
     float gx = cur_x - distance * cosf(rad);
     float gy = cur_y - distance * sinf(rad);
-    mp_obj_t goal_theta_obj = mp_obj_new_float(cur_theta);
+    mp_obj_t goal_theta_obj = mp_const_none;
 
     return pb_type_MDRobotBase_navigate_to_goal_internal(
         self, gx, gy, goal_theta_obj, speed, start_speed, end_speed,
-        accel_d, decel_d, ramping, true, 15.0f, timeout_ms_obj, then_obj);
+        accel_d, decel_d, ramping, true, 15.0f, timeout_ms_obj, then_obj,
+        kick_speed, kick_time);
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_go_backward_obj, 1, pb_type_MDRobotBase_go_backward);
 
@@ -564,7 +730,9 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle_internal(
     float speed_deg_s,
     mp_obj_t tolerance_obj,
     mp_obj_t timeout_ms_obj,
-    mp_obj_t then_obj) {
+    mp_obj_t then_obj,
+    float accel_angle,
+    float start_turn_rate) {
 
     float tolerance = 1.5f;
     if (tolerance_obj != mp_const_none) {
@@ -587,11 +755,32 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle_internal(
 
     pbio_control_on_completion_t stop_behavior = pb_type_enum_get_value(then_obj, &pb_enum_type_Stop);
     uint32_t start_time = pbdrv_clock_get_ms();
+    uint32_t last_time = start_time;
+    float last_theta = self->rb->theta;
+    float integral = 0.0f;
+    float stall_time_ms = 0.0f;
 
     float diam_mm = (float)self->rb->wheel_diameter / 1000.0f;
     float track_mm = (float)self->rb->axle_track / 1000.0f;
 
     float comp = get_battery_compensation_factor();
+
+    if (start_turn_rate <= 40.0f) {
+        float pretension_rate = 40.0f * (e_theta_init >= 0.0f ? 1.0f : -1.0f);
+        float w_rad = pretension_rate * (3.14159265f / 180.0f);
+        float left_vel = -w_rad * (track_mm / 2.0f);
+        float right_vel = w_rad * (track_mm / 2.0f);
+        int32_t left_dps = (int32_t)((left_vel / (3.14159265f * diam_mm)) * 360.0f);
+        int32_t right_dps = (int32_t)((right_vel / (3.14159265f * diam_mm)) * 360.0f);
+        pbio_servo_run_forever(self->rb->left, left_dps);
+        pbio_servo_run_forever(self->rb->right, right_dps);
+        mp_hal_delay_ms(80);
+
+        float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
+        pbio_mdrobotbase_update_state(self->rb, gyro_heading);
+        last_time = pbdrv_clock_get_ms();
+        last_theta = self->rb->theta;
+    }
 
     while (1) {
         uint32_t elapsed_ms = pbdrv_clock_get_ms() - start_time;
@@ -601,6 +790,17 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle_internal(
 
         float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
         pbio_mdrobotbase_update_state(self->rb, gyro_heading);
+
+        uint32_t now = pbdrv_clock_get_ms();
+        float dt_sec = (float)(now - last_time) / 1000.0f;
+        if (dt_sec <= 0.0f) dt_sec = 0.001f;
+        last_time = now;
+
+        float delta_theta = self->rb->theta - last_theta;
+        while (delta_theta > 180.0f) delta_theta -= 360.0f;
+        while (delta_theta < -180.0f) delta_theta += 360.0f;
+        float w_raw = delta_theta / dt_sec;
+        last_theta = self->rb->theta;
 
         float e_theta = target_angle - self->rb->theta;
         while (e_theta > 180.0f) e_theta -= 360.0f;
@@ -616,10 +816,43 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle_internal(
         pbio_servo_get_load(self->rb->right, &right_load);
         float l_diff = (float)(right_load - left_load);
 
-        float w_cmd = (self->rb->kp * comp) * e_theta;
+        float i_term = 0.0f;
+        if (self->rb->ki > 0.0f) {
+            integral += e_theta * dt_sec;
+            float max_integral = 100.0f / self->rb->ki;
+            if (integral > max_integral) integral = max_integral;
+            if (integral < -max_integral) integral = -max_integral;
+            i_term = self->rb->ki * integral;
+        }
+
+        float d_term = -(self->rb->kd * comp) * w_raw;
+        float w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
         w_cmd = w_cmd - l_diff * 0.5f;
-        if (w_cmd > speed_deg_s) w_cmd = speed_deg_s;
-        if (w_cmd < -speed_deg_s) w_cmd = -speed_deg_s;
+        float remaining_angle = fabsf(e_theta);
+        float turned_angle = turn_angle - remaining_angle;
+        if (turned_angle < 0.0f) turned_angle = 0.0f;
+
+        float accel_limit = speed_deg_s;
+        if (accel_angle > 0.0f && turned_angle < accel_angle) {
+            accel_limit = start_turn_rate + (speed_deg_s - start_turn_rate) * (turned_angle / accel_angle);
+        }
+
+        float limit = accel_limit < self->rb->max_angular_speed ? accel_limit : self->rb->max_angular_speed;
+        if (w_cmd > limit) w_cmd = limit;
+        if (w_cmd < -limit) w_cmd = -limit;
+
+        // Sensor-fused angular stall detection during turn
+        if (elapsed_ms > 200) {
+            if (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f) {
+                stall_time_ms += dt_sec * 1000.0f;
+            } else {
+                stall_time_ms = 0.0f;
+            }
+
+            if (stall_time_ms > 200.0f) {
+                break;
+            }
+        }
 
         float w_rad = w_cmd * (3.14159265f / 180.0f);
         float left_vel = -w_rad * (track_mm / 2.0f);
@@ -662,6 +895,8 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args, const mp_obj_t 
         { MP_QSTR_tolerance, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_timeout_ms, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_then, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_PTR(&pb_Stop_HOLD_obj)} },
+        { MP_QSTR_accel_angle, MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_start_turn_rate, MP_ARG_OBJ, {.u_obj = mp_const_none} },
     };
 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
@@ -672,9 +907,11 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args, const mp_obj_t 
     mp_obj_t tolerance_obj = parsed_args[2].u_obj;
     mp_obj_t timeout_ms_obj = parsed_args[3].u_obj;
     mp_obj_t then_obj = parsed_args[4].u_obj;
+    float accel_angle = parsed_args[5].u_obj == mp_const_none ? 15.0f : mp_obj_get_float(parsed_args[5].u_obj);
+    float start_turn_rate = parsed_args[6].u_obj == mp_const_none ? 40.0f : mp_obj_get_float(parsed_args[6].u_obj);
 
     return pb_type_MDRobotBase_turn_to_angle_internal(
-        self, target_angle, speed_deg_s, tolerance_obj, timeout_ms_obj, then_obj);
+        self, target_angle, speed_deg_s, tolerance_obj, timeout_ms_obj, then_obj, accel_angle, start_turn_rate);
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_turn_to_angle_obj, 1, pb_type_MDRobotBase_turn_to_angle);
 
@@ -688,6 +925,8 @@ static mp_obj_t pb_type_MDRobotBase_turn_angle(size_t n_args, const mp_obj_t *po
         { MP_QSTR_tolerance, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_timeout_ms, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_then, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_PTR(&pb_Stop_HOLD_obj)} },
+        { MP_QSTR_accel_angle, MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_start_turn_rate, MP_ARG_OBJ, {.u_obj = mp_const_none} },
     };
 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
@@ -698,13 +937,15 @@ static mp_obj_t pb_type_MDRobotBase_turn_angle(size_t n_args, const mp_obj_t *po
     mp_obj_t tolerance_obj = parsed_args[2].u_obj;
     mp_obj_t timeout_ms_obj = parsed_args[3].u_obj;
     mp_obj_t then_obj = parsed_args[4].u_obj;
+    float accel_angle = parsed_args[5].u_obj == mp_const_none ? 15.0f : mp_obj_get_float(parsed_args[5].u_obj);
+    float start_turn_rate = parsed_args[6].u_obj == mp_const_none ? 40.0f : mp_obj_get_float(parsed_args[6].u_obj);
 
     float target_angle = self->rb->theta + angle;
     while (target_angle > 180.0f) target_angle -= 360.0f;
     while (target_angle < -180.0f) target_angle += 360.0f;
 
     return pb_type_MDRobotBase_turn_to_angle_internal(
-        self, target_angle, speed_deg_s, tolerance_obj, timeout_ms_obj, then_obj);
+        self, target_angle, speed_deg_s, tolerance_obj, timeout_ms_obj, then_obj, accel_angle, start_turn_rate);
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_turn_angle_obj, 1, pb_type_MDRobotBase_turn_angle);
 
@@ -715,7 +956,9 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle_internal(
     mp_obj_t pivot_side_obj,
     mp_obj_t tolerance_obj,
     mp_obj_t timeout_ms_obj,
-    mp_obj_t then_obj) {
+    mp_obj_t then_obj,
+    float accel_angle,
+    float start_turn_rate) {
 
     float tolerance = 1.5f;
     if (tolerance_obj != mp_const_none) {
@@ -746,11 +989,37 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle_internal(
 
     pbio_control_on_completion_t stop_behavior = pb_type_enum_get_value(then_obj, &pb_enum_type_Stop);
     uint32_t start_time = pbdrv_clock_get_ms();
+    uint32_t last_time = start_time;
+    float last_theta = self->rb->theta;
+    float integral = 0.0f;
+    float stall_time_ms = 0.0f;
 
     float diam_mm = (float)self->rb->wheel_diameter / 1000.0f;
     float track_mm = (float)self->rb->axle_track / 1000.0f;
 
     float comp = get_battery_compensation_factor();
+
+    if (start_turn_rate <= 40.0f) {
+        float pretension_rate = 40.0f * (e_theta_init >= 0.0f ? 1.0f : -1.0f);
+        float w_rad = pretension_rate * (3.14159265f / 180.0f);
+        if (pivot_left) {
+            pbio_servo_stop(self->rb->left, PBIO_CONTROL_ON_COMPLETION_HOLD);
+            float right_vel = w_rad * track_mm;
+            int32_t right_dps = (int32_t)((right_vel / (3.14159265f * diam_mm)) * 360.0f);
+            pbio_servo_run_forever(self->rb->right, right_dps);
+        } else {
+            pbio_servo_stop(self->rb->right, PBIO_CONTROL_ON_COMPLETION_HOLD);
+            float left_vel = -w_rad * track_mm;
+            int32_t left_dps = (int32_t)((left_vel / (3.14159265f * diam_mm)) * 360.0f);
+            pbio_servo_run_forever(self->rb->left, left_dps);
+        }
+        mp_hal_delay_ms(80);
+
+        float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
+        pbio_mdrobotbase_update_state(self->rb, gyro_heading);
+        last_time = pbdrv_clock_get_ms();
+        last_theta = self->rb->theta;
+    }
 
     while (1) {
         uint32_t elapsed_ms = pbdrv_clock_get_ms() - start_time;
@@ -760,6 +1029,17 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle_internal(
 
         float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
         pbio_mdrobotbase_update_state(self->rb, gyro_heading);
+
+        uint32_t now = pbdrv_clock_get_ms();
+        float dt_sec = (float)(now - last_time) / 1000.0f;
+        if (dt_sec <= 0.0f) dt_sec = 0.001f;
+        last_time = now;
+
+        float delta_theta = self->rb->theta - last_theta;
+        while (delta_theta > 180.0f) delta_theta -= 360.0f;
+        while (delta_theta < -180.0f) delta_theta += 360.0f;
+        float w_raw = delta_theta / dt_sec;
+        last_theta = self->rb->theta;
 
         float e_theta = target_angle - self->rb->theta;
         while (e_theta > 180.0f) e_theta -= 360.0f;
@@ -774,15 +1054,48 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle_internal(
         pbio_servo_get_load(self->rb->right, &right_load);
         pbio_servo_get_load(self->rb->left, &left_load);
 
-        float w_cmd = (self->rb->kp * comp) * e_theta;
+        float i_term = 0.0f;
+        if (self->rb->ki > 0.0f) {
+            integral += e_theta * dt_sec;
+            float max_integral = 100.0f / self->rb->ki;
+            if (integral > max_integral) integral = max_integral;
+            if (integral < -max_integral) integral = -max_integral;
+            i_term = self->rb->ki * integral;
+        }
+
+        float d_term = -(self->rb->kd * comp) * w_raw;
+        float w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
         if (pivot_left) {
             w_cmd = w_cmd - (float)right_load * 0.5f;
         } else {
             w_cmd = w_cmd + (float)left_load * 0.5f;
         }
 
-        if (w_cmd > speed_deg_s) w_cmd = speed_deg_s;
-        if (w_cmd < -speed_deg_s) w_cmd = -speed_deg_s;
+        float remaining_angle = fabsf(e_theta);
+        float turned_angle = turn_angle - remaining_angle;
+        if (turned_angle < 0.0f) turned_angle = 0.0f;
+
+        float accel_limit = speed_deg_s;
+        if (accel_angle > 0.0f && turned_angle < accel_angle) {
+            accel_limit = start_turn_rate + (speed_deg_s - start_turn_rate) * (turned_angle / accel_angle);
+        }
+
+        float limit = accel_limit < self->rb->max_angular_speed ? accel_limit : self->rb->max_angular_speed;
+        if (w_cmd > limit) w_cmd = limit;
+        if (w_cmd < -limit) w_cmd = -limit;
+
+        // Sensor-fused angular stall detection during turn
+        if (elapsed_ms > 200) {
+            if (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f) {
+                stall_time_ms += dt_sec * 1000.0f;
+            } else {
+                stall_time_ms = 0.0f;
+            }
+
+            if (stall_time_ms > 200.0f) {
+                break;
+            }
+        }
 
         float w_rad = w_cmd * (3.14159265f / 180.0f);
 
@@ -837,6 +1150,8 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args, const mp_
         { MP_QSTR_tolerance, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_timeout_ms, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_then, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_PTR(&pb_Stop_HOLD_obj)} },
+        { MP_QSTR_accel_angle, MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_start_turn_rate, MP_ARG_OBJ, {.u_obj = mp_const_none} },
     };
 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
@@ -848,9 +1163,11 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args, const mp_
     mp_obj_t tolerance_obj = parsed_args[3].u_obj;
     mp_obj_t timeout_ms_obj = parsed_args[4].u_obj;
     mp_obj_t then_obj = parsed_args[5].u_obj;
+    float accel_angle = parsed_args[6].u_obj == mp_const_none ? 15.0f : mp_obj_get_float(parsed_args[6].u_obj);
+    float start_turn_rate = parsed_args[7].u_obj == mp_const_none ? 40.0f : mp_obj_get_float(parsed_args[7].u_obj);
 
     return pb_type_MDRobotBase_pivot_turn_to_angle_internal(
-        self, target_angle, speed_deg_s, pivot_side_obj, tolerance_obj, timeout_ms_obj, then_obj);
+        self, target_angle, speed_deg_s, pivot_side_obj, tolerance_obj, timeout_ms_obj, then_obj, accel_angle, start_turn_rate);
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_pivot_turn_to_angle_obj, 1, pb_type_MDRobotBase_pivot_turn_to_angle);
 
@@ -865,6 +1182,8 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_angle(size_t n_args, const mp_obj
         { MP_QSTR_tolerance, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_timeout_ms, MP_ARG_OBJ, {.u_obj = mp_const_none} },
         { MP_QSTR_then, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_PTR(&pb_Stop_HOLD_obj)} },
+        { MP_QSTR_accel_angle, MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_start_turn_rate, MP_ARG_OBJ, {.u_obj = mp_const_none} },
     };
 
     mp_arg_val_t parsed_args[MP_ARRAY_SIZE(allowed_args)];
@@ -876,13 +1195,15 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_angle(size_t n_args, const mp_obj
     mp_obj_t tolerance_obj = parsed_args[3].u_obj;
     mp_obj_t timeout_ms_obj = parsed_args[4].u_obj;
     mp_obj_t then_obj = parsed_args[5].u_obj;
+    float accel_angle = parsed_args[6].u_obj == mp_const_none ? 15.0f : mp_obj_get_float(parsed_args[6].u_obj);
+    float start_turn_rate = parsed_args[7].u_obj == mp_const_none ? 40.0f : mp_obj_get_float(parsed_args[7].u_obj);
 
     float target_angle = self->rb->theta + angle;
     while (target_angle > 180.0f) target_angle -= 360.0f;
     while (target_angle < -180.0f) target_angle += 360.0f;
 
     return pb_type_MDRobotBase_pivot_turn_to_angle_internal(
-        self, target_angle, speed_deg_s, pivot_side_obj, tolerance_obj, timeout_ms_obj, then_obj);
+        self, target_angle, speed_deg_s, pivot_side_obj, tolerance_obj, timeout_ms_obj, then_obj, accel_angle, start_turn_rate);
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_pivot_turn_angle_obj, 1, pb_type_MDRobotBase_pivot_turn_angle);
 
@@ -955,6 +1276,8 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
     size_t current_point_idx = 0;
     uint32_t start_time = pbdrv_clock_get_ms();
     uint32_t last_time = start_time;
+    float last_theta = self->rb->theta;
+    float integral = 0.0f;
 
     // We calculate a generous safety timeout based on the total distance of the trajectory
     float total_dist = 0.0f;
@@ -1018,6 +1341,12 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
         float dt_sec = (float)(now - last_time) / 1000.0f;
         if (dt_sec <= 0.0f) dt_sec = 0.001f;
         last_time = now;
+
+        float delta_theta = self->rb->theta - last_theta;
+        while (delta_theta > 180.0f) delta_theta -= 360.0f;
+        while (delta_theta < -180.0f) delta_theta += 360.0f;
+        float w_raw = delta_theta / dt_sec;
+        last_theta = self->rb->theta;
 
         float dist_traveled = sqrtf((self->rb->x - start_x) * (self->rb->x - start_x) + (self->rb->y - start_y) * (self->rb->y - start_y));
 
@@ -1090,8 +1419,16 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
             float e_y = e_y_local / 1000.0f;
             float e_theta = e_theta_deg * (3.14159265f / 180.0f);
 
+            // Dynamic LQR gain scheduling based on profile velocity
+            float v_abs = fabsf(v_profile);
+            float sched_scale = sqrtf(v_abs / 300.0f);
+            if (sched_scale < 0.2f) sched_scale = 0.2f;
+
+            float scheduled_k_y = self->rb->k_y * sched_scale;
+            float scheduled_k_theta = self->rb->k_theta * sched_scale;
+
             float u_v = -((self->rb->k_x * comp) * e_x);
-            float u_w = -((self->rb->k_y * comp) * e_y + (self->rb->k_theta * comp) * e_theta);
+            float u_w = -((scheduled_k_y * comp) * e_y + (scheduled_k_theta * comp) * e_theta);
 
             v_cmd = v_profile - u_v * 1000.0f;
             w_cmd = 0.0f - u_w * (180.0f / 3.14159265f);
@@ -1104,7 +1441,28 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
             while (e_theta > 180.0f) e_theta -= 360.0f;
             while (e_theta < -180.0f) e_theta += 360.0f;
 
-            w_cmd = (self->rb->kp * comp) * e_theta;
+            float i_term = 0.0f;
+            if (self->rb->ki > 0.0f) {
+                integral += e_theta * dt_sec;
+                float max_integral = 100.0f / self->rb->ki;
+                if (integral > max_integral) integral = max_integral;
+                if (integral < -max_integral) integral = -max_integral;
+                i_term = self->rb->ki * integral;
+            }
+
+            float d_term = -(self->rb->kd * comp) * w_raw;
+            w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
+
+            // Stiction and backlash minimum steering command deadband
+            if (self->rb->pid_min_turn > 0.0f && fabsf(e_theta) > self->rb->pid_min_turn_threshold) {
+                float min_turn = self->rb->pid_min_turn * comp;
+                if (w_cmd > 0.0f) {
+                    if (w_cmd < min_turn) w_cmd = min_turn;
+                } else {
+                    if (w_cmd > -min_turn) w_cmd = -min_turn;
+                }
+            }
+
             w_cmd = w_cmd - l_diff * 0.5f;
             v_cmd = v_cmd - l_avg * 0.5f;
         }
@@ -1140,6 +1498,11 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
     mp_obj_get_array(points[num_points - 1], &last_p_len, &last_p_coords);
     if (last_p_len >= 3 && last_p_coords[2] != mp_const_none) {
         float gt = mp_obj_get_float(last_p_coords[2]);
+        uint32_t final_last_time = pbdrv_clock_get_ms();
+        float final_last_theta = self->rb->theta;
+        float final_integral = 0.0f;
+        float final_stall_time_ms = 0.0f;
+
         while (1) {
             uint32_t elapsed_ms = pbdrv_clock_get_ms() - start_time;
             if (timeout > 0 && elapsed_ms >= timeout) {
@@ -1148,6 +1511,17 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
 
             float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
             pbio_mdrobotbase_update_state(self->rb, gyro_heading);
+
+            uint32_t now = pbdrv_clock_get_ms();
+            float dt_sec = (float)(now - final_last_time) / 1000.0f;
+            if (dt_sec <= 0.0f) dt_sec = 0.001f;
+            final_last_time = now;
+
+            float delta_theta = self->rb->theta - final_last_theta;
+            while (delta_theta > 180.0f) delta_theta -= 360.0f;
+            while (delta_theta < -180.0f) delta_theta += 360.0f;
+            float w_raw = delta_theta / dt_sec;
+            final_last_theta = self->rb->theta;
 
             float e_theta = gt - self->rb->theta;
             while (e_theta > 180.0f) e_theta -= 360.0f;
@@ -1163,10 +1537,33 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
             pbio_servo_get_load(self->rb->right, &right_load);
             float l_diff = (float)(right_load - left_load);
 
-            float w_cmd = (self->rb->kp * comp) * e_theta;
+            float i_term = 0.0f;
+            if (self->rb->ki > 0.0f) {
+                final_integral += e_theta * dt_sec;
+                float max_integral = 100.0f / self->rb->ki;
+                if (final_integral > max_integral) final_integral = max_integral;
+                if (final_integral < -max_integral) final_integral = -max_integral;
+                i_term = self->rb->ki * final_integral;
+            }
+
+            float d_term = -(self->rb->kd * comp) * w_raw;
+            float w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
             w_cmd = w_cmd - l_diff * 0.5f;
-            if (w_cmd > 200.0f) w_cmd = 200.0f;
-            if (w_cmd < -200.0f) w_cmd = -200.0f;
+            if (w_cmd > self->rb->max_angular_speed) w_cmd = self->rb->max_angular_speed;
+            if (w_cmd < -self->rb->max_angular_speed) w_cmd = -self->rb->max_angular_speed;
+
+            // Sensor-fused angular stall detection during turn
+            if (elapsed_ms > 200) {
+                if (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f) {
+                    final_stall_time_ms += dt_sec * 1000.0f;
+                } else {
+                    final_stall_time_ms = 0.0f;
+                }
+
+                if (final_stall_time_ms > 200.0f) {
+                    break;
+                }
+            }
 
             float w_rad = w_cmd * (3.14159265f / 180.0f);
             float left_vel = -w_rad * (track_mm / 2.0f);
@@ -1218,6 +1615,24 @@ static mp_obj_t pb_type_MDRobotBase_get_backlash_filter(mp_obj_t self_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_backlash_filter_obj, pb_type_MDRobotBase_get_backlash_filter);
 
+// pybricks.robotics.MDRobotBase.set_max_angular_speed
+static mp_obj_t pb_type_MDRobotBase_set_max_angular_speed(mp_obj_t self_in, mp_obj_t speed_in) {
+    pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    float speed = mp_obj_get_float(speed_in);
+    pb_assert(pbio_mdrobotbase_set_max_angular_speed(self->rb, speed));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_max_angular_speed_obj, pb_type_MDRobotBase_set_max_angular_speed);
+
+// pybricks.robotics.MDRobotBase.get_max_angular_speed
+static mp_obj_t pb_type_MDRobotBase_get_max_angular_speed(mp_obj_t self_in) {
+    pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+    float speed;
+    pb_assert(pbio_mdrobotbase_get_max_angular_speed(self->rb, &speed));
+    return mp_obj_new_float(speed);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_max_angular_speed_obj, pb_type_MDRobotBase_get_max_angular_speed);
+
 // pybricks.robotics.MDRobotBase.__init__
 static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     PB_PARSE_ARGS_CLASS(n_args, n_kw, args,
@@ -1261,6 +1676,10 @@ static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_follow_trajectory), MP_ROM_PTR(&pb_type_MDRobotBase_follow_trajectory_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_backlash_filter), MP_ROM_PTR(&pb_type_MDRobotBase_set_backlash_filter_obj) },
     { MP_ROM_QSTR(MP_QSTR_get_backlash_filter), MP_ROM_PTR(&pb_type_MDRobotBase_get_backlash_filter_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_max_angular_speed), MP_ROM_PTR(&pb_type_MDRobotBase_set_max_angular_speed_obj) },
+    { MP_ROM_QSTR(MP_QSTR_get_max_angular_speed), MP_ROM_PTR(&pb_type_MDRobotBase_get_max_angular_speed_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_pid_min_turn), MP_ROM_PTR(&pb_type_MDRobotBase_set_pid_min_turn_obj) },
+    { MP_ROM_QSTR(MP_QSTR_get_pid_min_turn), MP_ROM_PTR(&pb_type_MDRobotBase_get_pid_min_turn_obj) },
 };
 static MP_DEFINE_CONST_DICT(pb_type_MDRobotBase_locals_dict, pb_type_MDRobotBase_locals_dict_table);
 

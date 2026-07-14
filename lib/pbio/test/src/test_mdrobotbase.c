@@ -70,6 +70,13 @@ static pbio_error_t test_mdrobotbase_basics(pbio_os_state_t *state, void *contex
     tt_want_int_op((int)rb->y, ==, -200);
     tt_want_int_op((int)rb->theta, ==, 90);
 
+    // Test pid min turn settings
+    tt_uint_op(pbio_mdrobotbase_set_pid_min_turn(rb, 1.25f, 0.25f), ==, PBIO_SUCCESS);
+    float mt = 0.0f, th = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_get_pid_min_turn(rb, &mt, &th), ==, PBIO_SUCCESS);
+    tt_want_int_op((int)(mt * 100.0f), ==, 125);
+    tt_want_int_op((int)(th * 100.0f), ==, 25);
+
 end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }

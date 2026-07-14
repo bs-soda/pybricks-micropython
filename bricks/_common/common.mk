@@ -251,7 +251,7 @@ endif
 CFLAGS += -ggdb
 else
 COPT = -Os
-CFLAGS += -DNDEBUG -flto=auto
+CFLAGS += -DNDEBUG
 endif
 
 CFLAGS += -fdata-sections -ffunction-sections
@@ -817,6 +817,9 @@ endif
 	$(Q)cp $< $@
 endif
 
+$(BUILD)/firmware.bin: $(BUILD)/firmware-base.bin
+	$(Q)cp $< $@
+
 $(BUILD)/firmware.metadata.json: $(BUILD)/firmware.elf $(METADATA)
 	$(ECHO) "META creating firmware metadata"
 	$(Q)$(METADATA) $(FW_VERSION) $(PBIO_PLATFORM) $<.map $@
@@ -830,6 +833,9 @@ ZIP_FILES := \
 $(BUILD)/firmware.zip: $(ZIP_FILES)
 	$(ECHO) "ZIP creating firmware package"
 	$(Q)$(ZIP) -j $@ $^
+	$(Q)cp $@ $(BUILD)/firmware-`date +%Y%m%d_%H%M%S`.zip
+	$(Q)mkdir -p /Users/batrarethsudprasert/projects/wro/mat-metric/docs/06_raw
+	$(Q)cp $@ /Users/batrarethsudprasert/projects/wro/mat-metric/docs/06_raw/firmware-`date +%Y%m%d_%H%M%S`.zip
 
 # PRU firmware
 $(BUILD)/pru_suart.bin.o: $(PBTOP)/lib/pbio/drv/uart/uart_ev3_pru_lib/pru_suart.bin

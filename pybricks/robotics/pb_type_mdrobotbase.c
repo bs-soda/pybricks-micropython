@@ -1259,8 +1259,6 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
     // Initial setup
     float cur_x = self->rb->x;
     float cur_y = self->rb->y;
-    float start_x = cur_x;
-    float start_y = cur_y;
 
     float diam_mm = (float)self->rb->wheel_diameter / 1000.0f;
     float track_mm = (float)self->rb->axle_track / 1000.0f;
@@ -1293,6 +1291,63 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
     float final_segment_start_x = cur_x;
     float final_segment_start_y = cur_y;
     bool final_segment_started = false;
+
+    float last_target_theta = self->rb->theta;
+    bool is_first_iter = true;
+    float last_w_cmd = 0.0f;
+
+    // Track the start coordinates of the current segment
+    float seg_start_x = cur_x;
+    float seg_start_y = cur_y;
+
+    // Pre-calculate transition speeds for each waypoint based on turn angle
+    float transition_speeds[num_points];
+    float target_speed_signed = target_speed;
+    float target_speed_unsigned = fabsf(speed);
+
+    for (size_t i = 0; i < num_points; i++) {
+        if (i == num_points - 1) {
+            transition_speeds[i] = current_end_speed;
+        } else {
+            // Coordinates of incoming segment start (Point A)
+            float ax = cur_x, ay = cur_y;
+            if (i > 0) {
+                size_t p_len;
+                mp_obj_t *p_coords;
+                mp_obj_get_array(points[i - 1], &p_len, &p_coords);
+                ax = mp_obj_get_float(p_coords[0]);
+                ay = mp_obj_get_float(p_coords[1]);
+            }
+            
+            // Point B (the current waypoint)
+            size_t p_len;
+            mp_obj_t *p_coords;
+            mp_obj_get_array(points[i], &p_len, &p_coords);
+            float bx = mp_obj_get_float(p_coords[0]);
+            float by = mp_obj_get_float(p_coords[1]);
+            
+            // Point C (the next waypoint)
+            mp_obj_get_array(points[i + 1], &p_len, &p_coords);
+            float cx = mp_obj_get_float(p_coords[0]);
+            float cy = mp_obj_get_float(p_coords[1]);
+            
+            float theta1 = atan2f(by - ay, bx - ax);
+            float theta2 = atan2f(cy - by, cx - bx);
+            float diff = theta2 - theta1;
+            while (diff > 3.14159265f) diff -= 2.0f * 3.14159265f;
+            while (diff < -3.14159265f) diff += 2.0f * 3.14159265f;
+            
+            float cos_turn = cosf(diff);
+            if (cos_turn < 0.0f) cos_turn = 0.0f;
+            
+            float trans_speed = target_speed_unsigned * cos_turn;
+            float min_trans_speed = 50.0f;
+            if (trans_speed < min_trans_speed) trans_speed = min_trans_speed;
+            if (trans_speed > target_speed_unsigned) trans_speed = target_speed_unsigned;
+            
+            transition_speeds[i] = back ? -trans_speed : trans_speed;
+        }
+    }
 
     // We calculate a generous safety timeout based on the total distance of the trajectory
     float total_dist = 0.0f;
@@ -1342,6 +1397,8 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
         // If we are at an intermediate point and are within transition tolerance, switch to the next point
         if (current_point_idx < num_points - 1) {
             if (dist_remaining < transition_tolerance) {
+                seg_start_x = gx;
+                seg_start_y = gy;
                 current_point_idx++;
                 continue;
             }
@@ -1378,21 +1435,22 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
         float w_raw = delta_theta / dt_sec;
         last_theta = self->rb->theta;
 
-        float dist_traveled = sqrtf((self->rb->x - start_x) * (self->rb->x - start_x) + (self->rb->y - start_y) * (self->rb->y - start_y));
+        float seg_start_speed = (current_point_idx == 0) ? current_start_speed : transition_speeds[current_point_idx - 1];
+        float seg_end_speed = transition_speeds[current_point_idx];
+
+        float dist_from_start = sqrtf((self->rb->x - seg_start_x) * (self->rb->x - seg_start_x) + (self->rb->y - seg_start_y) * (self->rb->y - seg_start_y));
 
         // Speed Profiling Calculation
-        float v_profile = target_speed;
-        // Ramping up is done at the start of the first segment
-        float v_acc = target_speed;
-        if (accel_d > 0.0f && dist_traveled < accel_d) {
-            float ratio = dist_traveled / accel_d;
-            v_acc = current_start_speed + (target_speed - current_start_speed) * ratio;
+        float v_profile = target_speed_signed;
+        float v_acc = target_speed_signed;
+        if (accel_d > 0.0f && dist_from_start < accel_d) {
+            float ratio = dist_from_start / accel_d;
+            v_acc = seg_start_speed + (target_speed_signed - seg_start_speed) * ratio;
         }
-        // Ramping down is done as we approach the final point
-        float v_dec = target_speed;
-        if (current_point_idx == num_points - 1 && decel_d > 0.0f && dist_remaining < decel_d) {
+        float v_dec = target_speed_signed;
+        if (decel_d > 0.0f && dist_remaining < decel_d) {
             float ratio = dist_remaining / decel_d;
-            v_dec = current_end_speed + (target_speed - current_end_speed) * ratio;
+            v_dec = seg_end_speed + (target_speed_signed - seg_end_speed) * ratio;
         }
         if (fabsf(v_acc) < fabsf(v_dec)) {
             v_profile = v_acc;
@@ -1417,12 +1475,81 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
             while (diff < -180.0f) diff += 360.0f;
             target_theta = path_theta + diff * (1.0f - ratio);
         } else {
-            target_theta = atan2f(gy - self->rb->y, gx - self->rb->x) * (180.0f / 3.14159265f);
+            // Calculate Pure Pursuit look-ahead point
+            float seg_x = gx - seg_start_x;
+            float seg_y = gy - seg_start_y;
+            float seg_len = sqrtf(seg_x * seg_x + seg_y * seg_y);
+            
+            float target_look_x = gx;
+            float target_look_y = gy;
+            
+            if (seg_len > 1.0f) {
+                float ux = seg_x / seg_len;
+                float uy = seg_y / seg_len;
+                
+                float wx = self->rb->x - seg_start_x;
+                float wy = self->rb->y - seg_start_y;
+                float d_proj = wx * ux + wy * uy;
+                if (d_proj < 0.0f) d_proj = 0.0f;
+                if (d_proj > seg_len) d_proj = seg_len;
+                
+                // Velocity-dependent dynamic look-ahead scaling
+                float speed_ratio = target_speed_unsigned > 1.0f ? (fabsf(v_profile) / target_speed_unsigned) : 1.0f;
+                float lookahead_dist = transition_tolerance * (1.0f + speed_ratio);
+                if (lookahead_dist < 50.0f) lookahead_dist = 50.0f;
+                
+                float d_look = d_proj + lookahead_dist;
+                if (d_look <= seg_len) {
+                    target_look_x = seg_start_x + d_look * ux;
+                    target_look_y = seg_start_y + d_look * uy;
+                } else {
+                    if (current_point_idx < num_points - 1) {
+                        size_t next_len;
+                        mp_obj_t *next_coords;
+                        mp_obj_get_array(points[current_point_idx + 1], &next_len, &next_coords);
+                        float nx = mp_obj_get_float(next_coords[0]);
+                        float ny = mp_obj_get_float(next_coords[1]);
+                        
+                        float next_seg_x = nx - gx;
+                        float next_seg_y = ny - gy;
+                        float next_seg_len = sqrtf(next_seg_x * next_seg_x + next_seg_y * next_seg_y);
+                        if (next_seg_len > 1.0f) {
+                            float next_ux = next_seg_x / next_seg_len;
+                            float next_uy = next_seg_y / next_seg_len;
+                            float rem_d = d_look - seg_len;
+                            if (rem_d > next_seg_len) rem_d = next_seg_len;
+                            target_look_x = gx + rem_d * next_ux;
+                            target_look_y = gy + rem_d * next_uy;
+                        }
+                    }
+                }
+            }
+            
+            target_theta = atan2f(target_look_y - self->rb->y, target_look_x - self->rb->x) * (180.0f / 3.14159265f);
             if (back) {
                 target_theta += 180.0f;
             }
             while (target_theta > 180.0f) target_theta -= 360.0f;
             while (target_theta < -180.0f) target_theta += 360.0f;
+        }
+
+        // Apply slew rate limiting on target_theta to smooth waypoint transitions
+        if (is_first_iter) {
+            last_target_theta = target_theta;
+            is_first_iter = false;
+        } else {
+            float diff = target_theta - last_target_theta;
+            while (diff > 180.0f) diff -= 360.0f;
+            while (diff < -180.0f) diff += 360.0f;
+            
+            float max_change = self->rb->max_angular_speed * dt_sec;
+            if (diff > max_change) diff = max_change;
+            else if (diff < -max_change) diff = -max_change;
+            
+            target_theta = last_target_theta + diff;
+            while (target_theta > 180.0f) target_theta -= 360.0f;
+            while (target_theta < -180.0f) target_theta += 360.0f;
+            last_target_theta = target_theta;
         }
 
         float v_cmd = v_profile;
@@ -1471,6 +1598,11 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
             while (e_theta > 180.0f) e_theta -= 360.0f;
             while (e_theta < -180.0f) e_theta += 360.0f;
 
+            // Scale linear speed by the cosine of the heading error to slow down in sharp turns
+            float alignment_factor = cosf(e_theta * (3.14159265f / 180.0f));
+            if (alignment_factor < 0.0f) alignment_factor = 0.0f;
+            v_cmd = v_profile * alignment_factor;
+
             float i_term = 0.0f;
             if (self->rb->ki > 0.0f) {
                 integral += e_theta * dt_sec;
@@ -1496,6 +1628,19 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args, const mp_ob
             w_cmd = w_cmd - l_diff * 0.5f;
             v_cmd = v_cmd - l_avg * 0.5f;
         }
+
+        // Slew-rate limit the commanded steering rate to prevent angular acceleration spikes
+        if (!is_first_iter) {
+            float max_w_accel = self->rb->max_angular_speed * 1.5f;
+            float max_delta_w = max_w_accel * dt_sec;
+            float w_diff = w_cmd - last_w_cmd;
+            if (w_diff > max_delta_w) {
+                w_cmd = last_w_cmd + max_delta_w;
+            } else if (w_diff < -max_delta_w) {
+                w_cmd = last_w_cmd - max_delta_w;
+            }
+        }
+        last_w_cmd = w_cmd;
 
         float w_rad = w_cmd * (3.14159265f / 180.0f);
         float left_vel = v_cmd - w_rad * (track_mm / 2.0f);

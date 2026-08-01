@@ -146,7 +146,7 @@ class Font:
         cols = (self.last - self.first + 1 + (rows - 1)) // rows
         gwidth = imwidth // cols
         gheight = self.size
-        data = im.get_flattened_data()
+        data = list(im.getdata())
 
         self.line_height = gheight
         self.top_max = gheight

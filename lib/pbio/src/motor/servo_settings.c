@@ -300,7 +300,7 @@ static const pbio_servo_settings_reduced_t servo_settings_reduced[] = {
     {
         .id = LEGO_DEVICE_TYPE_ID_TECHNIC_L_ANGULAR_MOTOR,
         .model = &model_technic_l_angular,
-        .rated_max_speed = 1000,
+        .rated_max_speed = 1110,
         .feedback_gain_low = 45,
         .precision_profile = 11,
         .pid_kp_low_speed_threshold = 150,
@@ -308,7 +308,7 @@ static const pbio_servo_settings_reduced_t servo_settings_reduced[] = {
     {
         .id = LEGO_DEVICE_TYPE_ID_TECHNIC_M_ANGULAR_MOTOR,
         .model = &model_technic_m_angular,
-        .rated_max_speed = 1000,
+        .rated_max_speed = 1110,
         .feedback_gain_low = 45,
         .precision_profile = 11,
         .pid_kp_low_speed_threshold = 150,

@@ -12,7 +12,7 @@
 
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
-| G-MDRB-023 | qa | P2 | review | REVIEW | G-MDRB-022 | [../goals/G-MDRB-023.md](../goals/G-MDRB-023.md) |
+| — | — | — | — | — | — | *(No active goals in queue)* |
 
 ## Archived
 
@@ -40,3 +40,4 @@
 | G-MDRB-020 | Finite State Machine Transition Table and Atomic Motion-Status Coupling | 2026-09-08 | [../goals/_archived/G-MDRB-020.md](../goals/_archived/G-MDRB-020.md) |
 | G-MDRB-021 | Exhaustive Closed-Object Method Audit and Idempotent Lifecycle Attestation | 2026-09-08 | [../goals/_archived/G-MDRB-021.md](../goals/_archived/G-MDRB-021.md) |
 | G-MDRB-022 | Behavioral Motion Preemption Safety & Non-Disruptive Invalid Command Rejection | 2026-09-08 | [../goals/_archived/G-MDRB-022.md](../goals/_archived/G-MDRB-022.md) |
+| G-MDRB-023 | Multi-Scale Numerical Invariant Verification, Submodule Sanitization & Scorecard Elevation | 2026-09-08 | [../goals/_archived/G-MDRB-023.md](../goals/_archived/G-MDRB-023.md) |

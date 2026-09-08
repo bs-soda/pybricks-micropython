@@ -1,6 +1,6 @@
 # G-MDRB-023: Multi-Scale Numerical Invariant Verification, Submodule Sanitization & Scorecard Elevation
 
-**Status:** review  
+**Status:** done  
 **Kind:** qa  
 **Atomic outcome:** Execute and record empirical test runs across multiple gear ratios and geometry scales, sanitize the untracked lib/btstack directory, and publish the verified scorecard elevating MDRobotBase to 9.2+/10  
 **Epic:** MDRB  
@@ -10,11 +10,11 @@
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

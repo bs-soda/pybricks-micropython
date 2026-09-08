@@ -60,6 +60,12 @@ graph TD
 | [`G-MDRB-025`](../goals/G-MDRB-025.md) | **P2** | Motion Dispatcher Modularity | 7/10 → 10/10 | Decompose 550-line `motion_iterate_once` into 4 decoupled sub-controllers with shared wheel conversions. |
 | [`G-MDRB-026`](../goals/G-MDRB-026.md) | **P2** | Submodule Provenance & CI | 8/10 → 10/10 | Attest `lib/btstack` license, clean working tree, and CI checkout reproducibility verification script. |
 | [`G-MDRB-027`](../goals/G-MDRB-027.md) | **P1** | Unified Runtime Test Proof | 8.7/10 → 9.4+/10 | Multi-environment PBIO and VirtualHub test execution matrix, 0 compiler warnings, 9.4+ scorecard attestation. |
+| [`G-MDRB-028`](../goals/G-MDRB-028.md) | **P1** | Color Input Contract | 4/10 → 10/10 | Unify native C and VirtualHub input contracts for RGB/HSV returning `(color_id, distance, confidence)`. |
+| [`G-MDRB-029`](../goals/G-MDRB-029.md) | **P1** | Two-Point Calibration | 4/10 → 10/10 | Black-reference offset subtraction $[R_0, G_0, B_0]$ and white gain normalization to $[0.0, 1.0]$. |
+| [`G-MDRB-030`](../goals/G-MDRB-030.md) | **P1** | Perceptual Color Classifier | 5/10 → 9.8/10 | Circular shortest-arc hue distance ($dh \le 180^\circ$) and CIE $L^*a^*b^*$ perceptual color space mapping. |
+| [`G-MDRB-031`](../goals/G-MDRB-031.md) | **P2** | Statistical Prototype Model | 4/10 → 9.8/10 | Multi-sample prototype modeling (`color_class_t`) with online Welford mean, variance, and outlier filtering. |
+| [`G-MDRB-032`](../goals/G-MDRB-032.md) | **P1** | Ambiguity & Margin Engine | 3/10 → 9.8/10 | Second-best candidate margin evaluation ($D_2 - D_1$), confidence metric, and fail-safe `Color.NONE` rejection. |
+| [`G-MDRB-033`](../goals/G-MDRB-033.md) | **P1** | Color Verification Matrix | 4.2/10 → 9.8+/10 | Multi-condition empirical matrix across illumination ($10-2000\text{ lux}$), similar colors, noise, and final 9.8+ attestation. |
 
 ## Out of this epic
 

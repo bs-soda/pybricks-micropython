@@ -9,7 +9,7 @@ Goal rows do **not** live on this page. Each epic has its own queue so `main` an
 | Epic | Queue | Notes |
 |------|-------|-------|
 | CORE | [queues/CORE.md](queues/CORE.md) | Legacy `G-001` + unscoped work |
-| MDRB | [queues/MDRB.md](queues/MDRB.md) | MDRobotBase Kinematics & Motion Engine (G-MDRB-001 to G-MDRB-027) |
+| MDRB | [queues/MDRB.md](queues/MDRB.md) | MDRobotBase Kinematics & Motion Engine (G-MDRB-001 to G-MDRB-033) |
 
 
 When you register a new epic on `main`, add one row here and create `queues/{EPIC}.md`. After that, **do not edit this table from the epic branch.**

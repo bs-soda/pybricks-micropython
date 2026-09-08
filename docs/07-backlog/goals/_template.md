@@ -198,6 +198,9 @@ Ordered execution contract for **this card only** — Antigravity or another age
 - [ ] Submodule & Repository Cleanliness (Submodules verified against .gitmodules with zero uncommitted working tree drift)
 - [ ] Dispatcher Modularity (Complexity decoupled into isolated sub-controllers with shared conversion utilities)
 - [ ] Multi-Environment Runtime Proof (Concrete build and test command outputs recorded in release artifacts)
+- [ ] Sensor Calibration & Color Science Invariants (Two-point black/white reference calibration, circular hue topology, perceptual CIE Lab mapping)
+- [ ] Statistical Prototype Modeling (Running mean, intra-class variance, sample count, and outlier rejection)
+- [ ] Ambiguity & Margin Protection (Second-best margin calculation, confidence scoring, and fail-safe Color.NONE rejection)
 
 ## Acceptance criteria
 
@@ -293,4 +296,21 @@ Writing guide: [goal-spec-guide.md](../../06-workflows/goal-spec-guide.md)
 - **Motor command silence on invalid input:** Proof that invalid arguments issue no motor commands and preserve active motions.
 - **Consistent state on failure:** Proof that failure paths leave system in deterministic safe state.
 - **Regression scenarios:** Scenarios tested to prevent reintroduction of the defect.
+
+### 7. Optical Sensor Calibration & Perceptual Color Science Invariants *(color / sensor goals)*
+
+- **Two-Point Calibration Model:**
+  - Black reference: Dark current offset subtraction: $R' = R - R_0, G' = G - G_0, B' = B - B_0$.
+  - White reference: Per-channel gain normalization: $R_{norm} = \text{clamp}\left(\frac{R - R_0}{R_w - R_0}, 0.0, 1.0\right)$.
+- **Circular Hue Topology:**
+  - Invariant: $dh(h_1, h_2) = \min(|h_1 - h_2|, 360^\circ - |h_1 - h_2|) \le 180^\circ$.
+- **Perceptual Color Space:**
+  - Standard CIE $L^*a^*b^*$ transformation for illumination-invariant Euclidean color distance $\Delta E_{ab}$.
+- **Statistical Prototype Modeling (`color_class_t`):**
+  - Online Welford's algorithm tracking mean vector $[\mu_h, \mu_s, \mu_v, \mu_L, \mu_a, \mu_b]$, intra-class variance $[\sigma_h^2, \sigma_s^2, \sigma_v^2, \sigma_{lab}^2]$, and sample count $N \ge 10$.
+  - Outlier rejection: Discard samples exceeding $2.5\sigma$.
+- **Ambiguity Margin & Confidence Guard:**
+  - Margin invariant: $\text{Margin} = D_{\text{second\_best}} - D_{\text{best}}$.
+  - Confidence calculation: $\text{Confidence} = \text{clamp}\left(\frac{\text{Margin}}{\text{Margin}_{\text{threshold}}}, 0.0, 1.0\right)$.
+  - Fail-safe rejection: If $D_{\text{best}} > D_{\text{cutoff}}$ or $\text{Margin} < \text{Margin}_{\text{min}} \implies \text{Classify as } \text{Color.NONE} (0)$.
 

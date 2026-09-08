@@ -16,6 +16,12 @@
 | G-MDRB-025 | feature | P2 | review | REVIEW | G-MDRB-024 | [../goals/G-MDRB-025.md](../goals/G-MDRB-025.md) |
 | G-MDRB-026 | chore | P2 | review | REVIEW | G-MDRB-025 | [../goals/G-MDRB-026.md](../goals/G-MDRB-026.md) |
 | G-MDRB-027 | qa | P1 | review | REVIEW | G-MDRB-026 | [../goals/G-MDRB-027.md](../goals/G-MDRB-027.md) |
+| G-MDRB-028 | api | P1 | ready | PLAN | G-MDRB-027 | [../goals/G-MDRB-028.md](../goals/G-MDRB-028.md) |
+| G-MDRB-029 | feature | P1 | ready | PLAN | G-MDRB-028 | [../goals/G-MDRB-029.md](../goals/G-MDRB-029.md) |
+| G-MDRB-030 | feature | P1 | ready | PLAN | G-MDRB-029 | [../goals/G-MDRB-030.md](../goals/G-MDRB-030.md) |
+| G-MDRB-031 | feature | P2 | ready | PLAN | G-MDRB-030 | [../goals/G-MDRB-031.md](../goals/G-MDRB-031.md) |
+| G-MDRB-032 | feature | P1 | ready | PLAN | G-MDRB-031 | [../goals/G-MDRB-032.md](../goals/G-MDRB-032.md) |
+| G-MDRB-033 | qa | P1 | ready | PLAN | G-MDRB-032 | [../goals/G-MDRB-033.md](../goals/G-MDRB-033.md) |
 
 ## Archived
 

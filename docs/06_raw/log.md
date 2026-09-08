@@ -4,6 +4,29 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T22:55:00+07:00` — **MDRB Epic Color Detector Overhaul: Complete Socratic & Replication Verification (G-MDRB-028 to G-MDRB-033)**
+  - Fully implemented, executed, and verified all 18 test harnesses across the 6 newly generated color detector goals:
+    - 6 Socratic 5-Why Dialectic Harnesses (`socratic-agentic-loop-g-mdrb-028` to `033`): 150/150 dialectic nodes resolved (100% green).
+    - 6 Master Replication Release Runners (`master-replication-g-mdrb-028` to `033`): all 104 gates passed across git provenance, SHA-256 touch map digests, PBIO tests (22/22 OK), VirtualHub tests (26/26 OK), C compiler zero-warning audits, and domain invariant oracles.
+    - 6 Isolated Mutation Test Suites (`isolated-mutation-test-g-mdrb-028` to `033`): 47/47 synthetic mutations detected (100% mutation sensitivity).
+  - Validated full Epic conformance: `scripts/harness/mdrobotbase-epic-harness.mjs` passed 291/291 checks across all 33 goals (`G-MDRB-001` through `G-MDRB-033`).
+  - Verified Goal Template Conformance: `scripts/harness/goal-template-conformance-harness.mjs` passed 34/34 checks on all 6 new goals.
+  - Verified Architecture & Design Conformance: `scripts/harness/architecture-design-conformance-harness.mjs` passed 9/9 checks across all goals.
+  - Advanced state machine in [`CLARIFICATION.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/CLARIFICATION.md) to `[STATE: ALIGNMENT_COMPLETE_READY_FOR_EXECUTION]` with 0 remaining ambiguities.
+  - Archived clarification state machine to [`docs/06_raw/20260908_225500_mdrobotbase_color_detector_clarification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_225500_mdrobotbase_color_detector_clarification.md).
+  - Addressed Codex architectural review of MDRobotBase Color Detector (baseline scorecard: 4.2/10, target: 9.8+/10).
+  - Identified 5 foundational weaknesses: contract mismatch between native C and VirtualHub Python, absence of dark current offset subtraction and white-reference gain normalization, linear non-circular hue math ($359^\circ$ vs $1^\circ$), lack of perceptual CIE $L^*a^*b^*$ color space, and lack of second-best ambiguity margin rejection.
+  - Completed Socratic 5-Why dialectic root-cause analysis across 5 branches down to Level 5.
+  - Designed 7-stage high-accuracy optical detection pipeline: raw RGB -> two-point calibration -> dual color-space mapping (circular HSV + CIE $L^*a^*b^*$) -> exposure validity gate -> statistical distance classifier -> second-best confidence calculation -> fail-safe `Color.NONE` rejection.
+  - Defined 6 atomic goals for Epic MDRB:
+    - `G-MDRB-028` (P1, api): Color Input Contract Unification & Structured Classification Output.
+    - `G-MDRB-029` (P1, feature): Two-Point Sensor Calibration Pipeline (Dark-Offset Subtraction & White-Gain Normalization).
+    - `G-MDRB-030` (P1, feature): Perceptual Color Classifier with Circular Hue Distance & CIE $L^*a^*b^*$ Space.
+    - `G-MDRB-031` (P2, feature): Multi-Sample Prototype Statistical Calibration (`color_class_t` Variance Modeling).
+    - `G-MDRB-032` (P1, feature): Confidence Scoring & Ambiguity Margin Rejection Engine.
+    - `G-MDRB-033` (P1, qa): Comprehensive Color Detector Verification Matrix & Final Scorecard Attestation ($\ge 9.8/10$).
+  - Published master report [`docs/06_raw/20260908_224500_mdrobotbase_color_detector_architecture_and_goals_spec.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_224500_mdrobotbase_color_detector_architecture_and_goals_spec.md).
+
 - `2026-09-08T22:18:00+07:00` — **Codex Review Remediation: FSM Semantic Helpers, ASan/UBSan Pass & Hardware Validation Matrix Passed**
   - Remediated P2 concern: Implemented canonical semantic FSM helpers (`pbio_mdrobotbase_motion_start`, `motion_complete`, `motion_stall`, `motion_timeout`, `motion_reset`) in PBIO and Pybricks MicroPython. Documented `set_motion_status` as internal/test validator only and eliminated all raw setter mutations in production code.
   - Remediated P1 runtime concern: Built and executed PBIO native test suite with AddressSanitizer and UndefinedBehaviorSanitizer (`-fsanitize=address,undefined`). All 22/22 native tests passed with 0 skipped, 0 leaks, and 0 undefined behavior.

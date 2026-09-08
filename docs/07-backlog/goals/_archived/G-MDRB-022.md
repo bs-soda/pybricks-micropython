@@ -1,6 +1,6 @@
 # G-MDRB-022: Behavioral Motion Preemption Safety & Non-Disruptive Invalid Command Rejection
 
-**Status:** review  
+**Status:** done  
 **Kind:** feature  
 **Atomic outcome:** Implement behavioral proofs and guards verifying that attempting replacement motions with invalid arguments raises ValueError without interrupting ongoing motions or issuing premature stops  
 **Epic:** MDRB  
@@ -10,11 +10,11 @@
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

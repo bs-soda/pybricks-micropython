@@ -4,6 +4,21 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T20:38:00+07:00` — **G-MDRB-022 Approval & Shipping (Behavioral Motion Preemption Safety & Non-Disruptive Invalid Command Rejection)**
+  - Received explicit human approval: "approve and ship G-MDRB-022".
+  - Transitioned Goal Status to `done` and Collaboration Phase to `SHIP`.
+  - Archived goal card: moved `docs/07-backlog/goals/G-MDRB-022.md` to [`docs/07-backlog/goals/_archived/G-MDRB-022.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-022.md).
+  - Updated queue registry: transitioned G-MDRB-022 to the Archived Goals table in [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md).
+  - Updated verification harnesses (`socratic-agentic-loop-g-mdrb-022-harness.mjs`, `master-replication-g-mdrb-022.mjs`) to resolve archived path cleanly.
+  - Re-ran complete verification suite:
+    - Master Replication Runner: 23/23 Gates Passed (`scripts/harness/master-replication-g-mdrb-022.mjs`).
+    - Socratic Agentic Loop: 25/25 Dialectic Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-022-harness.mjs`).
+    - Native PBIO Test Suite: 21/21 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance Harness: 202/202 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance Harness: 25/25 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Generated shipping certification artifact [`docs/06_raw/20260908_203800_g_mdrb_022_shipping_and_archival_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_203800_g_mdrb_022_shipping_and_archival_certification.md).
+  - Zero local integration merges; enforced PR-First governance on `feature/mdrobotbase-enhancement`.
+
 - `2026-09-08T20:37:00+07:00` — **G-MDRB-021 Approval & Shipping (Exhaustive Closed-Object 49-Method Audit & Idempotent Lifecycle)**
   - Received explicit human approval: "approve and ship G-MDRB-021".
   - Transitioned Goal Status to `done` and Collaboration Phase to `SHIP`.

@@ -12,7 +12,6 @@
 
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
-| G-MDRB-027 | qa | P1 | review | REVIEW | G-MDRB-026 | [../goals/G-MDRB-027.md](../goals/G-MDRB-027.md) |
 | G-MDRB-028 | api | P1 | ready | PLAN | G-MDRB-027 | [../goals/G-MDRB-028.md](../goals/G-MDRB-028.md) |
 | G-MDRB-029 | feature | P1 | ready | PLAN | G-MDRB-028 | [../goals/G-MDRB-029.md](../goals/G-MDRB-029.md) |
 | G-MDRB-030 | feature | P1 | ready | PLAN | G-MDRB-029 | [../goals/G-MDRB-030.md](../goals/G-MDRB-030.md) |
@@ -50,3 +49,4 @@
 | G-MDRB-024 | Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement | 2026-09-08 | [../goals/_archived/G-MDRB-024.md](../goals/_archived/G-MDRB-024.md) |
 | G-MDRB-025 | Motion Dispatcher Modularization & Sub-Controller Decomposition | 2026-09-08 | [../goals/_archived/G-MDRB-025.md](../goals/_archived/G-MDRB-025.md) |
 | G-MDRB-026 | Submodule Provenance, License Attestation & CI Reproducibility Certification | 2026-09-08 | [../goals/_archived/G-MDRB-026.md](../goals/_archived/G-MDRB-026.md) |
+| G-MDRB-027 | Multi-Environment Runtime Test Execution Matrix, Compiler Warning Audit & Final Scorecard Attestation | 2026-09-08 | [../goals/_archived/G-MDRB-027.md](../goals/_archived/G-MDRB-027.md) |

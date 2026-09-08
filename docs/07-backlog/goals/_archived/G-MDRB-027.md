@@ -1,20 +1,20 @@
 # G-MDRB-027: Multi-Environment Runtime Test Execution Matrix, Compiler Warning Audit & Final Scorecard Attestation
 
-**Status:** review  
-**Kind:** qa  
-**Atomic outcome:** Execute and record unified runtime test suites across native PBIO and VirtualHub runners, audit zero compiler warnings, and publish final scorecard attestation elevating MDRobotBase to 9.4+/10  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-026  
-**Blocks:** —  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** qa
+**Atomic outcome:** Execute and record unified runtime test suites across native PBIO and VirtualHub runners, audit zero compiler warnings, and publish final scorecard attestation elevating MDRobotBase to 9.4+/10
+**Epic:** MDRB
+**Depends on:** G-MDRB-026
+**Blocks:** —
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

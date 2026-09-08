@@ -12,7 +12,10 @@
 
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
-| — | — | — | — | — | — | *(No active goals in queue)* |
+| G-MDRB-024 | feature | P1 | draft | DEFINE | G-MDRB-023 | [../goals/G-MDRB-024.md](../goals/G-MDRB-024.md) |
+| G-MDRB-025 | feature | P2 | draft | DEFINE | G-MDRB-024 | [../goals/G-MDRB-025.md](../goals/G-MDRB-025.md) |
+| G-MDRB-026 | chore | P2 | draft | DEFINE | G-MDRB-025 | [../goals/G-MDRB-026.md](../goals/G-MDRB-026.md) |
+| G-MDRB-027 | qa | P1 | draft | DEFINE | G-MDRB-026 | [../goals/G-MDRB-027.md](../goals/G-MDRB-027.md) |
 
 ## Archived
 

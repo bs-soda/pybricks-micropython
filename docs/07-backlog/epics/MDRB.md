@@ -51,11 +51,15 @@ graph TD
 | [`G-MDRB-016`](../goals/_archived/G-MDRB-016.md) | **P1** | Numerical Robustness | 7/10 → 10/10 | Non-finite float checks (`isfinite`), gear ratio domain $[0.001, 1000.0]$, integer speed saturation. |
 | [`G-MDRB-017`](../goals/_archived/G-MDRB-017.md) | **P1** | Behavioral Test Hardening | 8/10 → 10/10 | Eliminate vacuous tautological assertions; dynamic lifecycle transitions and waypoint tolerances. |
 | [`G-MDRB-018`](../goals/_archived/G-MDRB-018.md) | **P2** | Architectural Encapsulation | 6/10 → 10/10 | Public C accessors in `pbio/mdrobotbase.h`, eliminating direct struct dereferencing in language wrapper. |
-| [`G-MDRB-019`](../goals/G-MDRB-019.md) | **P1** | Portable Pointer Validation | 8/10 → 10/10 | Portable `uintptr_t` address verification, alignment check, and foreign-pointer tests in `put_robotbase()`. |
-| [`G-MDRB-020`](../goals/G-MDRB-020.md) | **P1** | Atomic FSM Status Coupling | 7/10 → 10/10 | Finite state transition table coupling `motion_status` and `motion_in_progress` atomically. |
-| [`G-MDRB-021`](../goals/G-MDRB-021.md) | **P1** | Complete Closed-Object Audit | 8/10 → 10/10 | Exhaustive audit of all 49 locals dictionary methods with post-close error raising and idempotent close. |
-| [`G-MDRB-022`](../goals/G-MDRB-022.md) | **P1** | Behavioral Preemption Proof | 7/10 → 10/10 | Proof that invalid replacement commands (turn, pivot, nav, trajectory) never cancel active motions. |
-| [`G-MDRB-023`](../goals/G-MDRB-023.md) | **P2** | Multi-Scale Invariants & Audit | 8.1/10 → 9.3/10 | Multi-scale gear ratio and geometry scaling invariant tests, clean submodule, and final 9.3/10 attestation. |
+| [`G-MDRB-019`](../goals/_archived/G-MDRB-019.md) | **P1** | Portable Pointer Validation | 8/10 → 10/10 | Portable `uintptr_t` address verification, alignment check, and foreign-pointer tests in `put_robotbase()`. |
+| [`G-MDRB-020`](../goals/_archived/G-MDRB-020.md) | **P1** | Atomic FSM Status Coupling | 7/10 → 10/10 | Finite state transition table coupling `motion_status` and `motion_in_progress` atomically. |
+| [`G-MDRB-021`](../goals/_archived/G-MDRB-021.md) | **P1** | Complete Closed-Object Audit | 8/10 → 10/10 | Exhaustive audit of all 49 locals dictionary methods with post-close error raising and idempotent close. |
+| [`G-MDRB-022`](../goals/_archived/G-MDRB-022.md) | **P1** | Behavioral Preemption Proof | 7/10 → 10/10 | Proof that invalid replacement commands (turn, pivot, nav, trajectory) never cancel active motions. |
+| [`G-MDRB-023`](../goals/_archived/G-MDRB-023.md) | **P2** | Multi-Scale Invariants & Audit | 8.1/10 → 9.3/10 | Multi-scale gear ratio and geometry scaling invariant tests, clean submodule, and final 9.3/10 attestation. |
+| [`G-MDRB-024`](../goals/G-MDRB-024.md) | **P1** | FSM Single Source of Truth | 8.7/10 → 10/10 | Eliminate raw `motion_status` field assignments; route all status updates through validated FSM helpers. |
+| [`G-MDRB-025`](../goals/G-MDRB-025.md) | **P2** | Motion Dispatcher Modularity | 7/10 → 10/10 | Decompose 550-line `motion_iterate_once` into 4 decoupled sub-controllers with shared wheel conversions. |
+| [`G-MDRB-026`](../goals/G-MDRB-026.md) | **P2** | Submodule Provenance & CI | 8/10 → 10/10 | Attest `lib/btstack` license, clean working tree, and CI checkout reproducibility verification script. |
+| [`G-MDRB-027`](../goals/G-MDRB-027.md) | **P1** | Unified Runtime Test Proof | 8.7/10 → 9.4+/10 | Multi-environment PBIO and VirtualHub test execution matrix, 0 compiler warnings, 9.4+ scorecard attestation. |
 
 ## Out of this epic
 

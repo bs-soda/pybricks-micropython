@@ -191,10 +191,13 @@ Ordered execution contract for **this card only** — Antigravity or another age
 - [ ] Touch map is real repo paths
 - [ ] Knowledge links: Why traces to `P-xxx` or accepted PDR
 - [ ] Change delta filled if modifying existing behaviour
-- [ ] Critical-path assumptions are not `open` + `low`
 - [ ] Zero Mocks, Zero Stubs, Zero String Simulations (Article I non-negotiable invariant)
 - [ ] Atomic Work Steps Contract (Allowed files, Ordered actions, Completion gate, Stop condition)
 - [ ] Empirical Evidence Grounding (Measured raw trials, confidence intervals, no static score retention)
+- [ ] FSM Single Source of Truth (State transitions routed strictly through transition helpers, zero direct mutation)
+- [ ] Submodule & Repository Cleanliness (Submodules verified against .gitmodules with zero uncommitted working tree drift)
+- [ ] Dispatcher Modularity (Complexity decoupled into isolated sub-controllers with shared conversion utilities)
+- [ ] Multi-Environment Runtime Proof (Concrete build and test command outputs recorded in release artifacts)
 
 ## Acceptance criteria
 

@@ -4,6 +4,13 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T21:00:00+07:00` — **Codex Codebase Review Audit & MDRB-024–027 Planning**
+  - Synthesized latest architectural review from Codex (Scorecard: 8.7/10, HEAD `65c97fd8`).
+  - Identified 4 remaining gaps: FSM direct field mutations (P1), Runtime test execution recording (P1), Untracked `lib/btstack/` repository decision (P2), Motion dispatcher complexity (P2).
+  - Designed 4-goal remediation roadmap: `G-MDRB-024` (FSM single source of truth), `G-MDRB-025` (Dispatcher modularization), `G-MDRB-026` (Submodule provenance & CI reproducibility), `G-MDRB-027` (Multi-environment runtime test execution & 9.4 scorecard elevation).
+  - Drafted enhancements for `docs/07-backlog/goals/_template.md`, `goal-template-conformance-harness.mjs`, and `mdrobotbase-epic-harness.mjs`.
+  - Generated audit report [`docs/06_raw/20260908_210000_codex_review_audit_and_mdrb_024_027_remediation_roadmap.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_210000_codex_review_audit_and_mdrb_024_027_remediation_roadmap.md).
+
 - `2026-09-08T20:39:00+07:00` — **G-MDRB-023 Approval & Shipping (Multi-Scale Numerical Invariant Verification, Submodule Sanitization & Scorecard Elevation)**
   - Received explicit human approval: "approve and ship G-MDRB-023".
   - Transitioned Goal Status to `done` and Collaboration Phase to `SHIP`.

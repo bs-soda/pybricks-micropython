@@ -12,7 +12,6 @@
 
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
-| G-MDRB-005 | feature | P1 | review | REVIEW | G-MDRB-004 | [../goals/G-MDRB-005.md](../goals/G-MDRB-005.md) |
 | G-MDRB-006 | feature | P1 | review | REVIEW | G-MDRB-005 | [../goals/G-MDRB-006.md](../goals/G-MDRB-006.md) |
 | G-MDRB-007 | feature | P1 | review | REVIEW | G-MDRB-006 | [../goals/G-MDRB-007.md](../goals/G-MDRB-007.md) |
 | G-MDRB-008 | feature | P2 | review | REVIEW | G-MDRB-007 | [../goals/G-MDRB-008.md](../goals/G-MDRB-008.md) |
@@ -37,3 +36,4 @@
 | G-MDRB-002 | Complete State Initialization and Lifecycle Reset | 2026-09-08 | [../goals/_archived/G-MDRB-002.md](../goals/_archived/G-MDRB-002.md) |
 | G-MDRB-003 | Constructor and Parameter Geometry Validation | 2026-09-08 | [../goals/_archived/G-MDRB-003.md](../goals/_archived/G-MDRB-003.md) |
 | G-MDRB-004 | Consistent Gear-Ratio Command and Odometry Semantics | 2026-09-08 | [../goals/_archived/G-MDRB-004.md](../goals/_archived/G-MDRB-004.md) |
+| G-MDRB-005 | Distinct Timeout and Stall Failure Reporting | 2026-09-08 | [../goals/_archived/G-MDRB-005.md](../goals/_archived/G-MDRB-005.md) |

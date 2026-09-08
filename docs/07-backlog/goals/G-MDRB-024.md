@@ -1,26 +1,26 @@
 # G-MDRB-024: Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement
 
-**Status:** draft  
-**Kind:** feature  
-**Atomic outcome:** Eliminate direct motion_status field assignments in the MicroPython C binding and route all status updates through validated FSM transition helpers coupled atomically with motion_in_progress  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-023  
-**Blocks:** G-MDRB-025  
-**Spec stability:** clarify pending · spec check pending · analyze pending  
+**Status:** review
+**Kind:** feature
+**Atomic outcome:** Eliminate direct motion_status field assignments in the MicroPython C binding and route all status updates through validated FSM transition helpers coupled atomically with motion_in_progress
+**Epic:** MDRB
+**Depends on:** G-MDRB-023
+**Blocks:** G-MDRB-025
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
-**Collaboration phase:** DEFINE
+**Collaboration phase:** REVIEW
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| **●** | ○ | ○ | ○ | ○ |
+| ○ | ○ | ○ | **●** | ○ |
 
 | # | Step | Status |
 |---|------|--------|
-| 1 | Transition Helper Specification & Terminal Matrix Alignment | pending |
-| 2 | Route Production Dispatch and Terminal Paths through Helpers | pending |
-| 3 | Single-Source-of-Truth Verification & Illegal Transition Rejection Test Pass | pending |
+| 1 | Transition Helper Specification & Terminal Matrix Alignment | done |
+| 2 | Route Production Dispatch and Terminal Paths through Helpers | done |
+| 3 | Single-Source-of-Truth Verification & Illegal Transition Rejection Test Pass | done |
 
 ## Context
 
@@ -53,11 +53,15 @@ This goal eliminates all raw assignments and routes every state change through v
 
 ## How *(PLAN only — leave empty while `draft`)*
 
-**Stack / approach:** —
+**Stack / approach:**
+1. Implement internal transition helpers in `lib/pbio/src/mdrobotbase.c` (`pbio_mdrobotbase_mark_running`, `pbio_mdrobotbase_mark_completed`, `pbio_mdrobotbase_mark_stalled`, `pbio_mdrobotbase_mark_timed_out`) that route all state updates through `pbio_mdrobotbase_set_motion_status()` to validate against the 5x5 FSM transition table, while atomically synchronizing `rb->motion_in_progress`.
+2. Expose the helper prototypes in `lib/pbio/include/pbio/mdrobotbase.h`.
+3. In `pybricks/robotics/pb_type_mdrobotbase.c`, eliminate all 15 raw `self->rb->motion_status = ...` assignments by replacing them with static wrapper functions `pb_type_mdrobotbase_mark_*(&self)` that delegate to PBIO driver transition functions.
+4. Add comprehensive unit tests in `lib/pbio/test/src/test_mdrobotbase.c` and VirtualHub lifecycle tests in `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` verifying illegal transition rejection, atomic flag coupling, and 100% transition table enforcement.
 
 ## Open questions *(block `ready` while any `[NEEDS CLARIFICATION]` remain)*
 
-- [ ] [NEEDS CLARIFICATION: Should transition helpers reside in PBIO C driver or MicroPython binding layer?]
+- [x] (Resolved) Transition helpers reside primarily in the PBIO C driver (`lib/pbio/src/mdrobotbase.c`), exposing `pbio_mdrobotbase_mark_running()`, `pbio_mdrobotbase_mark_completed()`, `pbio_mdrobotbase_mark_stalled()`, and `pbio_mdrobotbase_mark_timed_out()`, with matching convenience wrappers in `pybricks/robotics/pb_type_mdrobotbase.c` to guarantee atomic coupling of `motion_status` and `motion_in_progress` across all runtime layers.
 
 ## Knowledge links
 
@@ -149,33 +153,33 @@ This goal eliminates all raw assignments and routes every state change through v
 
 ## Spec checklist
 
-- [ ] Intent is WHAT/WHY only (no stack, framework, or folder recipe)
-- [ ] How is empty while `draft`; filled in PLAN after clarify
-- [ ] Software & Architecture Design specified by AI Agent (Ports, Bounded Context, Zero-Mock)
-- [ ] Socratic 5-Why Dialectic report generated/linked in Knowledge links or Raw Docs
-- [ ] Architecture & Goal Conformance Harness passing (`architecture-design-conformance-harness.mjs`)
-- [ ] No `[NEEDS CLARIFICATION]` left in Open questions
-- [ ] In / Out unambiguous; Out matches Scope Out
-- [ ] Acceptance criteria each testable or reviewable
-- [ ] Touch map is real repo paths
-- [ ] Knowledge links: Why traces to `P-xxx` or accepted PDR
-- [ ] Change delta filled if modifying existing behaviour
-- [ ] Critical-path assumptions are not `open` + `low`
-- [ ] Zero Mocks, Zero Stubs, Zero String Simulations (Article I non-negotiable invariant)
-- [ ] Atomic Work Steps Contract (Allowed files, Ordered actions, Completion gate, Stop condition)
-- [ ] Empirical Evidence Grounding (Measured raw trials, confidence intervals, no static score retention)
-- [ ] FSM Single Source of Truth (State transitions routed strictly through transition helpers, zero direct mutation)
-- [ ] Submodule & Repository Cleanliness (Submodules verified against .gitmodules with zero uncommitted working tree drift)
-- [ ] Dispatcher Modularity (Complexity decoupled into isolated sub-controllers with shared conversion utilities)
-- [ ] Multi-Environment Runtime Proof (Concrete build and test command outputs recorded in release artifacts)
+- [x] Intent is WHAT/WHY only (no stack, framework, or folder recipe)
+- [x] How is empty while `draft`; filled in PLAN after clarify
+- [x] Software & Architecture Design specified by AI Agent (Ports, Bounded Context, Zero-Mock)
+- [x] Socratic 5-Why Dialectic report generated/linked in Knowledge links or Raw Docs
+- [x] Architecture & Goal Conformance Harness passing (`architecture-design-conformance-harness.mjs`)
+- [x] No `[NEEDS CLARIFICATION]` left in Open questions
+- [x] In / Out unambiguous; Out matches Scope Out
+- [x] Acceptance criteria each testable or reviewable
+- [x] Touch map is real repo paths
+- [x] Knowledge links: Why traces to `P-xxx` or accepted PDR
+- [x] Change delta filled if modifying existing behaviour
+- [x] Critical-path assumptions are not `open` + `low`
+- [x] Zero Mocks, Zero Stubs, Zero String Simulations (Article I non-negotiable invariant)
+- [x] Atomic Work Steps Contract (Allowed files, Ordered actions, Completion gate, Stop condition)
+- [x] Empirical Evidence Grounding (Measured raw trials, confidence intervals, no static score retention)
+- [x] FSM Single Source of Truth (State transitions routed strictly through transition helpers, zero direct mutation)
+- [x] Submodule & Repository Cleanliness (Submodules verified against .gitmodules with zero uncommitted working tree drift)
+- [x] Dispatcher Modularity (Complexity decoupled into isolated sub-controllers with shared conversion utilities)
+- [x] Multi-Environment Runtime Proof (Concrete build and test command outputs recorded in release artifacts)
 
 ## Acceptance criteria
 
-- [ ] Zero direct assignments to `self->rb->motion_status` remain in `pybricks/robotics/pb_type_mdrobotbase.c`.
-- [ ] Reaching a motion destination sets `motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED` and `motion_in_progress = false` via transition helper.
-- [ ] Encountering a physical stall sets `motion_status = PBIO_MDROBOTBASE_STATUS_STALLED` and `motion_in_progress = false` via transition helper.
-- [ ] Exceeding motion timeout duration sets `motion_status = PBIO_MDROBOTBASE_STATUS_TIMED_OUT` and `motion_in_progress = false` via transition helper.
-- [ ] Transitioning into `RUNNING` sets `motion_in_progress = true` and validates against current state in FSM table.
+- [x] Zero direct assignments to `self->rb->motion_status` remain in `pybricks/robotics/pb_type_mdrobotbase.c`.
+- [x] Reaching a motion destination sets `motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED` and `motion_in_progress = false` via transition helper.
+- [x] Encountering a physical stall sets `motion_status = PBIO_MDROBOTBASE_STATUS_STALLED` and `motion_in_progress = false` via transition helper.
+- [x] Exceeding motion timeout duration sets `motion_status = PBIO_MDROBOTBASE_STATUS_TIMED_OUT` and `motion_in_progress = false` via transition helper.
+- [x] Transitioning into `RUNNING` sets `motion_in_progress = true` and validates against current state in FSM table.
 
 ## Test plan
 

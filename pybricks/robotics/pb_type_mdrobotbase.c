@@ -39,6 +39,22 @@ static inline pbio_mdrobotbase_t *pb_type_mdrobotbase_require_open(pb_type_MDRob
   return self->rb;
 }
 
+static inline pbio_error_t pb_type_mdrobotbase_mark_running(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_mark_running(self->rb);
+}
+
+static inline pbio_error_t pb_type_mdrobotbase_mark_completed(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_mark_completed(self->rb);
+}
+
+static inline pbio_error_t pb_type_mdrobotbase_mark_stalled(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_mark_stalled(self->rb);
+}
+
+static inline pbio_error_t pb_type_mdrobotbase_mark_timed_out(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_mark_timed_out(self->rb);
+}
+
 static pbio_error_t update_state_and_debug(pb_type_MDRobotBase_obj_t *self,
                                            float gyro_heading) {
   pbio_error_t err = pbio_mdrobotbase_update_state(self->rb, gyro_heading);
@@ -166,7 +182,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
   // Global motion timeout check
   if (self->rb->timeout_ms > 0 && elapsed_ms >= self->rb->timeout_ms) {
-    self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_TIMED_OUT;
+    pb_type_mdrobotbase_mark_timed_out(self);
     pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
     pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
     if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -202,7 +218,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         float e_theta = mdrobotbase_wrap_degrees(self->rb->gt - self->rb->theta);
 
         if (fabsf(e_theta) <= 1.5f) {
-          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
+          pb_type_mdrobotbase_mark_completed(self);
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
@@ -227,7 +243,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         if (elapsed_ms > 200) {
           bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f);
           if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 200.0f)) {
-            self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_STALLED;
+            pb_type_mdrobotbase_mark_stalled(self);
             pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
             pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
             self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
@@ -268,7 +284,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
           self->rb->last_step_theta = self->rb->theta;
           return PBIO_ERROR_AGAIN;
         }
-        self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
+        pb_type_mdrobotbase_mark_completed(self);
         pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
         pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
         if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -466,7 +482,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         float v_raw = step / dt_sec;
         bool is_stalled = (fabsf(v_cmd) > 30.0f && fabsf(v_raw) < 10.0f);
         if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 250.0f)) {
-          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_STALLED;
+          pb_type_mdrobotbase_mark_stalled(self);
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
@@ -489,7 +505,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
       if (fabsf(e_theta) <= self->rb->tolerance_angle) {
         if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
-          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
+          pb_type_mdrobotbase_mark_completed(self);
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -542,7 +558,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
       if (elapsed_ms > 300) {
         bool is_stalled = (fabsf(w_cmd) > 60.0f && fabsf(w_raw) < 2.0f);
         if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
-          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_STALLED;
+          pb_type_mdrobotbase_mark_stalled(self);
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
@@ -572,7 +588,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
       if (fabsf(e_theta) <= self->rb->tolerance_angle) {
         if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
-          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
+          pb_type_mdrobotbase_mark_completed(self);
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -625,7 +641,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
       if (elapsed_ms > 300) {
         bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 2.0f);
         if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
-          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_STALLED;
+          pb_type_mdrobotbase_mark_stalled(self);
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
@@ -649,7 +665,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
     case PBIO_MDROBOTBASE_MOTION_TRAJECTORY: {
       if (self->rb->trajectory_num_points == 0 || self->rb->trajectory_current_point_idx >= self->rb->trajectory_num_points) {
-        self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
+        pb_type_mdrobotbase_mark_completed(self);
         pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
         pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
         self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
@@ -668,7 +684,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
       if (is_final_point) {
         if (dist_remaining <= self->rb->tolerance_dist) {
-          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
+          pb_type_mdrobotbase_mark_completed(self);
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -774,7 +790,7 @@ static mp_obj_t pb_type_MDRobotBase_set_controller(size_t n_args,
 
   int32_t val = pb_obj_get_int(type_in);
   if (val != PBIO_MDROBOTBASE_CONTROLLER_PID && val != PBIO_MDROBOTBASE_CONTROLLER_LQR) {
-    mp_raise_ValueError("invalid controller type");
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid controller type"));
   }
   pb_assert(pbio_mdrobotbase_set_controller(
       self->rb, (pbio_mdrobotbase_controller_t)val));
@@ -1006,12 +1022,12 @@ static mp_obj_t pb_type_MDRobotBase_set_gear_ratio(mp_obj_t self_in, mp_obj_t ra
   #if MICROPY_PY_BUILTINS_FLOAT
   float ratio = mp_obj_get_float(ratio_in);
   if (!isfinite(ratio) || ratio < 0.001f || ratio > 1000.0f) {
-    mp_raise_ValueError("gear ratio must be a positive non-zero finite value");
+    mp_raise_ValueError(MP_ERROR_TEXT("gear ratio must be a positive non-zero finite value"));
   }
   #else
   float ratio = (float)mp_obj_get_int(ratio_in);
   if (ratio < 0.001f || ratio > 1000.0f) {
-    mp_raise_ValueError("gear ratio must be a positive non-zero finite value");
+    mp_raise_ValueError(MP_ERROR_TEXT("gear ratio must be a positive non-zero finite value"));
   }
   #endif
   pb_assert(pbio_mdrobotbase_set_gear_ratio(self->rb, ratio));
@@ -1064,20 +1080,20 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   float gx = mp_obj_get_float(parsed_args[0].u_obj);
   float gy = mp_obj_get_float(parsed_args[1].u_obj);
   if (!isfinite(gx) || !isfinite(gy)) {
-    mp_raise_ValueError("coordinates must be finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("coordinates must be finite"));
   }
   mp_obj_t goal_theta_obj = parsed_args[2].u_obj;
   if (goal_theta_obj != mp_const_none) {
     float gt_val_check = mp_obj_get_float(goal_theta_obj);
     if (!isfinite(gt_val_check)) {
-      mp_raise_ValueError("goal_theta must be finite");
+      mp_raise_ValueError(MP_ERROR_TEXT("goal_theta must be finite"));
     }
   }
   float speed = parsed_args[3].u_obj == mp_const_none
                     ? 500.0f
                     : mp_obj_get_float(parsed_args[3].u_obj);
   if (!isfinite(speed)) {
-    mp_raise_ValueError("speed must be finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("speed must be finite"));
   }
   float start_speed = parsed_args[4].u_obj == mp_const_none
                           ? 20.0f
@@ -1303,8 +1319,7 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   self->rb->start_time_ms = pbdrv_clock_get_ms();
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NAVIGATE;
-  self->rb->motion_in_progress = true;
-  self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_RUNNING;
+  pb_type_mdrobotbase_mark_running(self);
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1467,13 +1482,13 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
 
   float target_angle = mp_obj_get_float(parsed_args[0].u_obj);
   if (!isfinite(target_angle)) {
-    mp_raise_ValueError("target_angle must be finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("target_angle must be finite"));
   }
   float speed_deg_s = parsed_args[1].u_obj == mp_const_none
                           ? 300.0f
                           : mp_obj_get_float(parsed_args[1].u_obj);
   if (!isfinite(speed_deg_s) || speed_deg_s <= 0.0f) {
-    mp_raise_ValueError("speed must be positive and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("speed must be positive and finite"));
   }
   mp_obj_t tolerance_obj = parsed_args[2].u_obj;
   mp_obj_t timeout_ms_obj = parsed_args[3].u_obj;
@@ -1543,8 +1558,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
   self->rb->start_time_ms = pbdrv_clock_get_ms();
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_TURN;
-  self->rb->motion_in_progress = true;
-  self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_RUNNING;
+  pb_type_mdrobotbase_mark_running(self);
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1631,13 +1645,13 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
 
   float target_angle = mp_obj_get_float(parsed_args[0].u_obj);
   if (!isfinite(target_angle)) {
-    mp_raise_ValueError("target_angle must be finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("target_angle must be finite"));
   }
   float speed_deg_s = parsed_args[1].u_obj == mp_const_none
                           ? 200.0f
                           : mp_obj_get_float(parsed_args[1].u_obj);
   if (!isfinite(speed_deg_s) || speed_deg_s <= 0.0f) {
-    mp_raise_ValueError("speed must be positive and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("speed must be positive and finite"));
   }
   mp_obj_t pivot_side_obj = parsed_args[2].u_obj;
   mp_obj_t tolerance_obj = parsed_args[3].u_obj;
@@ -1728,8 +1742,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
   self->rb->start_time_ms = pbdrv_clock_get_ms();
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_PIVOT;
-  self->rb->motion_in_progress = true;
-  self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_RUNNING;
+  pb_type_mdrobotbase_mark_running(self);
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1823,11 +1836,11 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
   mp_obj_t *points = NULL;
   mp_obj_get_array(points_obj, &num_points, &points);
   if (num_points < 2) {
-    mp_raise_ValueError("trajectory requires at least 2 points");
+    mp_raise_ValueError(MP_ERROR_TEXT("trajectory requires at least 2 points"));
   }
 
   if (num_points > 64) {
-    mp_raise_ValueError("trajectory exceeds maximum capacity of 64 points");
+    mp_raise_ValueError(MP_ERROR_TEXT("trajectory exceeds maximum capacity of 64 points"));
   }
 
   float speed = parsed_args[1].u_obj == mp_const_none
@@ -1853,25 +1866,25 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
                                    : mp_obj_get_float(parsed_args[7].u_obj);
 
   if (!isfinite(speed) || speed <= 0.0f) {
-    mp_raise_ValueError("speed must be positive and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("speed must be positive and finite"));
   }
   if (!isfinite(start_speed) || start_speed < 0.0f) {
-    mp_raise_ValueError("start_speed must be non-negative and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("start_speed must be non-negative and finite"));
   }
   if (!isfinite(end_speed) || end_speed < 0.0f) {
-    mp_raise_ValueError("end_speed must be non-negative and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("end_speed must be non-negative and finite"));
   }
   if (!isfinite(accel_d) || accel_d <= 0.0f) {
-    mp_raise_ValueError("accel_d must be positive and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("accel_d must be positive and finite"));
   }
   if (!isfinite(decel_d) || decel_d <= 0.0f) {
-    mp_raise_ValueError("decel_d must be positive and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("decel_d must be positive and finite"));
   }
   if (!isfinite(tolerance) || tolerance <= 0.0f) {
-    mp_raise_ValueError("tolerance must be positive and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("tolerance must be positive and finite"));
   }
   if (!isfinite(transition_tolerance) || transition_tolerance <= 0.0f) {
-    mp_raise_ValueError("transition_tolerance must be positive and finite");
+    mp_raise_ValueError(MP_ERROR_TEXT("transition_tolerance must be positive and finite"));
   }
 
   bool ramping = parsed_args[8].u_bool;
@@ -1889,12 +1902,12 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
     mp_obj_t *p_coords;
     mp_obj_get_array(points[i], &p_len, &p_coords);
     if (p_len < 2) {
-      mp_raise_ValueError("trajectory point must have at least (x, y) coordinates");
+      mp_raise_ValueError(MP_ERROR_TEXT("trajectory point must have at least (x, y) coordinates"));
     }
     float px = mp_obj_get_float(p_coords[0]);
     float py = mp_obj_get_float(p_coords[1]);
     if (!isfinite(px) || !isfinite(py)) {
-      mp_raise_ValueError("trajectory coordinates must be finite");
+      mp_raise_ValueError(MP_ERROR_TEXT("trajectory coordinates must be finite"));
     }
     temp_x[i] = px;
     temp_y[i] = py;
@@ -1935,8 +1948,7 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
   self->rb->start_time_ms = pbdrv_clock_get_ms();
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_TRAJECTORY;
-  self->rb->motion_in_progress = true;
-  self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_RUNNING;
+  pb_type_mdrobotbase_mark_running(self);
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -2012,13 +2024,13 @@ pb_type_MDRobotBase_set_wheel_diameters(size_t n_args, const mp_obj_t *pos_args,
   if (mp_obj_is_float(left_diameter_in)) {
     mp_float_t val = mp_obj_get_float(left_diameter_in);
     if (!isfinite(val) || val <= 0.0) {
-      mp_raise_ValueError("wheel diameter must be positive non-zero finite value");
+      mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter must be positive non-zero finite value"));
     }
   }
   if (mp_obj_is_float(right_diameter_in)) {
     mp_float_t val = mp_obj_get_float(right_diameter_in);
     if (!isfinite(val) || val <= 0.0) {
-      mp_raise_ValueError("wheel diameter must be positive non-zero finite value");
+      mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter must be positive non-zero finite value"));
     }
   }
   #endif
@@ -2127,26 +2139,26 @@ static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type,
                       PB_ARG_REQUIRED(axle_track), PB_ARG_DEFAULT_FALSE(debug));
 
   if (left_motor_in == right_motor_in) {
-    mp_raise_ValueError("left and right motors must be distinct");
+    mp_raise_ValueError(MP_ERROR_TEXT("left and right motors must be distinct"));
   }
 
   #if MICROPY_PY_BUILTINS_FLOAT
   if (mp_obj_is_float(wheel_diameter_left_in)) {
     mp_float_t val = mp_obj_get_float(wheel_diameter_left_in);
     if (!isfinite(val) || val <= 0.0) {
-      mp_raise_ValueError("wheel diameter and axle track must be positive non-zero finite values");
+      mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter and axle track must be positive non-zero finite values"));
     }
   }
   if (mp_obj_is_float(wheel_diameter_right_in)) {
     mp_float_t val = mp_obj_get_float(wheel_diameter_right_in);
     if (!isfinite(val) || val <= 0.0) {
-      mp_raise_ValueError("wheel diameter and axle track must be positive non-zero finite values");
+      mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter and axle track must be positive non-zero finite values"));
     }
   }
   if (mp_obj_is_float(axle_track_in)) {
     mp_float_t val = mp_obj_get_float(axle_track_in);
     if (!isfinite(val) || val <= 0.0) {
-      mp_raise_ValueError("wheel diameter and axle track must be positive non-zero finite values");
+      mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter and axle track must be positive non-zero finite values"));
     }
   }
   #endif

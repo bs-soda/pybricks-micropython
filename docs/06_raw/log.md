@@ -4,6 +4,23 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T21:15:00+07:00` — **G-MDRB-024 Release Gate Passed & Hand-off for Human Review**
+  - Fully remediated P1 FSM single-source-of-truth defect: implemented `pbio_mdrobotbase_mark_running()`, `pbio_mdrobotbase_mark_completed()`, `pbio_mdrobotbase_mark_stalled()`, `pbio_mdrobotbase_mark_timed_out()`.
+  - Eliminated all 15 direct `self->rb->motion_status = ...` assignments in `pybricks/robotics/pb_type_mdrobotbase.c`.
+  - Implemented `test_mdrobotbase_fsm_terminal_helpers` in `lib/pbio/test/src/test_mdrobotbase.c`; native PBIO suite reports 22/22 tests ok (0 skipped).
+  - Remediated 27 `mp_raise_ValueError("...")` bare string calls to standard `MP_ERROR_TEXT(...)`.
+  - Executed Master Replication Harness: 26/26 Gates Passed (`scripts/harness/master-replication-g-mdrb-024.mjs`).
+  - Executed Socratic Agentic Loop: 25/25 Dialectic Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-024-harness.mjs`).
+  - Updated Goal G-MDRB-024 status to `review` and collaboration phase to `REVIEW`. Handed off for human approval.
+  - Published master report [`docs/06_raw/20260908_211500_g_mdrb_024_fsm_truth_master_replication_and_release_gate_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_211500_g_mdrb_024_fsm_truth_master_replication_and_release_gate_report.md).
+
+- `2026-09-08T21:05:00+07:00` — **G-MDRB-024 Clarification, Socratic Dialectics & Harness Baseline**
+  - Promoted `G-MDRB-024` from `draft` (DEFINE) to `ready` (PLAN) after resolving all open questions.
+  - Formulated 5 Causal Branches x 5 Dialectic Levels (25 total nodes) in `scripts/harness/socratic-agentic-loop-g-mdrb-024-harness.mjs`.
+  - Created 7-Gate Master Replication Harness in `scripts/harness/master-replication-g-mdrb-024.mjs`.
+  - Published comprehensive Socratic Dialectic & FSM Hardening document [`docs/06_raw/20260908_210500_g_mdrb_024_clarification_and_fsm_dialectics.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_210500_g_mdrb_024_clarification_and_fsm_dialectics.md).
+  - Recorded exact-HEAD baseline: 15 direct `rb->motion_status = ...` mutations identified in `pb_type_mdrobotbase.c`.
+
 - `2026-09-08T21:00:00+07:00` — **Codex Codebase Review Audit & MDRB-024–027 Planning**
   - Synthesized latest architectural review from Codex (Scorecard: 8.7/10, HEAD `65c97fd8`).
   - Identified 4 remaining gaps: FSM direct field mutations (P1), Runtime test execution recording (P1), Untracked `lib/btstack/` repository decision (P2), Motion dispatcher complexity (P2).

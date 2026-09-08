@@ -661,6 +661,22 @@ pbio_error_t pbio_mdrobotbase_set_motion_status(pbio_mdrobotbase_t *rb, pbio_mdr
     return PBIO_SUCCESS;
 }
 
+pbio_error_t pbio_mdrobotbase_mark_running(pbio_mdrobotbase_t *rb) {
+    return pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING);
+}
+
+pbio_error_t pbio_mdrobotbase_mark_completed(pbio_mdrobotbase_t *rb) {
+    return pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED);
+}
+
+pbio_error_t pbio_mdrobotbase_mark_stalled(pbio_mdrobotbase_t *rb) {
+    return pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED);
+}
+
+pbio_error_t pbio_mdrobotbase_mark_timed_out(pbio_mdrobotbase_t *rb) {
+    return pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_TIMED_OUT);
+}
+
 pbio_error_t pbio_mdrobotbase_get_pose(const pbio_mdrobotbase_t *rb, float *x, float *y, float *theta) {
     if (!rb || !x || !y || !theta) {
         return PBIO_ERROR_INVALID_ARG;

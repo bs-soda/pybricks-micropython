@@ -1,0 +1,21 @@
+id: qa
+version: "1.0.0"
+roles:
+  - qa
+
+imports:
+  recipes:
+    - REC-004
+  checklists:
+    - regression-checklist
+
+exclude:
+  - code/**/*
+  - .agents/**
+
+include_for_verify:
+  - docs/02-product/acceptance/**
+  - docs/07-backlog/goals/**
+
+default_task_types:
+  - qa_verify

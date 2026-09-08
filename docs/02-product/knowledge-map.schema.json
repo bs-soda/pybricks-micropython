@@ -1,0 +1,397 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soda.dev/schemas/knowledge-map/v1.2",
+  "title": "Soda Knowledge Map",
+  "description": "Knowledge graph + os_health. Core: docs/06-workflows/os-core-invariants.md",
+  "type": "object",
+  "required": [
+    "version",
+    "temporal_defaults",
+    "coverage",
+    "evidence",
+    "pain",
+    "assumptions",
+    "constraints",
+    "decisions",
+    "goals",
+    "conflicts",
+    "observations"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "updated": { "type": ["string", "null"], "format": "date" },
+    "temporal_defaults": {
+      "type": "object",
+      "required": ["evidence_freshness_days"],
+      "properties": {
+        "evidence_freshness_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 180,
+          "description": "Default TTL before evidence needs revalidation"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["percent", "step", "blockers"],
+        "properties": {
+          "percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "step": { "type": "integer", "minimum": 1, "maximum": 7 },
+          "blockers": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "promote_gates": {
+      "type": "object",
+      "properties": {
+        "required_at_100": { "type": "array", "items": { "type": "string" } },
+        "min_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "warn_below": { "type": "array", "items": { "type": "string" } },
+        "block_on_open_conflicts": { "type": "boolean", "default": true },
+        "block_on_needs_review": { "type": "boolean", "default": true },
+        "min_traceability_ready": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "spec_stability": {
+          "type": "object",
+          "description": "Extension gates — no guess / mix-HOW / drift. Tune per studio; not Core.",
+          "properties": {
+            "block_on_needs_clarification": { "type": "boolean", "default": true },
+            "require_spec_checklist": { "type": "boolean", "default": true },
+            "require_analyze_before_execute": { "type": "boolean", "default": true },
+            "intent_no_stack": { "type": "boolean", "default": true }
+          }
+        }
+      }
+    },
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+    "pain": { "type": "array", "items": { "$ref": "#/$defs/knowledgeNode" } },
+    "assumptions": { "type": "array", "items": { "$ref": "#/$defs/assumptionNode" } },
+    "constraints": { "type": "array", "items": { "$ref": "#/$defs/knowledgeNode" } },
+    "risks": { "type": "array", "items": { "$ref": "#/$defs/knowledgeNode" } },
+    "decisions": { "type": "array", "items": { "$ref": "#/$defs/decisionNode" } },
+    "goals": { "type": "array", "items": { "$ref": "#/$defs/goalNode" } },
+    "conflicts": { "type": "array", "items": { "$ref": "#/$defs/conflictNode" } },
+    "observations": { "type": "array", "items": { "$ref": "#/$defs/observationNode" } },
+    "traceability": { "$ref": "#/$defs/traceabilityConfig" },
+    "os_health": { "$ref": "#/$defs/osHealth" },
+    "_extensions": {
+      "type": "object",
+      "description": "Tunable params — evidence-driven; not Core invariants",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "evidenceType": {
+      "type": "string",
+      "enum": [
+        "interview",
+        "analytics",
+        "support_ticket",
+        "screen_recording",
+        "survey",
+        "document",
+        "observation",
+        "metrics",
+        "deploy",
+        "feedback",
+        "other"
+      ]
+    },
+    "temporal": {
+      "type": "object",
+      "properties": {
+        "last_validated": { "type": ["string", "null"], "format": "date" },
+        "expires_after": { "type": ["string", "null"], "format": "date" },
+        "needs_review": { "type": "boolean", "default": false },
+        "freshness_days": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Override default TTL for this item"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["id", "type", "title", "date"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^E-\\d{3}$" },
+        "type": { "$ref": "#/$defs/evidenceType" },
+        "title": { "type": "string" },
+        "date": { "type": "string", "format": "date", "description": "When evidence was captured" },
+        "source": { "type": "string" },
+        "ref": { "type": "string" },
+        "last_validated": { "type": ["string", "null"], "format": "date" },
+        "expires_after": { "type": ["string", "null"], "format": "date" },
+        "needs_review": { "type": "boolean", "default": false },
+        "freshness_days": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "knowledgeNode": {
+      "type": "object",
+      "required": ["id", "title", "confidence", "evidence", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(P|C|R)-\\d{3}$" },
+        "title": { "type": "string" },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^E-\\d{3}$" },
+          "minItems": 1
+        },
+        "decisions": { "type": "array", "items": { "type": "string" } },
+        "goals": { "type": "array", "items": { "type": "string", "pattern": "^(G-[A-Z]{2,8}-[0-9]{3}|G-[0-9]{3})$" } },
+        "status": { "type": "string", "enum": ["active", "promoted", "superseded", "expired"] },
+        "promoted_to": { "type": "string" },
+        "supersedes": { "type": "string", "description": "ID of node this replaces" },
+        "last_validated": { "type": ["string", "null"], "format": "date" },
+        "expires_after": { "type": ["string", "null"], "format": "date" },
+        "needs_review": { "type": "boolean", "default": false }
+      }
+    },
+    "assumptionNode": {
+      "type": "object",
+      "required": ["id", "title", "confidence", "evidence", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^A-\\d{3}$" },
+        "title": { "type": "string" },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": { "type": "array", "items": { "type": "string", "pattern": "^E-\\d{3}$" } },
+        "validation_needed": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "validated", "invalidated"] },
+        "decisions": { "type": "array", "items": { "type": "string" } },
+        "goals": { "type": "array", "items": { "type": "string" } },
+        "last_validated": { "type": ["string", "null"], "format": "date" },
+        "expires_after": { "type": ["string", "null"], "format": "date" },
+        "needs_review": { "type": "boolean", "default": false }
+      }
+    },
+    "decisionNode": {
+      "type": "object",
+      "required": ["id", "type", "file", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["pdr", "adr"] },
+        "file": { "type": "string" },
+        "status": { "type": "string", "enum": ["proposed", "accepted", "superseded", "deprecated"] },
+        "depends_on": { "type": "array", "items": { "type": "string" } },
+        "unblocks": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": "array", "items": { "type": "string", "pattern": "^E-\\d{3}$" } },
+        "pains_addressed": { "type": "array", "items": { "type": "string", "pattern": "^P-\\d{3}$" } },
+        "goals": { "type": "array", "items": { "type": "string", "pattern": "^(G-[A-Z]{2,8}-[0-9]{3}|G-[0-9]{3})$" } },
+        "last_validated": { "type": ["string", "null"], "format": "date" },
+        "expires_after": { "type": ["string", "null"], "format": "date" },
+        "needs_review": { "type": "boolean", "default": false },
+        "outcomes": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^O-\\d{3}$" },
+          "description": "Post-ship observations that validated or challenged this decision"
+        }
+      }
+    },
+    "goalNode": {
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(G-[A-Z]{2,8}-[0-9]{3}|G-[0-9]{3})$" },
+        "file": { "type": "string" },
+        "status": { "type": "string" },
+        "pains": { "type": "array", "items": { "type": "string", "pattern": "^P-\\d{3}$" } },
+        "decisions": { "type": "array", "items": { "type": "string" } },
+        "assumptions_required": { "type": "array", "items": { "type": "string", "pattern": "^A-\\d{3}$" } },
+        "observations": { "type": "array", "items": { "type": "string", "pattern": "^O-\\d{3}$" } }
+      }
+    },
+    "conflictNode": {
+      "type": "object",
+      "required": ["id", "status", "topic", "summary"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^CF-\\d{3}$" },
+        "status": { "type": "string", "enum": ["open", "resolved", "deferred"] },
+        "topic": { "type": "string" },
+        "summary": { "type": "string" },
+        "nodes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Conflicting P-xxx, A-xxx, or knowledge IDs"
+        },
+        "evidence": { "type": "array", "items": { "type": "string", "pattern": "^E-\\d{3}$" } },
+        "opened": { "type": "string", "format": "date" },
+        "resolved_at": { "type": ["string", "null"], "format": "date" },
+        "resolution": {
+          "type": ["string", "null"],
+          "enum": ["evidence_wins", "pdr", "supersede", "defer", "invalidated", null]
+        },
+        "resolved_by": { "type": ["string", "null"], "description": "PDR-xxx or human role" },
+        "resolution_note": { "type": "string" }
+      }
+    },
+    "observationNode": {
+      "type": "object",
+      "required": ["id", "date", "source", "title", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^O-\\d{3}$" },
+        "date": { "type": "string", "format": "date" },
+        "source": {
+          "type": "string",
+          "enum": ["metrics", "support", "feedback", "deploy", "analytics", "uat", "incident", "other"]
+        },
+        "title": { "type": "string" },
+        "finding": { "type": "string" },
+        "evidence_id": { "type": "string", "pattern": "^E-\\d{3}$" },
+        "goals": { "type": "array", "items": { "type": "string", "pattern": "^(G-[A-Z]{2,8}-[0-9]{3}|G-[0-9]{3})$" } },
+        "decisions": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["pending", "processed"] },
+        "learning_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["action"],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "update_pain",
+                  "supersede_pain",
+                  "invalidate_assumption",
+                  "validate_assumption",
+                  "new_pain",
+                  "new_assumption",
+                  "new_conflict",
+                  "resolve_conflict",
+                  "new_pdr",
+                  "new_goal",
+                  "update_decision_review"
+                ]
+              },
+              "target": { "type": "string" },
+              "note": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "traceabilityConfig": {
+      "type": "object",
+      "properties": {
+        "chain": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["evidence", "pain", "pdr", "adr", "goal", "observation"]
+          },
+          "default": ["evidence", "pain", "pdr", "adr", "goal", "observation"]
+        },
+        "min_score_ready": { "type": "integer", "minimum": 0, "maximum": 100, "default": 67 },
+        "min_score_done": { "type": "integer", "minimum": 0, "maximum": 100, "default": 83 },
+        "goals": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/traceabilityGoalScore" }
+        }
+      }
+    },
+    "traceabilityGoalScore": {
+      "type": "object",
+      "required": ["score", "missing", "calculated"],
+      "properties": {
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["evidence", "pain", "pdr", "adr", "goal", "observation"]
+          }
+        },
+        "optional_skipped": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["evidence", "pain", "pdr", "adr", "goal", "observation"]
+          },
+          "description": "N/A links excluded from denominator (e.g. no ADR for doc-only goal)"
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "evidence": { "type": "array", "items": { "type": "string" } },
+            "pain": { "type": "array", "items": { "type": "string" } },
+            "pdr": { "type": "array", "items": { "type": "string" } },
+            "adr": { "type": "array", "items": { "type": "string" } },
+            "goal": { "type": "string" },
+            "observation": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "calculated": { "type": "string", "format": "date" },
+        "goal_status_at_calc": { "type": "string" }
+      }
+    },
+    "osHealth": {
+      "type": "object",
+      "properties": {
+        "calculated": { "type": ["string", "null"], "format": "date" },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "knowledge_freshness": {
+              "type": "object",
+              "properties": {
+                "percent": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+                "fresh": { "type": "integer" },
+                "total": { "type": "integer" }
+              }
+            },
+            "traceability": {
+              "type": "object",
+              "properties": {
+                "percent": { "type": ["integer", "null"] },
+                "goals_scored": { "type": "integer" }
+              }
+            },
+            "open_conflicts": { "type": "object", "properties": { "count": { "type": "integer" } } },
+            "open_assumptions": { "type": "object", "properties": { "count": { "type": "integer" } } },
+            "pattern_reuse": {
+              "type": "object",
+              "properties": {
+                "percent": { "type": ["integer", "null"] },
+                "goals_with_pattern": { "type": "integer" },
+                "total_goals": { "type": "integer" }
+              }
+            },
+            "learning_velocity": {
+              "type": "object",
+              "properties": {
+                "per_month": { "type": "number" },
+                "window_days": { "type": "integer" },
+                "processed_observations": { "type": "integer" }
+              }
+            },
+            "knowledge_roi": {
+              "type": "object",
+              "description": "Executive ROI — Extension; estimate early, refine from studio data",
+              "properties": {
+                "pattern_reuse_percent": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+                "time_saved_hours": { "type": ["number", "null"], "minimum": 0 },
+                "discovery_questions_avoided": { "type": ["integer", "null"], "minimum": 0 },
+                "decisions_reused": { "type": ["integer", "null"], "minimum": 0 },
+                "adr_suggested": { "type": ["integer", "null"], "minimum": 0 },
+                "notes": { "type": "string", "description": "Human sign-off or estimation method" }
+              }
+            }
+          }
+        },
+        "thresholds": {
+          "type": "object",
+          "properties": {
+            "knowledge_freshness_min": { "type": "integer", "default": 85 },
+            "traceability_min": { "type": "integer", "default": 85 },
+            "learning_velocity_min_per_month": { "type": "number", "default": 1 }
+          }
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

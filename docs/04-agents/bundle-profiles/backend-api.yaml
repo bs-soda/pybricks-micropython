@@ -1,0 +1,22 @@
+id: backend-api
+version: "1.0.0"
+roles:
+  - developer
+  - backend
+
+imports:
+  recipes:
+    - REC-001
+  checklists:
+    - security-api-checklist
+  skills:
+    - soda-rest-api
+
+exclude:
+  - "**/*.tsx"
+  - "**/ui/**"
+  - docs/02-product/knowledge-digest.md
+
+default_task_types:
+  - modify_existing_api
+  - add_api

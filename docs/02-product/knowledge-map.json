@@ -1,0 +1,79 @@
+{
+  "$schema": "./knowledge-map.schema.json",
+  "version": "1.3.1",
+  "updated": null,
+  "_extensions": {
+    "note": "Tunable via evidence from 10-20 projects — see docs/06-workflows/os-core-invariants.md",
+    "evidence_freshness_days": 180,
+    "traceability_min_ready": 67,
+    "traceability_min_done": 83
+  },
+  "temporal_defaults": {
+    "evidence_freshness_days": 180
+  },
+  "coverage": {
+    "business": { "percent": 0, "step": 1, "blockers": ["Vision, customer, revenue model not captured"] },
+    "users": { "percent": 0, "step": 1, "blockers": ["Primary persona not named"] },
+    "workflow": { "percent": 0, "step": 2, "blockers": ["As-is journey not documented"] },
+    "pain": { "percent": 0, "step": 3, "blockers": ["No pain with evidence in map"] },
+    "dream": { "percent": 0, "step": 4, "blockers": ["To-be outcome not documented"] },
+    "scope": { "percent": 0, "step": 5, "blockers": ["project-brief In Scope empty"] },
+    "boundary": { "percent": 0, "step": 6, "blockers": ["project-brief Out of Scope empty"] },
+    "success": { "percent": 0, "step": 7, "blockers": ["No measurable success metric"] },
+    "constraints": { "percent": 0, "step": 7, "blockers": ["No documented constraint with evidence"] }
+  },
+  "promote_gates": {
+    "required_at_100": ["pain", "boundary"],
+    "min_percent": 80,
+    "warn_below": ["success", "constraints"],
+    "block_on_open_conflicts": true,
+    "block_on_needs_review": true,
+    "min_traceability_ready": 67,
+    "spec_stability": {
+      "block_on_needs_clarification": true,
+      "require_spec_checklist": true,
+      "require_analyze_before_execute": true,
+      "intent_no_stack": true
+    }
+  },
+  "traceability": {
+    "chain": ["evidence", "pain", "pdr", "adr", "goal", "observation"],
+    "min_score_ready": 67,
+    "min_score_done": 83,
+    "goals": {}
+  },
+  "os_health": {
+    "calculated": null,
+    "thresholds": {
+      "knowledge_freshness_min": 85,
+      "traceability_min": 85,
+      "learning_velocity_min_per_month": 1
+    },
+    "metrics": {
+      "knowledge_freshness": { "percent": null, "fresh": 0, "total": 0 },
+      "traceability": { "percent": null, "goals_scored": 0 },
+      "open_conflicts": { "count": 0 },
+      "open_assumptions": { "count": 0 },
+      "pattern_reuse": { "percent": null, "goals_with_pattern": 0, "total_goals": 0 },
+      "learning_velocity": { "per_month": 0, "window_days": 30, "processed_observations": 0 },
+      "knowledge_roi": {
+        "pattern_reuse_percent": null,
+        "time_saved_hours": null,
+        "discovery_questions_avoided": null,
+        "decisions_reused": null,
+        "adr_suggested": null,
+        "notes": null
+      }
+    },
+    "warnings": []
+  },
+  "evidence": [],
+  "pain": [],
+  "assumptions": [],
+  "constraints": [],
+  "risks": [],
+  "decisions": [],
+  "goals": [],
+  "conflicts": [],
+  "observations": []
+}

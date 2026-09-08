@@ -1,0 +1,52 @@
+# G-001 — Step 2 example (action bundle + recipe)
+goal_id: G-001
+current_step: 2
+role: developer
+mode: execute  # bundle mode — collaboration phase EXECUTE; see design-spec.md §8
+agent: cursor
+profile: backend-api
+
+execution_mode: modify_existing_api
+task_type: add_api
+recipe: REC-001
+
+objective: เพิ่ม JWT refresh token endpoint
+
+checklist:
+  - Read auth.service.ts and existing auth routes
+  - Add POST /auth/refresh handler per ADR-001
+  - Update auth.service.spec.ts
+  - Run test plan + lint on allowed files
+
+completion:
+  - Acceptance A-004 complete
+  - Tests pass
+
+allowed_files:
+  - code/src/auth/auth.service.ts
+  - code/src/auth/jwt.ts
+  - code/src/auth/auth.controller.ts
+  - code/src/auth/auth.service.spec.ts
+
+avoid:
+  - code/src/payment/**
+  - code/src/notification/**
+
+exit_when:
+  - test plan commands pass
+  - acceptance scenario A-004 complete
+  - no edits outside allowed_files
+
+next_step: 3
+
+context_refs:
+  adr: [ADR-001]
+  pdr: [PDR-002]
+  patterns: [ORG-003]
+  acceptance: docs/02-product/acceptance/_template.md
+
+skills:
+  - soda-rest-api
+
+agent_capability:
+  refactor: strong

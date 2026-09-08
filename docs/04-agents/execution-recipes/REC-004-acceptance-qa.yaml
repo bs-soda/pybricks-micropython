@@ -1,0 +1,26 @@
+id: REC-004
+slug: acceptance-qa
+version: "1.0.0"
+task_types:
+  - qa_verify
+
+execution_mode: verify_only
+
+description: QA pass — acceptance contract + regression; no feature implementation.
+
+checklist:
+  - Read acceptance contract for current goal step
+  - Map each scenario to test or manual verify step
+  - Run automated tests from test plan
+  - Log gaps as observation O-xxx or blocker — do not fix code unless goal says so
+
+completion:
+  - All acceptance scenarios for step marked pass or waived with human note
+  - Test plan commands green
+
+imports:
+  - regression-checklist
+
+weak_agent_guardrails:
+  - Do not edit production code paths
+  - Report only — route fixes to new goal draft

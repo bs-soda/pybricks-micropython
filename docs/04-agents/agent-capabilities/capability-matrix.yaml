@@ -1,0 +1,31 @@
+version: "1.0.0"
+updated: "2026-06-27"
+note: "Starter estimates — replace with Sprint B data from 10 projects"
+
+agents:
+  cursor:
+    rest_api: 0.95
+    flutter: 0.82
+    refactor: 0.91
+    db_migration: 0.78
+    qa_verify: 0.70
+  claude:
+    architecture: 0.98
+    reasoning: 0.99
+    rest_api: 0.88
+    qa: 0.83
+    refactor: 0.85
+  gemini:
+    rest_api: 0.75
+    flutter: 0.80
+    documentation: 0.90
+
+thresholds:
+  strong: 0.90
+  standard: 0.75
+  weak_below: 0.75
+
+weak_agent_rules:
+  - split_checklist_into_smaller_steps
+  - reduce_allowed_files_per_step
+  - add_human_checkpoint_before_merge

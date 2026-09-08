@@ -1,0 +1,420 @@
+# ISO 29110 — Team Template Manifest (23 Work Products)
+# Shipped in soda-os at docs/08-iso29110/
+# Template files: docs/08-iso29110/templates/{folder}/{template_file}
+# Output files:   work-products/{folder}/WP{nn}-{Basename}.md
+#   Basename = template_file without .template.md (e.g. WP02-Agreement.md)
+# Agent skill:    .agents/skills/soda-iso29110/SKILL.md
+#
+# output_type:
+#   doc      — full Markdown work product from template
+#   link     — thin register pointing at external tool (ClickUp / GitHub / server)
+#   register — artifact checklist (repo/build/release), not a long narrative doc
+#   derived  — generated from another WP (e.g. WP20 summary/graph from WP19)
+
+version: "1.2"
+source: soda-os
+templates_root: docs/08-iso29110/templates
+output_root: work-products
+placeholders_global:
+  - project_name
+  - project_code
+  - project_description
+  - objective
+  - stakeholders
+  - author
+  - date
+  - client_name
+  - vendor_name
+  - agreement_id
+  - agreement_date
+  - project_duration_start
+  - project_duration_end
+  - communication_methods
+  - company_code
+  - schedule_link
+  - document_link
+  - sheet_link
+  - repository_url
+  - components_repository_url
+  - app_store_url
+  - production_url
+  - product_owner_name
+  - test_case_sheet_link
+  - project_tool_url
+  - change_request_clickup_url
+  - correction_register_clickup_url
+  - change_request_form_url
+  - backup_server
+  - backup_path
+  - app_package_id
+  - release_version
+  - release_tag
+  - store_submission_status
+  - test_report_version
+  - test_environment
+  - test_period_start
+  - test_period_end
+  - test_lead
+
+# agent_role: orchestrator | management | requirements | design | qa | cm | ops | deliverables
+
+# Full generation order (docs + link/register/derived). Event-driven WPs separate.
+#
+# | Gen# | WP   | Name                         | Type     |
+# |:----:|:----:| ---------------------------- | -------- |
+# |  1   | WP02 | Agreement                    | doc      |
+# |  2   | WP10 | Project Plan                 | doc      |
+# |  3   | WP13 | Requirement Specification    | doc      |
+# |  4   | WP09 | Progress Status Record       | doc      |
+# |  5   | WP16 | Software Design              | doc      |
+# |  6   | WP15 | Software Components          | link     |
+# |  7   | WP05 | Implementation Environment   | doc      |
+# |  8   | WP11 | Project Repository           | link     |
+# |  9   | WP19 | Test cases and Procedure     | doc      |
+# | 10   | WP21 | Traceability Record          | doc      |
+# | 11   | WP23 | Verification Record          | doc      |
+# | 12   | WP14 | Software                     | register |
+# | 13   | WP20 | Test report                  | derived  |
+# | 14   | WP22 | Validation Record            | doc      |
+# | 15   | WP08 | Product Operation Guideline  | doc      |
+# | 16   | WP18 | Software User Document       | doc      |
+# | 17   | WP06 | Maintenance Documentation    | doc      |
+# | 18   | WP12 | Project Repository Backup    | link     |
+# | 19   | WP17 | Software Product             | doc      |
+# | 20   | WP01 | Acceptance Record            | doc      |
+# |  —   | WP03 | Change Request               | link (event) |
+# |  —   | WP04 | Correction Register          | link (event) |
+# |  —   | WP07 | Meeting Record               | doc (event) |
+
+generation_order:
+  - WP02
+  - WP10
+  - WP13
+  - WP09
+  - WP16
+  - WP15
+  - WP05
+  - WP11
+  - WP19
+  - WP21
+  - WP23
+  - WP14
+  - WP20
+  - WP22
+  - WP08
+  - WP18
+  - WP06
+  - WP12
+  - WP17
+  - WP01
+
+generation_order_event_driven:
+  - WP03
+  - WP07
+  - WP04
+
+waves:
+  A: [WP02, WP10, WP13]
+  B: [WP09, WP16, WP15, WP05, WP11, WP19, WP21, WP23, WP14, WP20]
+  C: [WP08, WP18, WP06, WP12, WP17]
+  D: [WP22, WP01]
+  event: [WP03, WP07, WP04]
+
+work_products:
+  - wp_id: WP01
+    sw_id: SW01
+    generate_sequence: 20
+    name: Acceptance Record
+    agent_role: cm
+    folder: 05_CM_QA
+    template_file: Acceptance-Record.template.md
+    recipe_id: R-WP01
+    output_type: doc
+    wave: D
+    depends_on: [WP10, WP13, WP19, WP20, WP22]
+    notes: "Last — human sign-off; reference passed REQ/F/TC and UAT"
+
+  - wp_id: WP02
+    sw_id: SW02
+    generate_sequence: 1
+    name: Agreement
+    agent_role: management
+    folder: 01_Management
+    template_file: Agreement.template.md
+    recipe_id: R-WP02
+    output_type: doc
+    wave: A
+    scope_policy: features_only
+    depends_on: []
+    notes: "SOW — F-xx only; REQ-xxx in WP13"
+
+  - wp_id: WP03
+    sw_id: SW03
+    generate_sequence: event
+    name: Change Request
+    agent_role: cm
+    folder: 05_CM_QA
+    template_file: Change-Request.template.md
+    recipe_id: R-WP03
+    output_type: link
+    wave: event
+    link_field: change_request_clickup_url
+    depends_on: [WP10, WP13]
+    notes: "ClickUp CR list/form URL — not a long document"
+
+  - wp_id: WP04
+    sw_id: SW04
+    generate_sequence: event
+    name: Correction Register
+    agent_role: cm
+    folder: 05_CM_QA
+    template_file: Correction-Register.template.md
+    recipe_id: R-WP04
+    output_type: link
+    wave: event
+    link_field: correction_register_clickup_url
+    depends_on: [WP19, WP20]
+    notes: "ClickUp defect/NCR board URL — not a long document"
+
+  - wp_id: WP05
+    sw_id: SW05
+    generate_sequence: 7
+    name: Implementation Environment
+    agent_role: ops
+    folder: 06_Environment
+    template_file: Implementation-Environment.template.md
+    recipe_id: R-WP05
+    output_type: doc
+    wave: B
+    depends_on: [WP10, WP16]
+
+  - wp_id: WP06
+    sw_id: SW06
+    generate_sequence: 17
+    name: Maintenance Documentation
+    agent_role: ops
+    folder: 07_Operations
+    template_file: Maintenance-Documentation.template.md
+    recipe_id: R-WP06
+    output_type: doc
+    wave: C
+    depends_on: [WP10, WP05, WP14]
+
+  - wp_id: WP07
+    sw_id: SW07
+    generate_sequence: event
+    name: Meeting Record
+    agent_role: management
+    folder: 01_Management
+    template_file: Meeting-Record.template.md
+    recipe_id: R-WP07
+    output_type: doc
+    wave: event
+    depends_on: [WP02, WP10]
+    notes: "One record per meeting — append or date-stamp filename if multiple"
+
+  - wp_id: WP08
+    sw_id: SW08
+    generate_sequence: 15
+    name: Product Operation Guideline
+    agent_role: ops
+    folder: 07_Operations
+    template_file: Product-Operation-Guideline.template.md
+    recipe_id: R-WP08
+    output_type: doc
+    wave: C
+    depends_on: [WP13, WP16]
+
+  - wp_id: WP09
+    sw_id: SW09
+    generate_sequence: 4
+    name: Progress Status Record
+    agent_role: management
+    folder: 01_Management
+    template_file: Progress-Status-Record.template.md
+    recipe_id: R-WP09
+    output_type: doc
+    wave: B
+    depends_on: [WP10, WP13]
+    notes: "Scheduler; may also link schedule_link / ClickUp"
+
+  - wp_id: WP10
+    sw_id: SW10
+    generate_sequence: 2
+    name: Project Plan
+    agent_role: management
+    folder: 01_Management
+    template_file: Project-Plan.template.md
+    recipe_id: R-WP10
+    output_type: doc
+    wave: A
+    depends_on: [WP02]
+
+  - wp_id: WP11
+    sw_id: SW11
+    generate_sequence: 8
+    name: Project Repository
+    agent_role: deliverables
+    folder: 08_Repository
+    template_file: Project-Repository.template.md
+    recipe_id: R-WP11
+    output_type: link
+    wave: B
+    link_field: repository_url
+    depends_on: [WP10]
+    notes: "GitHub (or VCS) URL — thin register"
+
+  - wp_id: WP12
+    sw_id: SW12
+    generate_sequence: 18
+    name: Project Repository Backup
+    agent_role: deliverables
+    folder: 08_Repository
+    template_file: Project-Repository-Backup.template.md
+    recipe_id: R-WP12
+    output_type: link
+    wave: C
+    link_field: backup_server
+    depends_on: [WP11]
+    notes: "Backup host/IP + path (backup_server, backup_path)"
+
+  - wp_id: WP13
+    sw_id: SW13
+    generate_sequence: 3
+    name: Requirement Specification
+    agent_role: requirements
+    folder: 02_Requirements
+    template_file: Requirement-Specification.template.md
+    recipe_id: R-WP13
+    output_type: doc
+    wave: A
+    depends_on: [WP02, WP10]
+    notes: "Authoritative REQ-xxx from F-xx"
+
+  - wp_id: WP14
+    sw_id: SW14
+    generate_sequence: 12
+    name: Software
+    agent_role: deliverables
+    folder: 09_Deliverables
+    template_file: Software.template.md
+    recipe_id: R-WP14
+    output_type: register
+    wave: B
+    depends_on: [WP11, WP16, WP05]
+    notes: "Register repo/build/release artifacts — not a long narrative"
+
+  - wp_id: WP15
+    sw_id: SW15
+    generate_sequence: 6
+    name: Software Components
+    agent_role: design
+    folder: 03_Design
+    template_file: Software-Components.template.md
+    recipe_id: R-WP15
+    output_type: link
+    wave: B
+    link_field: components_repository_url
+    depends_on: [WP13, WP16]
+    notes: "GitHub components/monorepo URL; fallback repository_url"
+
+  - wp_id: WP16
+    sw_id: SW16
+    generate_sequence: 5
+    name: Software Design
+    agent_role: design
+    folder: 03_Design
+    template_file: Software-Design.template.md
+    recipe_id: R-WP16
+    output_type: doc
+    wave: B
+    depends_on: [WP13]
+
+  - wp_id: WP17
+    sw_id: SW17
+    generate_sequence: 19
+    name: Software Product
+    agent_role: deliverables
+    folder: 09_Deliverables
+    template_file: Software-Product.template.md
+    recipe_id: R-WP17
+    output_type: doc
+    wave: C
+    depends_on: [WP10, WP13, WP14, WP20, WP22, WP23]
+    notes: "Delivery register linking all 23 WPs"
+
+  - wp_id: WP18
+    sw_id: SW18
+    generate_sequence: 16
+    name: Software User Document
+    agent_role: ops
+    folder: 07_Operations
+    template_file: Software-User-Document.template.md
+    recipe_id: R-WP18
+    output_type: doc
+    wave: C
+    depends_on: [WP13]
+
+  - wp_id: WP19
+    sw_id: SW19
+    generate_sequence: 9
+    name: Test cases and Test Procedure
+    agent_role: qa
+    folder: 04_Testing
+    template_file: Test-Cases-Procedure.template.md
+    recipe_id: R-WP19
+    output_type: doc
+    wave: B
+    depends_on: [WP13]
+    notes: "TC register; source for WP20 graph/summary"
+
+  - wp_id: WP20
+    sw_id: SW20
+    generate_sequence: 13
+    name: Test report
+    agent_role: qa
+    folder: 04_Testing
+    template_file: Test-Report.template.md
+    recipe_id: R-WP20
+    output_type: derived
+    wave: B
+    derived_from: WP19
+    depends_on: [WP19, WP23]
+    notes: "Summary + status graph derived from WP19 test-case rows (same evidence set)"
+
+  - wp_id: WP21
+    sw_id: SW21
+    generate_sequence: 10
+    name: Traceability Record
+    agent_role: requirements
+    folder: 02_Requirements
+    template_file: Traceability-Record.template.md
+    recipe_id: R-WP21
+    output_type: doc
+    wave: B
+    depends_on: [WP13, WP19]
+    notes: "RTM: F/REQ ↔ design ↔ TC"
+
+  - wp_id: WP22
+    sw_id: SW22
+    generate_sequence: 14
+    name: Validation Record
+    agent_role: qa
+    folder: 04_Testing
+    template_file: Validation-Record.template.md
+    recipe_id: R-WP22
+    output_type: doc
+    wave: D
+    depends_on: [WP13, WP19, WP20]
+
+  - wp_id: WP23
+    sw_id: SW23
+    generate_sequence: 11
+    name: Verification Record
+    agent_role: qa
+    folder: 04_Testing
+    template_file: Verification-Record.template.md
+    recipe_id: R-WP23
+    output_type: doc
+    wave: B
+    depends_on: [WP13, WP16, WP19, WP21]

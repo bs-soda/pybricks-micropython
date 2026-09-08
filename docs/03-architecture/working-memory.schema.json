@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soda.dev/schemas/working-memory.schema.json",
+  "title": "Soda working memory",
+  "description": "Runtime execution state — not bundle. See docs/03-architecture/working-memory.md",
+  "type": "object",
+  "required": ["goal_id", "step", "updated_at"],
+  "properties": {
+    "goal_id": { "type": "string", "pattern": "^(G-[A-Z]{2,8}-[0-9]{3}|G-[0-9]{3})$" },
+    "step": { "type": "integer", "minimum": 1 },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "current_file": { "type": "string" },
+    "current_focus": { "type": "string" },
+    "last_decision": { "type": "string" },
+    "recipe": { "type": "string", "pattern": "^REC-\\d{3}$" },
+    "profile": { "type": "string" },
+    "agent": { "type": "string" },
+    "checklist_done": { "type": "array", "items": { "type": "string" } },
+    "checklist_remaining": { "type": "array", "items": { "type": "string" } },
+    "completion_pending": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://soda.dev/schemas/pattern-index/v1",
+  "title": "Soda Pattern Index",
+  "type": "object",
+  "required": ["version", "patterns"],
+  "properties": {
+    "version": { "type": "string" },
+    "updated": { "type": ["string", "null"], "format": "date" },
+    "recommend_threshold": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Min reusable_score for v6 ranked recommendations"
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "file", "title", "category", "status", "reusable_score"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^ORG-\\d{3}$" },
+          "file": { "type": "string" },
+          "title": { "type": "string" },
+          "category": { "type": "string" },
+          "status": { "enum": ["proposed", "published", "deprecated"] },
+          "reusable_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "outcome_rating": { "enum": ["good", "mixed", "poor"] },
+          "source_projects": { "type": "integer", "minimum": 0 },
+          "last_validated": { "type": "string", "format": "date" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "works_when": { "type": "array", "items": { "type": "string" } },
+          "avoid_when": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

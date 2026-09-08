@@ -1,0 +1,40 @@
+id: REC-001
+slug: rest-api-update-v2
+version: "1.0.0"
+task_types:
+  - modify_existing_api
+  - add_api
+
+execution_mode: modify_existing_api
+
+description: Update or add REST endpoint in existing service — minimal scope, tests required.
+
+checklist:
+  - Read existing route, controller, and service for the resource
+  - Apply change per linked ADR (auth, validation, errors)
+  - Add or update unit/integration tests for happy path and main error cases
+  - Run test plan commands from goal
+  - Run lint on touched files only
+
+completion:
+  - All exit_when items in action bundle satisfied
+  - No edits outside allowed_files
+  - Acceptance scenarios for current step checked
+
+imports:
+  - security-api-checklist
+
+weak_agent_guardrails:
+  - One logical change per commit step
+  - Do not rename or move unrelated exports
+  - If unsure, stop and ask — do not broad refactor
+
+strong_agent_optional:
+  - May suggest small adjacent test helpers if in allowed_files
+
+stats:
+  used: 0
+  success: 0
+  failure: 0
+
+evolution: []

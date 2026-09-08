@@ -1,0 +1,27 @@
+id: PB-001
+slug: backend-api-jwt-existing
+version: "1.0.0"
+
+when:
+  domain: backend_api
+  auth: jwt
+  context: existing_project
+
+description: Modify or add REST endpoints in existing service with JWT auth.
+
+use_recipes:
+  - REC-001
+
+patterns:
+  - ORG-001
+
+profile: backend-api
+
+preferred_agents:
+  architecture: claude
+  execute: cursor
+  qa: cursor
+
+avoid_recipes: []
+
+notes: Match when goal manifest includes JWT + existing API touch map.

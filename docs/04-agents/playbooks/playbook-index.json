@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-06-27",
+  "playbooks": [
+    {
+      "id": "PB-001",
+      "slug": "backend-api-jwt-existing",
+      "file": "PB-001-backend-api-jwt.yaml",
+      "when_tags": ["backend_api", "jwt", "existing_project"]
+    }
+  ]
+}

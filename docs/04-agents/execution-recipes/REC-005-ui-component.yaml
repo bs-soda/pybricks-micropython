@@ -1,0 +1,44 @@
+id: REC-005
+slug: ui-component-build
+version: "1.0.0"
+task_types:
+  - design_ui
+  - add_ui
+  - modify_ui
+
+execution_mode: add_ui
+
+description: Design and build a UI screen or component — UX flow + states, tokens, spec, then React + Tailwind. Accessibility required.
+
+checklist:
+  - Read goal Intent, linked pains, and docs/03-architecture/ux/G-xxx.md frame
+  - Confirm UX flow + all screen states (empty/loading/error/partial/success) are approved
+  - Confirm UI spec in docs/02-product/design/G-xxx.md is human-approved
+  - Build with token-backed Tailwind classes only — no raw hex or pixel values
+  - Implement every spec state, including disabled/loading/error
+  - Semantic HTML first; keyboard operable; visible focus-visible; targets >= 44px
+  - Run design + a11y review (soda-design Stage 7) and test plan from goal
+
+completion:
+  - All exit_when items in action bundle satisfied
+  - No edits outside allowed_files (touch map)
+  - Stage 7 design + a11y checklist passes
+  - Acceptance scenarios for current step checked
+
+imports:
+  - accessibility-checklist
+
+weak_agent_guardrails:
+  - Do not restyle or refactor screens outside the goal touch map
+  - Do not change existing design tokens without a PDR/ADR + human approval
+  - If the spec is missing or unapproved, stop — run soda-design, do not improvise UI
+
+strong_agent_optional:
+  - May propose new tokens if a needed value is missing (flag for human approval)
+
+stats:
+  used: 0
+  success: 0
+  failure: 0
+
+evolution: []

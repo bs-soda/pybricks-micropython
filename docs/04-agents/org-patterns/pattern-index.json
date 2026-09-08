@@ -1,0 +1,22 @@
+{
+  "$schema": "./pattern-index.schema.json",
+  "version": "1.0.0",
+  "updated": null,
+  "recommend_threshold": 80,
+  "description": "Cross-project pattern library — v5 learning export, v6 intelligence input. Agent search layer for discover/ADR drafts.",
+  "patterns": [
+    {
+      "id": "ORG-001",
+      "file": "ORG-001-example-authentication-b2b-saas.md",
+      "title": "Authentication — B2B SaaS session + JWT API",
+      "category": "authentication",
+      "status": "proposed",
+      "reusable_score": 0,
+      "outcome_rating": "good",
+      "source_projects": 0,
+      "tags": ["b2b", "saas", "jwt", "mobile-client", "api-first"],
+      "works_when": ["API + web/mobile share backend", "Initial release under 8 weeks"],
+      "avoid_when": ["Enterprise SSO day one", "Static site only"]
+    }
+  ]
+}

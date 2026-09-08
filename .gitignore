@@ -1,3 +1,54 @@
+# Soda — local CI commands (copy from ci-config.example.yml at G-001)
+.github/ci-config.yml
+
+# ClickUp sync (copy from clickup.config.example.json)
+scripts/clickup.config.json
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+.bundle/
+# Dependencies & build output (anywhere in repo)
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+.turbo/
+.cache/
+next-env.d.ts
+
+# Agent scratch workspace (see docs/03-architecture/folder-structure.md)
+scratch/
+
+# Runtime knowledge store (Phase 2+ — see docs/03-architecture/knowledge-store.md)
+.os/
+
+# Execution context bundles (see docs/03-architecture/context-compiler.md)
+.bundle/*
+!.bundle/README.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# Logs & temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+
 # Compiled Sources
 ###################
 *.o
@@ -76,3 +127,13 @@ Pipfile.lock
 # Clangd cache
 ######################
 .cache/
+
+
+.soda-os-version
+.agent
+framework-manifest.yml
+scripts
+.agents
+.github
+AGENTS.md
+work-products

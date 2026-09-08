@@ -1,0 +1,30 @@
+id: designer
+version: "1.0.0"
+roles:
+  - designer
+  - frontend
+
+imports:
+  recipes:
+    - REC-005
+  checklists:
+    - accessibility-checklist
+  skills:
+    - soda-design
+
+include_for_design:
+  - docs/03-architecture/design-tokens.md
+  - docs/03-architecture/ux/**
+  - docs/02-product/design/**
+  - code/**/components/**
+  - code/**/tokens.*
+
+exclude:
+  - docs/03-architecture/api/**
+  - docs/03-architecture/data/**
+  - "**/migrations/**"
+
+default_task_types:
+  - design_ui
+  - add_ui
+  - modify_ui

@@ -1,0 +1,17 @@
+# Goal ID reservation registry — product-owned.
+# Allocate with: soda-os goal next <EPIC>
+# Filename = ID exactly. Title lives in the H1 after the colon.
+# Merge: edit only YOUR epic key. Keep all slugs. next_seq = max; reserved = union.
+# Contract: docs/06-workflows/goal-id.md
+schema_version: "1"
+epics:
+  CORE:
+    name: Core / unscoped
+    next_seq: 2
+    reserved: []
+  MDRB:
+    name: MDRobotBase Kinematics & Motion Engine
+    next_seq: 19
+    reserved: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+
+

@@ -1,6 +1,6 @@
 # G-MDRB-020: Finite State Machine Transition Table and Atomic Motion-Status Coupling
 
-**Status:** review  
+**Status:** done  
 **Kind:** feature  
 **Atomic outcome:** Implement an explicit state transition table in pbio_mdrobotbase_set_motion_status to atomically couple motion_status and motion_in_progress, eliminating invalid status and busy state combinations  
 **Epic:** MDRB  
@@ -10,11 +10,11 @@
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

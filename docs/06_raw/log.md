@@ -4,6 +4,22 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T13:25:00+07:00` — **G-MDRB-006 Human Approval & PR-First Ship Gate (Async Cancellation and Repeated-Motion Lifecycle Safety)**
+  - Received explicit human approval to ship `G-MDRB-006`.
+  - Advanced goal status to `done` and collaboration phase to `SHIP`.
+  - Archived goal card: [`docs/07-backlog/goals/_archived/G-MDRB-006.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-006.md).
+  - Updated queue [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md) moving `G-MDRB-006` from Active to Archived table.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 24/24 Passed (`scripts/harness/master-replication-g-mdrb-006.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-006-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 11.59 ms, σ = 1.13 ms, valid 95% Student-t CI [10.78 ms, 12.40 ms].
+    - PBIO C Unit Tests: 10/10 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Architecture Conformance: 13/13 Passed (`scripts/harness/architecture-design-conformance-harness.mjs`).
+    - Goal Template Conformance: 20/20 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - PR-First delivery prepared: target branch `epic/MDRB`, source branch `feature/mdrobotbase-enhancement`.
+  - Adhered strictly to Zero Local Integration Merging: human review and merge gate enforced.
+
 - `2026-09-08T13:20:00+07:00` — **G-MDRB-005 Human Approval & PR-First Ship Gate (Distinct Timeout and Stall Failure Reporting)**
   - Received explicit human approval to ship `G-MDRB-005`.
   - Advanced goal status to `done` and collaboration phase to `SHIP`.

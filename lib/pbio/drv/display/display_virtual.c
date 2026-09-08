@@ -31,7 +31,11 @@
  */
 static uint8_t pbdrv_display_user_frame[PBDRV_CONFIG_DISPLAY_NUM_ROWS]
                                        [PBDRV_CONFIG_DISPLAY_NUM_COLS]
+#if defined(__APPLE__)
+    __attribute__((section("__DATA,.noinit"), used));
+#else
     __attribute__((section(".noinit"), used));
+#endif
 
 /**
  * Image corresponding to the display.

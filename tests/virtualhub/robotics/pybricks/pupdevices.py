@@ -30,6 +30,16 @@ class Motor:
         """Returns the current accumulated motor angle in degrees."""
         return self._angle
 
+    def stalled(self) -> bool:
+        """Returns True if the motor is stalled under physical load."""
+        return self._is_stalled
+
+    def set_stalled(self, stalled: bool):
+        """Sets simulated physical stall state."""
+        self._is_stalled = bool(stalled)
+        if self._is_stalled:
+            self._speed = 0.0
+
     def reset_angle(self, angle: float = 0.0):
         """Resets the accumulated motor angle to the specified value."""
         self._angle = float(angle)

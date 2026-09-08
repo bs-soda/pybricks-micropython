@@ -203,11 +203,29 @@ pbio_error_t pbio_mdrobotbase_get_fusion_alpha(pbio_mdrobotbase_t *rb, float *al
 pbio_error_t pbio_mdrobotbase_set_gear_ratio(pbio_mdrobotbase_t *rb, float ratio);
 pbio_error_t pbio_mdrobotbase_get_gear_ratio(pbio_mdrobotbase_t *rb, float *ratio);
 pbio_error_t pbio_mdrobotbase_get_motion_status(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t *status);
-pbio_error_t pbio_mdrobotbase_set_motion_status(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t status);
+
+/**
+ * Semantic Lifecycle FSM Mutation Helpers
+ * Production callers MUST use these semantic helpers rather than raw state mutation.
+ */
+pbio_error_t pbio_mdrobotbase_motion_start(pbio_mdrobotbase_t *rb);
+pbio_error_t pbio_mdrobotbase_motion_complete(pbio_mdrobotbase_t *rb);
+pbio_error_t pbio_mdrobotbase_motion_stall(pbio_mdrobotbase_t *rb);
+pbio_error_t pbio_mdrobotbase_motion_timeout(pbio_mdrobotbase_t *rb);
+
+/**
+ * Backward compatibility aliases for semantic lifecycle transitions.
+ */
 pbio_error_t pbio_mdrobotbase_mark_running(pbio_mdrobotbase_t *rb);
 pbio_error_t pbio_mdrobotbase_mark_completed(pbio_mdrobotbase_t *rb);
 pbio_error_t pbio_mdrobotbase_mark_stalled(pbio_mdrobotbase_t *rb);
 pbio_error_t pbio_mdrobotbase_mark_timed_out(pbio_mdrobotbase_t *rb);
+
+/**
+ * Internal / Unit Test FSM Transition Validator.
+ * NOTE: Production code MUST NOT call this directly; use semantic helpers above.
+ */
+pbio_error_t pbio_mdrobotbase_set_motion_status(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t status);
 pbio_error_t pbio_mdrobotbase_get_pose(const pbio_mdrobotbase_t *rb, float *x, float *y, float *theta);
 pbio_error_t pbio_mdrobotbase_is_busy(const pbio_mdrobotbase_t *rb, bool *busy);
 pbio_error_t pbio_mdrobotbase_is_done(const pbio_mdrobotbase_t *rb, bool *done);

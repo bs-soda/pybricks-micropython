@@ -661,20 +661,36 @@ pbio_error_t pbio_mdrobotbase_set_motion_status(pbio_mdrobotbase_t *rb, pbio_mdr
     return PBIO_SUCCESS;
 }
 
-pbio_error_t pbio_mdrobotbase_mark_running(pbio_mdrobotbase_t *rb) {
+pbio_error_t pbio_mdrobotbase_motion_start(pbio_mdrobotbase_t *rb) {
     return pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING);
 }
 
-pbio_error_t pbio_mdrobotbase_mark_completed(pbio_mdrobotbase_t *rb) {
+pbio_error_t pbio_mdrobotbase_motion_complete(pbio_mdrobotbase_t *rb) {
     return pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED);
 }
 
-pbio_error_t pbio_mdrobotbase_mark_stalled(pbio_mdrobotbase_t *rb) {
+pbio_error_t pbio_mdrobotbase_motion_stall(pbio_mdrobotbase_t *rb) {
     return pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED);
 }
 
-pbio_error_t pbio_mdrobotbase_mark_timed_out(pbio_mdrobotbase_t *rb) {
+pbio_error_t pbio_mdrobotbase_motion_timeout(pbio_mdrobotbase_t *rb) {
     return pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_TIMED_OUT);
+}
+
+pbio_error_t pbio_mdrobotbase_mark_running(pbio_mdrobotbase_t *rb) {
+    return pbio_mdrobotbase_motion_start(rb);
+}
+
+pbio_error_t pbio_mdrobotbase_mark_completed(pbio_mdrobotbase_t *rb) {
+    return pbio_mdrobotbase_motion_complete(rb);
+}
+
+pbio_error_t pbio_mdrobotbase_mark_stalled(pbio_mdrobotbase_t *rb) {
+    return pbio_mdrobotbase_motion_stall(rb);
+}
+
+pbio_error_t pbio_mdrobotbase_mark_timed_out(pbio_mdrobotbase_t *rb) {
+    return pbio_mdrobotbase_motion_timeout(rb);
 }
 
 pbio_error_t pbio_mdrobotbase_get_pose(const pbio_mdrobotbase_t *rb, float *x, float *y, float *theta) {

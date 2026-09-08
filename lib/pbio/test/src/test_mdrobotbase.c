@@ -2052,6 +2052,11 @@ static pbio_error_t test_mdrobotbase_fsm_terminal_helpers(pbio_os_state_t *state
     tt_uint_op(pbio_mdrobotbase_mark_completed(NULL), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_mark_stalled(NULL), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_mark_timed_out(NULL), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_motion_start(NULL), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_motion_complete(NULL), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_motion_stall(NULL), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_motion_timeout(NULL), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_motion_reset(NULL), ==, PBIO_ERROR_INVALID_ARG);
 
     lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
     tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
@@ -2065,6 +2070,14 @@ static pbio_error_t test_mdrobotbase_fsm_terminal_helpers(pbio_os_state_t *state
     tt_assert(rb != NULL);
 
     // Initial state: NONE, not in progress
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_NONE);
+    tt_want(!rb->motion_in_progress);
+
+    // 0. Semantic Helper: motion_start / motion_reset roundtrip
+    tt_uint_op(pbio_mdrobotbase_motion_start(rb), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_RUNNING);
+    tt_want(rb->motion_in_progress);
+    tt_uint_op(pbio_mdrobotbase_motion_reset(rb), ==, PBIO_SUCCESS);
     tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_NONE);
     tt_want(!rb->motion_in_progress);
 

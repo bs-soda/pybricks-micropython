@@ -39,21 +39,26 @@ static inline pbio_mdrobotbase_t *pb_type_mdrobotbase_require_open(pb_type_MDRob
   return self->rb;
 }
 
-static inline pbio_error_t pb_type_mdrobotbase_mark_running(pb_type_MDRobotBase_obj_t *self) {
-  return pbio_mdrobotbase_mark_running(self->rb);
+static inline pbio_error_t pb_type_mdrobotbase_motion_start(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_motion_start(self->rb);
 }
 
-static inline pbio_error_t pb_type_mdrobotbase_mark_completed(pb_type_MDRobotBase_obj_t *self) {
-  return pbio_mdrobotbase_mark_completed(self->rb);
+static inline pbio_error_t pb_type_mdrobotbase_motion_complete(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_motion_complete(self->rb);
 }
 
-static inline pbio_error_t pb_type_mdrobotbase_mark_stalled(pb_type_MDRobotBase_obj_t *self) {
-  return pbio_mdrobotbase_mark_stalled(self->rb);
+static inline pbio_error_t pb_type_mdrobotbase_motion_stall(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_motion_stall(self->rb);
 }
 
-static inline pbio_error_t pb_type_mdrobotbase_mark_timed_out(pb_type_MDRobotBase_obj_t *self) {
-  return pbio_mdrobotbase_mark_timed_out(self->rb);
+static inline pbio_error_t pb_type_mdrobotbase_motion_timeout(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_motion_timeout(self->rb);
 }
+
+static inline pbio_error_t pb_type_mdrobotbase_motion_reset(pb_type_MDRobotBase_obj_t *self) {
+  return pbio_mdrobotbase_motion_reset(self->rb);
+}
+
 
 static pbio_error_t update_state_and_debug(pb_type_MDRobotBase_obj_t *self,
                                            float gyro_heading) {
@@ -201,7 +206,7 @@ static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
     float e_theta = mdrobotbase_wrap_degrees(self->rb->gt - self->rb->theta);
 
     if (fabsf(e_theta) <= 1.5f) {
-      pb_type_mdrobotbase_mark_completed(self);
+      pb_type_mdrobotbase_motion_complete(self);
       mdrobotbase_motion_stop(self, false);
       return PBIO_SUCCESS;
     }
@@ -223,7 +228,7 @@ static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
     if (elapsed_ms > 200) {
       bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f);
       if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 200.0f)) {
-        pb_type_mdrobotbase_mark_stalled(self);
+        pb_type_mdrobotbase_motion_stall(self);
         mdrobotbase_motion_stop(self, false);
         return PBIO_ERROR_FAILED;
       }
@@ -257,7 +262,7 @@ static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
       self->rb->last_step_theta = self->rb->theta;
       return PBIO_ERROR_AGAIN;
     }
-    pb_type_mdrobotbase_mark_completed(self);
+    pb_type_mdrobotbase_motion_complete(self);
     mdrobotbase_motion_stop(self, true);
     return PBIO_SUCCESS;
   }
@@ -443,7 +448,7 @@ static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
     float v_raw = step / dt_sec;
     bool is_stalled = (fabsf(v_cmd) > 30.0f && fabsf(v_raw) < 10.0f);
     if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 250.0f)) {
-      pb_type_mdrobotbase_mark_stalled(self);
+      pb_type_mdrobotbase_motion_stall(self);
       mdrobotbase_motion_stop(self, false);
       return PBIO_ERROR_FAILED;
     }
@@ -468,7 +473,7 @@ static pbio_error_t mdrobotbase_step_turn(pb_type_MDRobotBase_obj_t *self,
 
   if (fabsf(e_theta) <= self->rb->tolerance_angle) {
     if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
-      pb_type_mdrobotbase_mark_completed(self);
+      pb_type_mdrobotbase_motion_complete(self);
       mdrobotbase_motion_stop(self, true);
       return PBIO_SUCCESS;
     }
@@ -512,7 +517,7 @@ static pbio_error_t mdrobotbase_step_turn(pb_type_MDRobotBase_obj_t *self,
   if (elapsed_ms > 300) {
     bool is_stalled = (fabsf(w_cmd) > 60.0f && fabsf(w_raw) < 2.0f);
     if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
-      pb_type_mdrobotbase_mark_stalled(self);
+      pb_type_mdrobotbase_motion_stall(self);
       mdrobotbase_motion_stop(self, false);
       return PBIO_ERROR_FAILED;
     }
@@ -541,7 +546,7 @@ static pbio_error_t mdrobotbase_step_pivot(pb_type_MDRobotBase_obj_t *self,
 
   if (fabsf(e_theta) <= self->rb->tolerance_angle) {
     if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
-      pb_type_mdrobotbase_mark_completed(self);
+      pb_type_mdrobotbase_motion_complete(self);
       mdrobotbase_motion_stop(self, true);
       return PBIO_SUCCESS;
     }
@@ -585,7 +590,7 @@ static pbio_error_t mdrobotbase_step_pivot(pb_type_MDRobotBase_obj_t *self,
   if (elapsed_ms > 300) {
     bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 2.0f);
     if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
-      pb_type_mdrobotbase_mark_stalled(self);
+      pb_type_mdrobotbase_motion_stall(self);
       mdrobotbase_motion_stop(self, false);
       return PBIO_ERROR_FAILED;
     }
@@ -615,7 +620,7 @@ static pbio_error_t mdrobotbase_step_trajectory(pb_type_MDRobotBase_obj_t *self,
   (void)elapsed_ms;
 
   if (self->rb->trajectory_num_points == 0 || self->rb->trajectory_current_point_idx >= self->rb->trajectory_num_points) {
-    pb_type_mdrobotbase_mark_completed(self);
+    pb_type_mdrobotbase_motion_complete(self);
     mdrobotbase_motion_stop(self, false);
     return PBIO_SUCCESS;
   }
@@ -631,7 +636,7 @@ static pbio_error_t mdrobotbase_step_trajectory(pb_type_MDRobotBase_obj_t *self,
 
   if (is_final_point) {
     if (dist_remaining <= self->rb->tolerance_dist) {
-      pb_type_mdrobotbase_mark_completed(self);
+      pb_type_mdrobotbase_motion_complete(self);
       mdrobotbase_motion_stop(self, true);
       return PBIO_SUCCESS;
     }
@@ -689,7 +694,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
   // Global motion timeout check
   if (self->rb->timeout_ms > 0 && elapsed_ms >= self->rb->timeout_ms) {
-    pb_type_mdrobotbase_mark_timed_out(self);
+    pb_type_mdrobotbase_motion_timeout(self);
     mdrobotbase_motion_stop(self, true);
     return PBIO_ERROR_TIMEDOUT;
   }
@@ -1258,7 +1263,7 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   if (max_accel > 3000.0f) max_accel = 3000.0f;
 
   pb_type_mdrobotbase_cancel_active_motion(self);
-  pbio_mdrobotbase_motion_reset(self->rb);
+  pb_type_mdrobotbase_motion_reset(self);
 
   self->rb->goal_x = gx;
   self->rb->goal_y = gy;
@@ -1302,7 +1307,7 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   self->rb->start_time_ms = pbdrv_clock_get_ms();
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NAVIGATE;
-  pb_type_mdrobotbase_mark_running(self);
+  pb_type_mdrobotbase_motion_start(self);
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1521,7 +1526,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
   }
 
   pb_type_mdrobotbase_cancel_active_motion(self);
-  pbio_mdrobotbase_motion_reset(self->rb);
+  pb_type_mdrobotbase_motion_reset(self);
 
   self->rb->target_angle = target_angle;
   self->rb->speed_deg_s = speed_deg_s;
@@ -1541,7 +1546,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
   self->rb->start_time_ms = pbdrv_clock_get_ms();
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_TURN;
-  pb_type_mdrobotbase_mark_running(self);
+  pb_type_mdrobotbase_motion_start(self);
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1698,7 +1703,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
   }
 
   pb_type_mdrobotbase_cancel_active_motion(self);
-  pbio_mdrobotbase_motion_reset(self->rb);
+  pb_type_mdrobotbase_motion_reset(self);
 
   self->rb->target_angle = target_angle;
   self->rb->speed_deg_s = speed_deg_s;
@@ -1725,7 +1730,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
   self->rb->start_time_ms = pbdrv_clock_get_ms();
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_PIVOT;
-  pb_type_mdrobotbase_mark_running(self);
+  pb_type_mdrobotbase_motion_start(self);
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1904,7 +1909,7 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
   }
 
   pb_type_mdrobotbase_cancel_active_motion(self);
-  pbio_mdrobotbase_motion_reset(self->rb);
+  pb_type_mdrobotbase_motion_reset(self);
 
   for (size_t i = 0; i < num_points; i++) {
     self->rb->trajectory_points_x[i] = temp_x[i];
@@ -1931,7 +1936,7 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
   self->rb->start_time_ms = pbdrv_clock_get_ms();
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_TRAJECTORY;
-  pb_type_mdrobotbase_mark_running(self);
+  pb_type_mdrobotbase_motion_start(self);
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }

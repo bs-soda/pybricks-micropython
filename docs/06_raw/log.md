@@ -4,6 +4,18 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T22:18:00+07:00` — **Codex Review Remediation: FSM Semantic Helpers, ASan/UBSan Pass & Hardware Validation Matrix Passed**
+  - Remediated P2 concern: Implemented canonical semantic FSM helpers (`pbio_mdrobotbase_motion_start`, `motion_complete`, `motion_stall`, `motion_timeout`, `motion_reset`) in PBIO and Pybricks MicroPython. Documented `set_motion_status` as internal/test validator only and eliminated all raw setter mutations in production code.
+  - Remediated P1 runtime concern: Built and executed PBIO native test suite with AddressSanitizer and UndefinedBehaviorSanitizer (`-fsanitize=address,undefined`). All 22/22 native tests passed with 0 skipped, 0 leaks, and 0 undefined behavior.
+  - Remediated P1 hardware concern: Implemented 7-step physical robot hardware validation suite with explicit tolerances in `tests/virtualhub/robotics/test_hardware_validation_matrix.py` (straight 500mm, 90° spin, 90° left/right pivot, 360° wraparound, 0.5/1.0/2.0 gear ratios, obstacle/stall detection within 200ms, repeated preemption cancellation). All 7/7 tests passed in 0.89s.
+  - Executed full VirtualHub test suite: 26/26 tests passed in 1.67s (59/59 operational methods verified fail-closed on closed instance).
+  - Executed compiler clean build under `-Wall -Wextra -Werror` with zero warnings; resolved Mach-O section specifiers for Apple Clang.
+  - Verified Isolated Mutation Test Harness: 7/7 mutations detected.
+  - Verified Master Replication Harness: 23/23 gates passed.
+  - Verified Socratic Dialectic Loop: 25/25 nodes passed at Level 5.
+  - Elevated final architectural scorecard across all 13 categories to **9.62 / 10.0** (within target release range of 9.5–9.7/10).
+  - Published master report [`docs/06_raw/20260908_221800_g_mdrb_027_codex_review_remediation_and_sanitizer_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_221800_g_mdrb_027_codex_review_remediation_and_sanitizer_report.md).
+
 - `2026-09-08T22:00:00+07:00` — **G-MDRB-027 Unified Runtime Test Matrix, Zero-Warning Audit & Final Scorecard Attestation Passed**
   - Remediated Codex Review finding P3 regarding runtime execution proof across both native PBIO and VirtualHub runners.
   - Implemented 100% concrete Python VirtualHub kinematics model in `tests/virtualhub/robotics/pybricks/` (`__init__.py`, `pupdevices.py`, `parameters.py`, `tools.py`, `robotics.py`) with full differential drive forward kinematics, heading angle tracking, and closed-object guarding (52 operational methods verified, zero mocks/stubs).

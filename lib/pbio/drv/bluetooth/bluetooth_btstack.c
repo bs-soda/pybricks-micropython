@@ -86,7 +86,11 @@ pbdrv_bluetooth_peripheral_t *pbdrv_bluetooth_peripheral_get_by_index(uint8_t in
 
 // hub name goes in special section so that it can be modified when flashing firmware
 #if !PBIO_TEST_BUILD
+#if defined(__APPLE__)
+__attribute__((section("__DATA,.name")))
+#else
 __attribute__((section(".name")))
+#endif
 #endif
 char pbdrv_bluetooth_hub_name[16] = "Pybricks Hub";
 

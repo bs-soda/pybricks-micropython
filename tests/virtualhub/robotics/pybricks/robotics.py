@@ -109,14 +109,64 @@ class MDRobotBase:
         return not self._motion_in_progress
 
     @_require_open
+    def wrap_degrees(self, angle: float) -> float:
+        """Wraps angle in degrees to [-180.0, 180.0] interval."""
+        wrapped = (float(angle) + 180.0) % 360.0
+        if wrapped < 0.0:
+            wrapped += 360.0
+        return wrapped - 180.0
+
+    @_require_open
     def stalled(self) -> bool:
         """Returns True if the drive motors are physically stalled."""
-        return False
+        return self.left_motor.stalled() or self.right_motor.stalled() or getattr(self, "_stalled", False)
+
+    @_require_open
+    def set_stalled(self, stalled: bool):
+        """Sets simulated physical stall state."""
+        self._stalled = bool(stalled)
+        self.left_motor.set_stalled(stalled)
+        self.right_motor.set_stalled(stalled)
+        if self._stalled:
+            self._status = 3  # STALLED
+            self._motion_in_progress = False
 
     @_require_open
     def status(self) -> int:
-        """Returns current FSM status code: 0=IDLE, 1=MOVING, 2=COMPLETED."""
+        """Returns current FSM status code: 0=IDLE, 1=RUNNING, 2=COMPLETED, 3=STALLED, 4=TIMED_OUT."""
         return self._status
+
+    @_require_open
+    def motion_start(self):
+        """FSM Semantic helper: marks motion running."""
+        self._status = 1
+        self._motion_in_progress = True
+
+    @_require_open
+    def motion_complete(self):
+        """FSM Semantic helper: marks motion completed."""
+        self._status = 2
+        self._motion_in_progress = False
+
+    @_require_open
+    def motion_stall(self):
+        """FSM Semantic helper: marks motion stalled."""
+        self._status = 3
+        self._motion_in_progress = False
+        self._stalled = True
+
+    @_require_open
+    def motion_timeout(self):
+        """FSM Semantic helper: marks motion timed out."""
+        self._status = 4
+        self._motion_in_progress = False
+
+    @_require_open
+    def motion_reset(self):
+        """FSM Semantic helper: resets motion state to idle."""
+        self._status = 0
+        self._motion_in_progress = False
+        self._stalled = False
 
     @_require_open
     def stop(self):
@@ -213,18 +263,26 @@ class MDRobotBase:
             self._motion_in_progress = True
             self._status = 1
             try:
-                steps = 5
+                steps = 10
                 rad = math.radians(self._theta)
                 step_dist = dist / steps
                 dx = step_dist * math.cos(rad)
                 dy = step_dist * math.sin(rad)
+                motor_deg_left = (dist / (math.pi * self._wheel_diameter_left)) * 360.0 * self._gear_ratio
+                motor_deg_right = (dist / (math.pi * self._wheel_diameter_right)) * 360.0 * self._gear_ratio
 
                 for _ in range(steps):
+                    if self.stalled():
+                        self._status = 3
+                        break
                     await asyncio.sleep(0.01)
                     self._x += dx
                     self._y += dy
+                    self.left_motor._angle += motor_deg_left / steps
+                    self.right_motor._angle += motor_deg_right / steps
 
-                self._status = 2
+                if self._status != 3:
+                    self._status = 2
             except asyncio.CancelledError:
                 pass
             finally:
@@ -260,14 +318,25 @@ class MDRobotBase:
                 steps = 5
                 start_theta = self._theta
                 target = float(target_angle)
-                step_angle = (target - start_theta) / steps
+                delta_theta = target - start_theta
+                step_angle = delta_theta / steps
+
+                arc_wheel = math.radians(delta_theta) * (self._axle_track / 2.0)
+                motor_deg_left = (-arc_wheel / (math.pi * self._wheel_diameter_left)) * 360.0 * self._gear_ratio
+                motor_deg_right = (arc_wheel / (math.pi * self._wheel_diameter_right)) * 360.0 * self._gear_ratio
 
                 for _ in range(steps):
+                    if self.stalled():
+                        self._status = 3
+                        break
                     await asyncio.sleep(0.01)
                     self._theta += step_angle
+                    self.left_motor._angle += motor_deg_left / steps
+                    self.right_motor._angle += motor_deg_right / steps
 
-                self._theta = target
-                self._status = 2
+                if self._status != 3:
+                    self._theta = target
+                    self._status = 2
             except asyncio.CancelledError:
                 pass
             finally:
@@ -301,14 +370,29 @@ class MDRobotBase:
                 steps = 5
                 start_theta = self._theta
                 target = float(target_angle)
-                step_angle = (target - start_theta) / steps
+                delta_theta = target - start_theta
+                step_angle = delta_theta / steps
+
+                arc_pivot = math.radians(delta_theta) * self._axle_track
+                if pivot_side.lower() == "left":
+                    motor_deg_left = 0.0
+                    motor_deg_right = (arc_pivot / (math.pi * self._wheel_diameter_right)) * 360.0 * self._gear_ratio
+                else:
+                    motor_deg_left = (-arc_pivot / (math.pi * self._wheel_diameter_left)) * 360.0 * self._gear_ratio
+                    motor_deg_right = 0.0
 
                 for _ in range(steps):
+                    if self.stalled():
+                        self._status = 3
+                        break
                     await asyncio.sleep(0.01)
                     self._theta += step_angle
+                    self.left_motor._angle += motor_deg_left / steps
+                    self.right_motor._angle += motor_deg_right / steps
 
-                self._theta = target
-                self._status = 2
+                if self._status != 3:
+                    self._theta = target
+                    self._status = 2
             except asyncio.CancelledError:
                 pass
             finally:

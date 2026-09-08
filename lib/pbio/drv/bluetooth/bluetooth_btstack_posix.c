@@ -86,7 +86,8 @@ const pbdrv_bluetooth_btstack_chipset_info_t *pbdrv_bluetooth_btstack_set_chipse
     return &usb_chipset_info;
 }
 
-static void noop_voidstararg(const void *) {
+static void noop_voidstararg(const void *arg) {
+    (void)arg;
 }
 
 static int noop_returnint(void) {

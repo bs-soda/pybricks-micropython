@@ -1,26 +1,26 @@
 # G-MDRB-026: Submodule Provenance, License Attestation & CI Reproducibility Certification
 
-**Status:** draft  
+**Status:** review  
 **Kind:** chore  
 **Atomic outcome:** Attest lib/btstack submodule tracking, licensing, commit provenance, and CI checkout reproducibility in GitHub Actions workflow, verifying zero submodule drift across clean checkouts  
 **Epic:** MDRB  
 **Depends on:** G-MDRB-025  
 **Blocks:** G-MDRB-027  
-**Spec stability:** clarify pending · spec check pending · analyze pending  
+**Spec stability:** clarify done · spec check done · analyze done  
 
 #### Plan
 
-**Collaboration phase:** DEFINE
+**Collaboration phase:** REVIEW
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| **●** | ○ | ○ | ○ | ○ |
+| ○ | ○ | ○ | **●** | ○ |
 
 | # | Step | Status |
 |---|------|--------|
-| 1 | Submodule Provenance, License Audit & CI Specification | pending |
-| 2 | Implement Automated Submodule Integrity Verification Script | pending |
-| 3 | CI Workflow Integration & Clean Working Tree Attestation | pending |
+| 1 | Submodule Provenance, License Audit & CI Specification | done |
+| 2 | Implement Automated Submodule Integrity Verification Script | done |
+| 3 | CI Workflow Integration & Clean Working Tree Attestation | done |
 
 ## Context
 
@@ -53,11 +53,17 @@ This goal formalizes submodule tracking, licensing, and automated CI reproducibi
 
 ## How *(PLAN only — leave empty while `draft`)*
 
-**Stack / approach:** —
+**Stack / approach:**
+1. Create standalone executable `scripts/ci/submodule-check.sh` (`set -euo pipefail`) that verifies:
+   - All submodules listed in `.gitmodules` exist and match the registered git index tree commits.
+   - Pinned commit for `lib/btstack` matches `5d9c44988e61879b409abda35ebf12cf186253bf`.
+   - `git status --porcelain` in the root repository and recursively inside each submodule reports zero modified, untracked, or conflicted files.
+2. Integrate `bash scripts/ci/submodule-check.sh` into `.github/workflows/ci.yml` before firmware compilation and into `scripts/ci/governance-check.sh`.
+3. Document btstack licensing (BlueKitchen dual-license model: BSD-like for non-commercial educational/open-source robotics use) in `docs/06_raw/` audit report.
 
 ## Open questions *(block `ready` while any `[NEEDS CLARIFICATION]` remain)*
 
-- [ ] [NEEDS CLARIFICATION: Should submodule checking be incorporated into governance-check.sh or standalone submodule-check.sh?]
+*(None remaining — resolved in favor of dedicated `scripts/ci/submodule-check.sh` integrated into CI workflow and governance check)*
 
 ## Knowledge links
 
@@ -149,33 +155,33 @@ This goal formalizes submodule tracking, licensing, and automated CI reproducibi
 
 ## Spec checklist
 
-- [ ] Intent is WHAT/WHY only (no stack, framework, or folder recipe)
-- [ ] How is empty while `draft`; filled in PLAN after clarify
-- [ ] Software & Architecture Design specified by AI Agent (Ports, Bounded Context, Zero-Mock)
-- [ ] Socratic 5-Why Dialectic report generated/linked in Knowledge links or Raw Docs
-- [ ] Architecture & Goal Conformance Harness passing (`architecture-design-conformance-harness.mjs`)
-- [ ] No `[NEEDS CLARIFICATION]` left in Open questions
-- [ ] In / Out unambiguous; Out matches Scope Out
-- [ ] Acceptance criteria each testable or reviewable
-- [ ] Touch map is real repo paths
-- [ ] Knowledge links: Why traces to `P-xxx` or accepted PDR
-- [ ] Change delta filled if modifying existing behaviour
-- [ ] Critical-path assumptions are not `open` + `low`
-- [ ] Zero Mocks, Zero Stubs, Zero String Simulations (Article I non-negotiable invariant)
-- [ ] Atomic Work Steps Contract (Allowed files, Ordered actions, Completion gate, Stop condition)
-- [ ] Empirical Evidence Grounding (Measured raw trials, confidence intervals, no static score retention)
-- [ ] FSM Single Source of Truth (State transitions routed strictly through transition helpers, zero direct mutation)
-- [ ] Submodule & Repository Cleanliness (Submodules verified against .gitmodules with zero uncommitted working tree drift)
-- [ ] Dispatcher Modularity (Complexity decoupled into isolated sub-controllers with shared conversion utilities)
-- [ ] Multi-Environment Runtime Proof (Concrete build and test command outputs recorded in release artifacts)
+- [x] Intent is WHAT/WHY only (no stack, framework, or folder recipe)
+- [x] How is empty while `draft`; filled in PLAN after clarify
+- [x] Software & Architecture Design specified by AI Agent (Ports, Bounded Context, Zero-Mock)
+- [x] Socratic 5-Why Dialectic report generated/linked in Knowledge links or Raw Docs
+- [x] Architecture & Goal Conformance Harness passing (`architecture-design-conformance-harness.mjs`)
+- [x] No `[NEEDS CLARIFICATION]` left in Open questions
+- [x] In / Out unambiguous; Out matches Scope Out
+- [x] Acceptance criteria each testable or reviewable
+- [x] Touch map is real repo paths
+- [x] Knowledge links: Why traces to `P-xxx` or accepted PDR
+- [x] Change delta filled if modifying existing behaviour
+- [x] Critical-path assumptions are not `open` + `low`
+- [x] Zero Mocks, Zero Stubs, Zero String Simulations (Article I non-negotiable invariant)
+- [x] Atomic Work Steps Contract (Allowed files, Ordered actions, Completion gate, Stop condition)
+- [x] Empirical Evidence Grounding (Measured raw trials, confidence intervals, no static score retention)
+- [x] FSM Single Source of Truth (State transitions routed strictly through transition helpers, zero direct mutation)
+- [x] Submodule & Repository Cleanliness (Submodules verified against .gitmodules with zero uncommitted working tree drift)
+- [x] Dispatcher Modularity (Complexity decoupled into isolated sub-controllers with shared conversion utilities)
+- [x] Multi-Environment Runtime Proof (Concrete build and test command outputs recorded in release artifacts)
 
 ## Acceptance criteria
 
-- [ ] `lib/btstack` is explicitly registered in `.gitmodules` with exact commit `5d9c4498...`.
-- [ ] `scripts/ci/submodule-check.sh` exists, is executable, and verifies submodule cleanliness.
-- [ ] `git status --porcelain` reports zero untracked or dirty files under `lib/btstack/`.
-- [ ] CI workflow executes submodule verification before building firmware.
-- [ ] Provenance and license documentation is published in `docs/06_raw/`.
+- [x] `lib/btstack` is explicitly registered in `.gitmodules` with exact commit `5d9c4498...`.
+- [x] `scripts/ci/submodule-check.sh` exists, is executable, and verifies submodule cleanliness.
+- [x] `git status --porcelain` reports zero untracked or dirty files under `lib/btstack/`.
+- [x] CI workflow executes submodule verification before building firmware.
+- [x] Provenance and license documentation is published in `docs/06_raw/`.
 
 ## Test plan
 

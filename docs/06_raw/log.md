@@ -4,6 +4,29 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T21:45:00+07:00` — **G-MDRB-026 Release Gate Passed & Hand-off for Human Review**
+  - Fully remediated Codex Review finding P2 regarding `lib/btstack` tracking, provenance, and CI reproducibility.
+  - Pinned exact commit `5d9c44988e61879b409abda35ebf12cf186253bf` (upstream BlueKitchen BTstack integration `v1.4-1865-g5d9c44988`) via mode 160000 gitlink.
+  - Audited BlueKitchen dual-license model, certifying WRO MatMetric and Pybricks MicroPython compliance under non-commercial educational open-source terms.
+  - Implemented standalone fail-closed verification script [`scripts/ci/submodule-check.sh`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/scripts/ci/submodule-check.sh).
+  - Integrated submodule verification into [`.github/workflows/ci.yml`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/.github/workflows/ci.yml) and [`scripts/ci/governance-check.sh`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/scripts/ci/governance-check.sh).
+  - Executed Isolated Mutation Test Suite: 7/7 Mutations Caught (`scripts/harness/isolated-mutation-test-g-mdrb-026.mjs`).
+  - Executed Master Replication Harness: 28/28 Gates Passed (`scripts/harness/master-replication-g-mdrb-026.mjs`).
+  - Executed Socratic Agentic Loop: 25/25 Dialectic Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-026-harness.mjs`).
+  - Executed Native PBIO Test Suite: 22/22 tests ok (0 skipped).
+  - Executed MDRobotBase Epic Conformance: 234/234 checks passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+  - Transitioned Goal G-MDRB-026 status to `review` and collaboration phase to `REVIEW`. Handed off for human approval.
+  - Published master report [`docs/06_raw/20260908_214500_g_mdrb_026_submodule_provenance_release_gate_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_214500_g_mdrb_026_submodule_provenance_release_gate_report.md).
+
+- `2026-09-08T21:35:00+07:00` — **G-MDRB-026 Clarification, Socratic Dialectics & Submodule Provenance Red Baseline Freezing**
+  - Clarified Goal `G-MDRB-026` addressing Codex Finding P2 (`lib/btstack` tracking, licensing, and CI reproducibility).
+  - Resolved open question in favor of dedicated, modular `scripts/ci/submodule-check.sh` integrated into CI and local governance.
+  - Promoted `G-MDRB-026` from `draft` (DEFINE) to `ready` (PLAN) and queued in `docs/07-backlog/queues/MDRB.md`.
+  - Formulated 5 Causal Branches x 5 Dialectic Levels (25 total nodes) in `scripts/harness/socratic-agentic-loop-g-mdrb-026-harness.mjs`.
+  - Created 7-Gate Master Replication Harness in `scripts/harness/master-replication-g-mdrb-026.mjs`.
+  - Published Socratic Dialectic analysis document [`docs/06_raw/20260908_213500_g_mdrb_026_clarification_and_submodule_provenance.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_213500_g_mdrb_026_clarification_and_submodule_provenance.md).
+  - Established Red Phase baseline: missing `scripts/ci/submodule-check.sh`, missing CI step in `.github/workflows/ci.yml`.
+
 - `2026-09-08T21:30:00+07:00` — **G-MDRB-025 Release Gate Passed & Hand-off for Human Review**
   - Modularized monolithic motion iteration dispatcher `pb_type_mdrobotbase_motion_iterate_once()` in `pybricks/robotics/pb_type_mdrobotbase.c` from 574 lines down to 51 lines (cyclomatic complexity $\le 6$).
   - Extracted 4 modular static step sub-controllers: `mdrobotbase_step_navigate()`, `mdrobotbase_step_turn()`, `mdrobotbase_step_pivot()`, `mdrobotbase_step_trajectory()`.

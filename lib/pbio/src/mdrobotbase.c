@@ -184,18 +184,22 @@ pbio_error_t pbio_mdrobotbase_put_robotbase(pbio_mdrobotbase_t *rb) {
         return PBIO_ERROR_INVALID_ARG;
     }
 
-    // Verify pointer address belongs to static pool array and is properly aligned
-    if (rb < &mdrobotbases[0] || rb >= &mdrobotbases[PBIO_CONFIG_NUM_MDROBOTBASES]) {
+    // Verify pointer address belongs to static pool array and is properly aligned via portable uintptr_t
+    uintptr_t addr = (uintptr_t)rb;
+    uintptr_t base = (uintptr_t)&mdrobotbases[0];
+    uintptr_t element_size = sizeof(pbio_mdrobotbase_t);
+    uintptr_t total_size = sizeof(mdrobotbases);
+
+    if (addr < base || addr >= base + total_size) {
         return PBIO_ERROR_INVALID_ARG;
     }
 
-    ptrdiff_t diff = rb - &mdrobotbases[0];
-    if (diff < 0 || diff >= PBIO_CONFIG_NUM_MDROBOTBASES) {
+    if ((addr - base) % element_size != 0) {
         return PBIO_ERROR_INVALID_ARG;
     }
 
-    int slot = (int)diff;
-    if (!mdrobotbase_in_use[slot]) {
+    int slot = (int)((addr - base) / element_size);
+    if (slot < 0 || slot >= PBIO_CONFIG_NUM_MDROBOTBASES || !mdrobotbase_in_use[slot]) {
         return PBIO_ERROR_INVALID_ARG;
     }
 
@@ -586,21 +590,75 @@ pbio_error_t pbio_mdrobotbase_get_motion_status(const pbio_mdrobotbase_t *rb, pb
     return PBIO_SUCCESS;
 }
 
+#define PBIO_MDROBOTBASE_STATUS_COUNT 5
+
+static const bool mdrobotbase_fsm_transition_table[PBIO_MDROBOTBASE_STATUS_COUNT][PBIO_MDROBOTBASE_STATUS_COUNT] = {
+    // Current: NONE (0)
+    [PBIO_MDROBOTBASE_STATUS_NONE] = {
+        [PBIO_MDROBOTBASE_STATUS_NONE] = true,       // Idempotent reset
+        [PBIO_MDROBOTBASE_STATUS_RUNNING] = true,    // Start motion
+        [PBIO_MDROBOTBASE_STATUS_COMPLETED] = false, // Prohibited without running
+        [PBIO_MDROBOTBASE_STATUS_STALLED] = false,   // Prohibited without running
+        [PBIO_MDROBOTBASE_STATUS_TIMED_OUT] = false, // Prohibited without running
+    },
+    // Current: RUNNING (1)
+    [PBIO_MDROBOTBASE_STATUS_RUNNING] = {
+        [PBIO_MDROBOTBASE_STATUS_NONE] = true,       // Cancelled / reset
+        [PBIO_MDROBOTBASE_STATUS_RUNNING] = true,    // Idempotent keep running
+        [PBIO_MDROBOTBASE_STATUS_COMPLETED] = true,  // Trajectory target reached
+        [PBIO_MDROBOTBASE_STATUS_STALLED] = true,    // Motor stall detected
+        [PBIO_MDROBOTBASE_STATUS_TIMED_OUT] = true,  // Duration limit expired
+    },
+    // Current: COMPLETED (2)
+    [PBIO_MDROBOTBASE_STATUS_COMPLETED] = {
+        [PBIO_MDROBOTBASE_STATUS_NONE] = true,       // Reset to idle
+        [PBIO_MDROBOTBASE_STATUS_RUNNING] = true,    // Start new motion
+        [PBIO_MDROBOTBASE_STATUS_COMPLETED] = true,  // Idempotent
+        [PBIO_MDROBOTBASE_STATUS_STALLED] = false,   // Prohibited cross-terminal
+        [PBIO_MDROBOTBASE_STATUS_TIMED_OUT] = false, // Prohibited cross-terminal
+    },
+    // Current: STALLED (3)
+    [PBIO_MDROBOTBASE_STATUS_STALLED] = {
+        [PBIO_MDROBOTBASE_STATUS_NONE] = true,       // Reset to idle
+        [PBIO_MDROBOTBASE_STATUS_RUNNING] = true,    // Start new motion
+        [PBIO_MDROBOTBASE_STATUS_COMPLETED] = false, // Prohibited cross-terminal
+        [PBIO_MDROBOTBASE_STATUS_STALLED] = true,    // Idempotent
+        [PBIO_MDROBOTBASE_STATUS_TIMED_OUT] = false, // Prohibited cross-terminal
+    },
+    // Current: TIMED_OUT (4)
+    [PBIO_MDROBOTBASE_STATUS_TIMED_OUT] = {
+        [PBIO_MDROBOTBASE_STATUS_NONE] = true,       // Reset to idle
+        [PBIO_MDROBOTBASE_STATUS_RUNNING] = true,    // Start new motion
+        [PBIO_MDROBOTBASE_STATUS_COMPLETED] = false, // Prohibited cross-terminal
+        [PBIO_MDROBOTBASE_STATUS_STALLED] = false,   // Prohibited cross-terminal
+        [PBIO_MDROBOTBASE_STATUS_TIMED_OUT] = true,  // Idempotent
+    },
+};
+
 pbio_error_t pbio_mdrobotbase_set_motion_status(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t status) {
     if (!rb) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    switch (status) {
-        case PBIO_MDROBOTBASE_STATUS_NONE:
-        case PBIO_MDROBOTBASE_STATUS_RUNNING:
-        case PBIO_MDROBOTBASE_STATUS_COMPLETED:
-        case PBIO_MDROBOTBASE_STATUS_STALLED:
-        case PBIO_MDROBOTBASE_STATUS_TIMED_OUT:
-            rb->motion_status = status;
-            return PBIO_SUCCESS;
-        default:
-            return PBIO_ERROR_INVALID_ARG;
+    // Reject any enum values outside 0..PBIO_MDROBOTBASE_STATUS_COUNT - 1
+    if (status < PBIO_MDROBOTBASE_STATUS_NONE || status > PBIO_MDROBOTBASE_STATUS_TIMED_OUT) {
+        return PBIO_ERROR_INVALID_ARG;
     }
+
+    // Fail-closed guard for current status corruption
+    pbio_mdrobotbase_motion_status_t cur_status = rb->motion_status;
+    if (cur_status < PBIO_MDROBOTBASE_STATUS_NONE || cur_status > PBIO_MDROBOTBASE_STATUS_TIMED_OUT) {
+        cur_status = PBIO_MDROBOTBASE_STATUS_NONE;
+    }
+
+    // Evaluate against deterministic finite state machine transition table
+    if (!mdrobotbase_fsm_transition_table[cur_status][status]) {
+        return PBIO_ERROR_INVALID_OP;
+    }
+
+    // Atomically couple motion_status and motion_in_progress
+    rb->motion_status = status;
+    rb->motion_in_progress = (status == PBIO_MDROBOTBASE_STATUS_RUNNING);
+    return PBIO_SUCCESS;
 }
 
 pbio_error_t pbio_mdrobotbase_get_pose(const pbio_mdrobotbase_t *rb, float *x, float *y, float *theta) {

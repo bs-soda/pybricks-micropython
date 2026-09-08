@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <pbio/error.h>
 #include <pbio/mdrobotbase.h>
@@ -716,10 +717,20 @@ static pbio_error_t test_mdrobotbase_motion_failure_reporting(pbio_os_state_t *s
     tt_uint_op(pbio_mdrobotbase_get_motion_status(rb, &status), ==, PBIO_SUCCESS);
     tt_int_op(status, ==, PBIO_MDROBOTBASE_STATUS_TIMED_OUT);
 
+    // Rejection of invalid cross-terminal transition TIMED_OUT -> STALLED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_ERROR_INVALID_OP);
+
+    // Restart motion, then transition to STALLED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_get_motion_status(rb, &status), ==, PBIO_SUCCESS);
     tt_int_op(status, ==, PBIO_MDROBOTBASE_STATUS_STALLED);
 
+    // Rejection of invalid cross-terminal transition STALLED -> COMPLETED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_ERROR_INVALID_OP);
+
+    // Restart motion, then transition to COMPLETED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_get_motion_status(rb, &status), ==, PBIO_SUCCESS);
     tt_int_op(status, ==, PBIO_MDROBOTBASE_STATUS_COMPLETED);
@@ -1051,9 +1062,21 @@ static pbio_error_t test_mdrobotbase_motion_status_bounds(pbio_os_state_t *state
     tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_SUCCESS);
     tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_COMPLETED);
 
+    // Direct transition COMPLETED -> STALLED rejected by FSM
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_COMPLETED);
+
+    // Start new motion, then transition to STALLED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_SUCCESS);
     tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_STALLED);
 
+    // Direct transition STALLED -> TIMED_OUT rejected by FSM
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_TIMED_OUT), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_STALLED);
+
+    // Start new motion, then transition to TIMED_OUT
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_TIMED_OUT), ==, PBIO_SUCCESS);
     tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_TIMED_OUT);
 
@@ -1625,13 +1648,25 @@ static pbio_error_t test_mdrobotbase_accessor_encapsulation(pbio_os_state_t *sta
     tt_uint_op(pbio_mdrobotbase_get_motion_type(rb, &mtype), ==, PBIO_SUCCESS);
     tt_want_int_op(mtype, ==, PBIO_MDROBOTBASE_MOTION_NAVIGATE);
 
-    // Simulate stall
+    // Simulate stall from RUNNING
     tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_is_stalled(rb, &stalled), ==, PBIO_SUCCESS);
     tt_want(stalled);
+    tt_uint_op(pbio_mdrobotbase_is_busy(rb, &busy), ==, PBIO_SUCCESS);
+    tt_want(!busy);
+    tt_uint_op(pbio_mdrobotbase_is_done(rb, &done), ==, PBIO_SUCCESS);
+    tt_want(done);
 
-    // Simulate completion
-    rb->motion_in_progress = false;
+    // Direct transition from STALLED to COMPLETED rejected by FSM
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_ERROR_INVALID_OP);
+
+    // Start new motion then complete
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_is_busy(rb, &busy), ==, PBIO_SUCCESS);
+    tt_want(busy);
+    tt_uint_op(pbio_mdrobotbase_is_done(rb, &done), ==, PBIO_SUCCESS);
+    tt_want(!done);
+
     tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_is_busy(rb, &busy), ==, PBIO_SUCCESS);
     tt_want(!busy);
@@ -1641,6 +1676,360 @@ static pbio_error_t test_mdrobotbase_accessor_encapsulation(pbio_os_state_t *sta
     tt_want(!stalled);
 
     // Clean up
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+static pbio_error_t test_mdrobotbase_portable_pointer_validation(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_a, *srv_b;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+    static pbio_mdrobotbase_t foreign_stack;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_a), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_a, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_b), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_b, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    // 1. Rejection of NULL pointer
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(NULL), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 2. Rejection of foreign stack pointer
+    memset(&foreign_stack, 0, sizeof(foreign_stack));
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(&foreign_stack), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 3. Rejection of foreign heap memory buffer
+    void *foreign_heap = malloc(sizeof(pbio_mdrobotbase_t));
+    tt_ptr_op(foreign_heap, !=, NULL);
+    tt_uint_op(pbio_mdrobotbase_put_robotbase((pbio_mdrobotbase_t *)foreign_heap), ==, PBIO_ERROR_INVALID_ARG);
+    free(foreign_heap);
+
+    // 4. Allocate valid robot base instance
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb, !=, NULL);
+
+    // 5. Rejection of misaligned address within array boundary
+    pbio_mdrobotbase_t *misaligned_rb = (pbio_mdrobotbase_t *)((uintptr_t)rb + 1);
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(misaligned_rb), ==, PBIO_ERROR_INVALID_ARG);
+
+    misaligned_rb = (pbio_mdrobotbase_t *)((uintptr_t)rb + 3);
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(misaligned_rb), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 6. Rejection of addresses outside array byte range
+    pbio_mdrobotbase_t *underflow_rb = (pbio_mdrobotbase_t *)((uintptr_t)rb - sizeof(pbio_mdrobotbase_t) * 10);
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(underflow_rb), ==, PBIO_ERROR_INVALID_ARG);
+
+    pbio_mdrobotbase_t *overflow_rb = (pbio_mdrobotbase_t *)((uintptr_t)rb + sizeof(pbio_mdrobotbase_t) * 100);
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(overflow_rb), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 7. Legitimate release of valid slot
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+    // 8. Double release rejection
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_ERROR_INVALID_ARG);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+static pbio_error_t test_mdrobotbase_fsm_state_transitions(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left;
+    static pbio_servo_t *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+    static bool busy;
+    static bool done;
+    static bool stalled;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_assert(rb != NULL);
+
+    // Invariant: Initial state is NONE, motion_in_progress=false, busy=false, done=true
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_NONE);
+    tt_want(!rb->motion_in_progress);
+    tt_uint_op(pbio_mdrobotbase_is_busy(rb, &busy), ==, PBIO_SUCCESS);
+    tt_want(!busy);
+    tt_uint_op(pbio_mdrobotbase_is_done(rb, &done), ==, PBIO_SUCCESS);
+    tt_want(done);
+
+    // 1. Prohibited direct transitions from NONE to terminal states
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_NONE);
+    tt_want(!rb->motion_in_progress);
+
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_NONE);
+    tt_want(!rb->motion_in_progress);
+
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_TIMED_OUT), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_NONE);
+    tt_want(!rb->motion_in_progress);
+
+    // 2. Idempotent self-transition: NONE -> NONE
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_NONE), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_NONE);
+    tt_want(!rb->motion_in_progress);
+
+    // 3. Valid transition: NONE -> RUNNING (start motion)
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_RUNNING);
+    tt_want(rb->motion_in_progress);
+    tt_uint_op(pbio_mdrobotbase_is_busy(rb, &busy), ==, PBIO_SUCCESS);
+    tt_want(busy);
+    tt_uint_op(pbio_mdrobotbase_is_done(rb, &done), ==, PBIO_SUCCESS);
+    tt_want(!done);
+
+    // 4. Idempotent self-transition: RUNNING -> RUNNING
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_RUNNING);
+    tt_want(rb->motion_in_progress);
+
+    // 5. Valid transition: RUNNING -> COMPLETED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_COMPLETED);
+    tt_want(!rb->motion_in_progress);
+    tt_uint_op(pbio_mdrobotbase_is_busy(rb, &busy), ==, PBIO_SUCCESS);
+    tt_want(!busy);
+    tt_uint_op(pbio_mdrobotbase_is_done(rb, &done), ==, PBIO_SUCCESS);
+    tt_want(done);
+
+    // 6. Prohibited cross-terminal from COMPLETED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_COMPLETED);
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_TIMED_OUT), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_COMPLETED);
+
+    // 7. Valid restart from COMPLETED: COMPLETED -> RUNNING -> STALLED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_RUNNING);
+    tt_want(rb->motion_in_progress);
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_STALLED);
+    tt_want(!rb->motion_in_progress);
+    tt_uint_op(pbio_mdrobotbase_is_stalled(rb, &stalled), ==, PBIO_SUCCESS);
+    tt_want(stalled);
+
+    // 8. Prohibited cross-terminal from STALLED
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_STALLED);
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_TIMED_OUT), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_STALLED);
+
+    // 9. Valid restart from STALLED: STALLED -> RUNNING -> TIMED_OUT
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_RUNNING);
+    tt_want(rb->motion_in_progress);
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_TIMED_OUT), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_TIMED_OUT);
+    tt_want(!rb->motion_in_progress);
+
+    // 10. Prohibited cross-terminal from TIMED_OUT
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_COMPLETED), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_TIMED_OUT);
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_STALLED), ==, PBIO_ERROR_INVALID_OP);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_TIMED_OUT);
+
+    // 11. Reset to NONE from terminal state: TIMED_OUT -> NONE
+    tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_NONE), ==, PBIO_SUCCESS);
+    tt_int_op(rb->motion_status, ==, PBIO_MDROBOTBASE_STATUS_NONE);
+    tt_want(!rb->motion_in_progress);
+
+    // 12. Exhaustive 5x5 Transition Matrix Sweep
+    static const bool expected_allowed[5][5] = {
+        // NONE (0)
+        { true, true, false, false, false },
+        // RUNNING (1)
+        { true, true, true, true, true },
+        // COMPLETED (2)
+        { true, true, true, false, false },
+        // STALLED (3)
+        { true, true, false, true, false },
+        // TIMED_OUT (4)
+        { true, true, false, false, true },
+    };
+
+    for (int from = 0; from < 5; from++) {
+        for (int to = 0; to < 5; to++) {
+            // Bring rb to state 'from' safely
+            tt_uint_op(pbio_mdrobotbase_motion_reset(rb), ==, PBIO_SUCCESS);
+            if (from == PBIO_MDROBOTBASE_STATUS_RUNNING) {
+                tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
+            } else if (from != PBIO_MDROBOTBASE_STATUS_NONE) {
+                tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, PBIO_MDROBOTBASE_STATUS_RUNNING), ==, PBIO_SUCCESS);
+                tt_uint_op(pbio_mdrobotbase_set_motion_status(rb, (pbio_mdrobotbase_motion_status_t)from), ==, PBIO_SUCCESS);
+            }
+            tt_int_op(rb->motion_status, ==, from);
+
+            // Execute transition attempt
+            pbio_error_t err = pbio_mdrobotbase_set_motion_status(rb, (pbio_mdrobotbase_motion_status_t)to);
+            if (expected_allowed[from][to]) {
+                tt_uint_op(err, ==, PBIO_SUCCESS);
+                tt_int_op(rb->motion_status, ==, to);
+                tt_want_int_op(rb->motion_in_progress, ==, (to == PBIO_MDROBOTBASE_STATUS_RUNNING));
+                tt_uint_op(pbio_mdrobotbase_is_busy(rb, &busy), ==, PBIO_SUCCESS);
+                tt_want_int_op(busy, ==, (to == PBIO_MDROBOTBASE_STATUS_RUNNING));
+                tt_uint_op(pbio_mdrobotbase_is_done(rb, &done), ==, PBIO_SUCCESS);
+                tt_want_int_op(done, ==, (to != PBIO_MDROBOTBASE_STATUS_RUNNING));
+                // Invariant: busy and done can never both be true
+                tt_want(!(busy && done));
+            } else {
+                tt_uint_op(err, ==, PBIO_ERROR_INVALID_OP);
+                // State preserved on rejection
+                tt_int_op(rb->motion_status, ==, from);
+                tt_want_int_op(rb->motion_in_progress, ==, (from == PBIO_MDROBOTBASE_STATUS_RUNNING));
+            }
+        }
+    }
+
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+static pbio_error_t test_mdrobotbase_multiscale_kinematic_invariants(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left;
+    static pbio_servo_t *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb, !=, NULL);
+
+    // Disable backlash filter and set encoder-only fusion (alpha = 0.0) for pure kinematic invariant evaluation
+    tt_uint_op(pbio_mdrobotbase_set_backlash_filter(rb, false), ==, PBIO_SUCCESS);
+    rb->fusion_alpha = 0.0f;
+
+    // Define multi-scale Cartesian parameter grid:
+    // 6 Gear ratios: [0.2, 0.5, 1.0, 2.5, 5.0, 10.0]
+    static const float gear_ratios[] = { 0.2f, 0.5f, 1.0f, 2.5f, 5.0f, 10.0f };
+    // 4 Wheel diameters: [30.0, 56.0, 81.6, 120.0] mm in micrometers
+    static const int32_t wheel_diameters[] = { 30000, 56000, 81600, 120000 };
+    // 4 Axle tracks: [80.0, 112.0, 160.0, 240.0] mm in micrometers
+    static const int32_t axle_tracks[] = { 80000, 112000, 160000, 240000 };
+
+    size_t num_ratios = sizeof(gear_ratios) / sizeof(gear_ratios[0]);
+    size_t num_diameters = sizeof(wheel_diameters) / sizeof(wheel_diameters[0]);
+    size_t num_tracks = sizeof(axle_tracks) / sizeof(axle_tracks[0]);
+    size_t total_permutations = num_ratios * num_diameters * num_tracks;
+    tt_want_int_op(total_permutations, ==, 96);
+
+    for (size_t g = 0; g < num_ratios; g++) {
+        float r = gear_ratios[g];
+        tt_uint_op(pbio_mdrobotbase_set_gear_ratio(rb, r), ==, PBIO_SUCCESS);
+
+        for (size_t d = 0; d < num_diameters; d++) {
+            int32_t diam_um = wheel_diameters[d];
+            tt_uint_op(pbio_mdrobotbase_set_wheel_diameters(rb, diam_um, diam_um), ==, PBIO_SUCCESS);
+
+            for (size_t w = 0; w < num_tracks; w++) {
+                int32_t track_um = axle_tracks[w];
+                rb->axle_track = track_um;
+
+                // -------------------------------------------------------------
+                // Sub-test 1: Linear Odometry Invariant (Forward Travel)
+                // -------------------------------------------------------------
+                rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+                tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+
+                // Simulate 360 motor degrees forward for both wheels
+                rb->last_left_deg -= 360.0f;
+                rb->last_right_deg -= 360.0f;
+                tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+
+                float diam_mm = (float)diam_um / 1000.0f;
+                float expected_wheel_deg = 360.0f / r;
+                float expected_dist_mm = (expected_wheel_deg / 360.0f) * 3.14159265f * diam_mm;
+
+                float lin_error = fabsf(rb->x - expected_dist_mm);
+                float rel_lin_error = lin_error / expected_dist_mm;
+
+                // Acceptance Contract: relative error < 0.01% (0.0001)
+                tt_want(rel_lin_error < 0.0001f);
+                tt_want(fabsf(rb->y) < 0.001f);
+                tt_want(fabsf(rb->theta) < 0.001f);
+
+                // -------------------------------------------------------------
+                // Sub-test 2: Differential Heading Integration Invariant
+                // -------------------------------------------------------------
+                tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+
+                // Simulate differential rotation: left backward 180 deg, right forward 180 deg
+                float d_motor = 180.0f;
+                rb->last_left_deg += d_motor;
+                rb->last_right_deg -= d_motor;
+                tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+
+                float track_mm = (float)track_um / 1000.0f;
+                float wheel_deg_turn = d_motor / r;
+                float wheel_arc_mm = (wheel_deg_turn / 360.0f) * 3.14159265f * diam_mm;
+                float expected_theta_deg = (2.0f * wheel_arc_mm / track_mm) * (180.0f / 3.14159265f);
+
+                // Normalize expected theta to [-180, 180]
+                expected_theta_deg = pbio_mdrobotbase_wrap_degrees(expected_theta_deg);
+
+                float heading_error = fabsf(pbio_mdrobotbase_wrap_degrees(rb->theta - expected_theta_deg));
+
+                // Acceptance Contract: heading error < 0.05 degrees
+                tt_want(heading_error < 0.05f);
+
+                // Center drift invariant during differential rotation
+                float center_drift = sqrtf(rb->x * rb->x + rb->y * rb->y);
+                tt_want(center_drift < 0.01f);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Sub-test 3: Concrete Asynchronous Multi-Scale Actuator Integration
+    // Test physical motor execution under non-standard scale (R=2.5, D=81.6mm, W=160mm)
+    // -------------------------------------------------------------------------
+    tt_uint_op(pbio_mdrobotbase_set_gear_ratio(rb, 2.5f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_set_wheel_diameters(rb, 81600, 81600), ==, PBIO_SUCCESS);
+    rb->axle_track = 160000;
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+
+    // Motor command: 500 deg/s for 720 degrees
+    tt_uint_op(pbio_servo_run_angle(srv_left, 500, 720, PBIO_CONTROL_ON_COMPLETION_HOLD), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_run_angle(srv_right, 500, 720, PBIO_CONTROL_ON_COMPLETION_HOLD), ==, PBIO_SUCCESS);
+    PBIO_OS_AWAIT_UNTIL(state, pbio_control_is_done(&srv_left->control) && pbio_control_is_done(&srv_right->control));
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+
+    // Wheel rotation = 720 / 2.5 = 288.0 deg
+    // Expected distance = (288 / 360) * pi * 81.6 = 0.8 * 256.35396 = 205.083 mm
+    tt_want(pbio_test_int_is_close(rb->x, 205.083f, 0.2f));
+    tt_want(pbio_test_int_is_close(rb->y, 0.0f, 0.2f));
+    tt_want(pbio_test_int_is_close(rb->theta, 0.0f, 0.2f));
+
+    // Cleanup
     tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
 
 end:
@@ -1666,6 +2055,9 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_numerical_robustness),
     PBIO_THREAD_TEST(test_mdrobotbase_behavioral_trajectory_tracking),
     PBIO_THREAD_TEST(test_mdrobotbase_accessor_encapsulation),
+    PBIO_THREAD_TEST(test_mdrobotbase_portable_pointer_validation),
+    PBIO_THREAD_TEST(test_mdrobotbase_fsm_state_transitions),
+    PBIO_THREAD_TEST(test_mdrobotbase_multiscale_kinematic_invariants),
     END_OF_TESTCASES
 };
 

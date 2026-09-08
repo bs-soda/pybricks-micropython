@@ -119,6 +119,24 @@ async def test_trajectory_waypoint_execution():
     assert not robot.stalled(), "Robot must not report stalled upon successful trajectory arrival"
     print("Multi-waypoint trajectory execution and tolerance verification passed.")
 
+async def test_multiscale_kinematic_configuration():
+    print("Testing multi-scale kinematic configuration & parameter setters...")
+    # Test setting wheel diameters to scaled values (e.g. 81.6 mm)
+    robot.set_wheel_diameters(81.6, 81.6)
+    wd_left, wd_right = robot.get_wheel_diameters()
+    assert abs(wd_left - 81.6) < 0.01, f"Expected left wheel diameter 81.6 mm, got {wd_left}"
+    assert abs(wd_right - 81.6) < 0.01, f"Expected right wheel diameter 81.6 mm, got {wd_right}"
+
+    # Test setting gear ratio to reduction gearing (2.5:1)
+    robot.set_gear_ratio(2.5)
+    assert abs(robot.get_gear_ratio() - 2.5) < 0.001, f"Expected gear ratio 2.5, got {robot.get_gear_ratio()}"
+
+    # Restore standard configuration
+    robot.set_wheel_diameters(56.0, 56.0)
+    robot.set_gear_ratio(1.0)
+    assert abs(robot.get_gear_ratio() - 1.0) < 0.001, "Failed to restore gear ratio 1.0"
+    print("Multi-scale kinematic configuration verification passed.")
+
 async def main():
     await test_trajectory_capacity()
     await test_trajectory_minimum_points()
@@ -127,6 +145,7 @@ async def main():
     await test_dynamics_positivity()
     await test_controller_enum_validation()
     await test_trajectory_waypoint_execution()
+    await test_multiscale_kinematic_configuration()
     print("All MDRobotBase trajectory and input validation regression tests passed!")
 
 run_task(main())

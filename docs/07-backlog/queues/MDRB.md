@@ -12,7 +12,6 @@
 
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
-| G-MDRB-008 | feature | P2 | review | REVIEW | G-MDRB-007 | [../goals/G-MDRB-008.md](../goals/G-MDRB-008.md) |
 | G-MDRB-009 | chore | P2 | review | REVIEW | G-MDRB-008 | [../goals/G-MDRB-009.md](../goals/G-MDRB-009.md) |
 | G-MDRB-010 | feature | P0 | draft | DEFINE | G-MDRB-009 | [../goals/G-MDRB-010.md](../goals/G-MDRB-010.md) |
 | G-MDRB-011 | feature | P0 | draft | DEFINE | G-MDRB-010 | [../goals/G-MDRB-011.md](../goals/G-MDRB-011.md) |
@@ -37,3 +36,4 @@
 | G-MDRB-005 | Distinct Timeout and Stall Failure Reporting | 2026-09-08 | [../goals/_archived/G-MDRB-005.md](../goals/_archived/G-MDRB-005.md) |
 | G-MDRB-006 | Async Cancellation and Repeated-Motion Lifecycle Safety | 2026-09-08 | [../goals/_archived/G-MDRB-006.md](../goals/_archived/G-MDRB-006.md) |
 | G-MDRB-007 | Trajectory and Controller Input Validation | 2026-09-08 | [../goals/_archived/G-MDRB-007.md](../goals/_archived/G-MDRB-007.md) |
+| G-MDRB-008 | Comprehensive MDRobotBase Regression Coverage | 2026-09-08 | [../goals/_archived/G-MDRB-008.md](../goals/_archived/G-MDRB-008.md) |

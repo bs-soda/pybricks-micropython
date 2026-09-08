@@ -12,7 +12,6 @@
 
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
-| G-MDRB-021 | feature | P1 | review | REVIEW | G-MDRB-020 | [../goals/G-MDRB-021.md](../goals/G-MDRB-021.md) |
 | G-MDRB-022 | feature | P1 | review | REVIEW | G-MDRB-021 | [../goals/G-MDRB-022.md](../goals/G-MDRB-022.md) |
 | G-MDRB-023 | qa | P2 | review | REVIEW | G-MDRB-022 | [../goals/G-MDRB-023.md](../goals/G-MDRB-023.md) |
 
@@ -40,3 +39,4 @@
 | G-MDRB-018 | Architectural Maintainability & Hardware Abstraction Layer Consolidation | 2026-09-08 | [../goals/_archived/G-MDRB-018.md](../goals/_archived/G-MDRB-018.md) |
 | G-MDRB-019 | Portable Address Validation and Foreign-Pointer Memory Safety in put_robotbase | 2026-09-08 | [../goals/_archived/G-MDRB-019.md](../goals/_archived/G-MDRB-019.md) |
 | G-MDRB-020 | Finite State Machine Transition Table and Atomic Motion-Status Coupling | 2026-09-08 | [../goals/_archived/G-MDRB-020.md](../goals/_archived/G-MDRB-020.md) |
+| G-MDRB-021 | Exhaustive Closed-Object Method Audit and Idempotent Lifecycle Attestation | 2026-09-08 | [../goals/_archived/G-MDRB-021.md](../goals/_archived/G-MDRB-021.md) |

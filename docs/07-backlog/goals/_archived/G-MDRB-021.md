@@ -1,6 +1,6 @@
 # G-MDRB-021: Exhaustive Closed-Object Method Audit and Idempotent Lifecycle Attestation
 
-**Status:** review  
+**Status:** done  
 **Kind:** feature  
 **Atomic outcome:** Enforce pb_type_mdrobotbase_require_open across all 49 methods in the MDRobotBase locals dictionary table, proving raising OSError(EBADF) across every public method after close() and verifying idempotent close()  
 **Epic:** MDRB  
@@ -10,11 +10,11 @@
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

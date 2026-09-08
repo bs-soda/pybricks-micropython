@@ -12,7 +12,6 @@
 
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
-| G-MDRB-002 | feature | P0 | review | REVIEW | G-MDRB-001 | [../goals/G-MDRB-002.md](../goals/G-MDRB-002.md) |
 | G-MDRB-003 | feature | P0 | review | REVIEW | G-MDRB-002 | [../goals/G-MDRB-003.md](../goals/G-MDRB-003.md) |
 | G-MDRB-004 | feature | P0 | review | REVIEW | G-MDRB-003 | [../goals/G-MDRB-004.md](../goals/G-MDRB-004.md) |
 | G-MDRB-005 | feature | P1 | review | REVIEW | G-MDRB-004 | [../goals/G-MDRB-005.md](../goals/G-MDRB-005.md) |
@@ -37,3 +36,4 @@
 | Goal | Title | Closed | File |
 |------|-------|--------|------|
 | G-MDRB-001 | Safe MDRobotBase Instance Ownership and Allocation | 2026-09-08 | [../goals/_archived/G-MDRB-001.md](../goals/_archived/G-MDRB-001.md) |
+| G-MDRB-002 | Complete State Initialization and Lifecycle Reset | 2026-09-08 | [../goals/_archived/G-MDRB-002.md](../goals/_archived/G-MDRB-002.md) |

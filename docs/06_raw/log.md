@@ -4,6 +4,20 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T22:58:00+07:00` — **G-MDRB-026 Shipped & Archived: Submodule Provenance, License Attestation & CI Reproducibility Certification**
+  - Following explicit human authorization ("approve and ship G-MDRB-026"), advanced Goal `G-MDRB-026` from `review` (`REVIEW`) through `approved` to `done` (`SHIP`).
+  - Archived goal card to [`docs/07-backlog/goals/_archived/G-MDRB-026.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-026.md).
+  - Updated queue backlog in [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md) moving G-MDRB-026 to Archived table.
+  - Re-executed full multi-environment test suite:
+    - Master Replication Runner (`master-replication-g-mdrb-026.mjs`): 28/28 gates passed (100% green).
+    - Socratic Dialectic Loop (`socratic-agentic-loop-g-mdrb-026-harness.mjs`): 25/25 dialectic nodes resolved down to Level 5 across all 5 branches.
+    - Automated Submodule Integrity Script (`scripts/ci/submodule-check.sh`): verified mode 160000 gitlink `5d9c4498...` and clean git status across all submodules.
+    - Native PBIO Test Suite (`test-pbio src/mdrobotbase/..`): 22/22 tests passed (0 skipped, 0 failed).
+    - VirtualHub Python Test Suite (`test_mdrobotbase_*.py`): 26/26 tests passed in 1.85s.
+    - Epic Conformance Suite (`mdrobotbase-epic-harness.mjs`): 291/291 checks passed across all 33 goals.
+  - Published comprehensive shipping certification report [`docs/06_raw/20260908_225800_g_mdrb_026_shipping_and_archival_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_225800_g_mdrb_026_shipping_and_archival_certification.md).
+  - All artifacts and code committed on feature branch `feature/mdrobotbase-enhancement` (PR-first workflow, zero local merges to develop/main).
+
 - `2026-09-08T22:57:00+07:00` — **G-MDRB-025 Shipped & Archived: Motion Dispatcher Modularization & Sub-Controller Decomposition**
   - Following explicit human authorization ("approve and ship G-MDRB-025"), advanced Goal `G-MDRB-025` from `review` (`REVIEW`) through `approved` to `done` (`SHIP`).
   - Archived goal card to [`docs/07-backlog/goals/_archived/G-MDRB-025.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-025.md).

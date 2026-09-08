@@ -1,20 +1,20 @@
 # G-MDRB-026: Submodule Provenance, License Attestation & CI Reproducibility Certification
 
-**Status:** review  
-**Kind:** chore  
-**Atomic outcome:** Attest lib/btstack submodule tracking, licensing, commit provenance, and CI checkout reproducibility in GitHub Actions workflow, verifying zero submodule drift across clean checkouts  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-025  
-**Blocks:** G-MDRB-027  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** chore
+**Atomic outcome:** Attest lib/btstack submodule tracking, licensing, commit provenance, and CI checkout reproducibility in GitHub Actions workflow, verifying zero submodule drift across clean checkouts
+**Epic:** MDRB
+**Depends on:** G-MDRB-025
+**Blocks:** G-MDRB-027
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

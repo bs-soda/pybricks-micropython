@@ -159,8 +159,515 @@ static inline bool mdrobotbase_evaluate_stall(pbio_mdrobotbase_t *rb, bool is_st
   return (rb->stall_time_ms > threshold_ms);
 }
 
+static inline void mdrobotbase_drive_wheels(pb_type_MDRobotBase_obj_t *self,
+                                            float left_vel_mms,
+                                            float right_vel_mms,
+                                            float diam_left_mm,
+                                            float diam_right_mm) {
+  int32_t left_dps = mdrobotbase_clamp_speed(
+      mdrobotbase_linear_to_angular_dps(self->rb, left_vel_mms, diam_left_mm), 1000);
+  int32_t right_dps = mdrobotbase_clamp_speed(
+      mdrobotbase_linear_to_angular_dps(self->rb, right_vel_mms, diam_right_mm), 1000);
+  pbio_servo_run_forever(self->rb->left, left_dps);
+  pbio_servo_run_forever(self->rb->right, right_dps);
+}
+
+static inline void mdrobotbase_motion_stop(pb_type_MDRobotBase_obj_t *self, bool reset_angles) {
+  pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
+  pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
+  if (reset_angles && self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
+    pbio_servo_reset_angle(self->rb->left, 0, false);
+    pbio_servo_reset_angle(self->rb->right, 0, false);
+    self->rb->last_left_deg = 0.0f;
+    self->rb->last_right_deg = 0.0f;
+  }
+  self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+  self->rb->motion_in_progress = false;
+}
+
+static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
+                                              float dt_sec,
+                                              uint32_t elapsed_ms,
+                                              float comp,
+                                              float diam_left_mm,
+                                              float diam_right_mm,
+                                              float track_mm) {
+  if (self->rb->align_final_heading) {
+    // Final heading alignment turn
+    float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
+    float w_raw = delta_theta / dt_sec;
+    self->rb->last_step_theta = self->rb->theta;
+
+    float e_theta = mdrobotbase_wrap_degrees(self->rb->gt - self->rb->theta);
+
+    if (fabsf(e_theta) <= 1.5f) {
+      pb_type_mdrobotbase_mark_completed(self);
+      mdrobotbase_motion_stop(self, false);
+      return PBIO_SUCCESS;
+    }
+
+    float i_term = 0.0f;
+    if (self->rb->ki > 0.0f) {
+      self->rb->turn_integral += e_theta * dt_sec;
+      float max_integral = 100.0f / self->rb->ki;
+      if (self->rb->turn_integral > max_integral) self->rb->turn_integral = max_integral;
+      if (self->rb->turn_integral < -max_integral) self->rb->turn_integral = -max_integral;
+      i_term = self->rb->ki * self->rb->turn_integral;
+    }
+    float d_term = -(self->rb->kd * comp) * w_raw;
+    float w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
+    float limit = self->rb->max_turn_speed;
+    if (w_cmd > limit) w_cmd = limit;
+    if (w_cmd < -limit) w_cmd = -limit;
+
+    if (elapsed_ms > 200) {
+      bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f);
+      if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 200.0f)) {
+        pb_type_mdrobotbase_mark_stalled(self);
+        mdrobotbase_motion_stop(self, false);
+        return PBIO_ERROR_FAILED;
+      }
+    }
+
+    float w_rad = w_cmd * (3.14159265f / 180.0f);
+    float left_vel = -w_rad * (track_mm / 2.0f);
+    float right_vel = w_rad * (track_mm / 2.0f);
+
+    mdrobotbase_drive_wheels(self, left_vel, right_vel, diam_left_mm, diam_right_mm);
+    return PBIO_ERROR_AGAIN;
+  }
+
+  float dx = self->rb->goal_x - self->rb->x;
+  float dy = self->rb->goal_y - self->rb->y;
+  float dist_remaining = sqrtf(dx * dx + dy * dy);
+
+  bool plane_crossed = false;
+  if (self->rb->path_len > 1.0f) {
+    float dot = self->rb->path_x * dx + self->rb->path_y * dy;
+    if (dot <= 0.0f) {
+      plane_crossed = true;
+    }
+  }
+
+  if (dist_remaining <= self->rb->tolerance_dist || plane_crossed) {
+    if (self->rb->has_goal_theta) {
+      self->rb->align_final_heading = true;
+      self->rb->turn_integral = 0.0f;
+      self->rb->stall_time_ms = 0.0f;
+      self->rb->last_step_theta = self->rb->theta;
+      return PBIO_ERROR_AGAIN;
+    }
+    pb_type_mdrobotbase_mark_completed(self);
+    mdrobotbase_motion_stop(self, true);
+    return PBIO_SUCCESS;
+  }
+
+  float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
+  float w_raw = delta_theta / dt_sec;
+  self->rb->last_step_theta = self->rb->theta;
+
+  float step = sqrtf((self->rb->x - self->rb->last_x) * (self->rb->x - self->rb->last_x) +
+                     (self->rb->y - self->rb->last_y) * (self->rb->y - self->rb->last_y));
+  self->rb->dist_traveled += step;
+  self->rb->last_x = self->rb->x;
+  self->rb->last_y = self->rb->y;
+
+  float v_profile = self->rb->target_speed_for_ramping;
+  bool is_lqr = (self->rb->controller_type == PBIO_MDROBOTBASE_CONTROLLER_LQR);
+  if (self->rb->use_ramping) {
+    float v_acc = self->rb->target_speed_for_ramping;
+    if (self->rb->accel_d > 0.0f && self->rb->dist_traveled < self->rb->accel_d) {
+      float ratio = self->rb->dist_traveled / self->rb->accel_d;
+      float smooth_ratio = (1.0f - cosf(3.14159265f * ratio)) * 0.5f;
+      v_acc = self->rb->current_start_speed +
+              (self->rb->target_speed_for_ramping - self->rb->current_start_speed) * smooth_ratio;
+    }
+    float v_dec = self->rb->target_speed_for_ramping;
+    if (!is_lqr && self->rb->decel_d > 0.0f && dist_remaining < (self->rb->decel_d + self->rb->tolerance_dist)) {
+      float ratio = (dist_remaining - self->rb->tolerance_dist) / self->rb->decel_d;
+      if (ratio < 0.0f) ratio = 0.0f;
+      if (ratio > 1.0f) ratio = 1.0f;
+      float smooth_ratio = (1.0f - cosf(3.14159265f * ratio)) * 0.5f;
+      v_dec = self->rb->current_end_speed +
+              (self->rb->target_speed_for_ramping - self->rb->current_end_speed) * smooth_ratio;
+    }
+    v_profile = (fabsf(v_acc) < fabsf(v_dec)) ? v_acc : v_dec;
+
+    if (elapsed_ms < (uint32_t)self->rb->kick_time) {
+      float abs_kick_speed = fabsf(self->rb->kick_speed);
+      float v_profile_abs = fabsf(v_profile);
+      if (v_profile_abs < abs_kick_speed) v_profile_abs = abs_kick_speed;
+      v_profile = (self->rb->target_speed >= 0.0f) ? v_profile_abs : -v_profile_abs;
+    }
+
+    float max_change = self->rb->max_accel * dt_sec;
+    float v_change = v_profile - self->rb->last_v_profile;
+    if (v_change > max_change) v_profile = self->rb->last_v_profile + max_change;
+    else if (v_change < -max_change) v_profile = self->rb->last_v_profile - max_change;
+    self->rb->last_v_profile = v_profile;
+  }
+
+  self->rb->dist_ref += fabsf(v_profile) * dt_sec;
+  if (self->rb->dist_ref > self->rb->path_len) self->rb->dist_ref = self->rb->path_len;
+
+  float target_theta;
+  if (self->rb->controller_type == PBIO_MDROBOTBASE_CONTROLLER_LQR) {
+    target_theta = atan2f(self->rb->goal_y - self->rb->y, self->rb->goal_x - self->rb->x) * (180.0f / 3.14159265f);
+    if (self->rb->is_backward) target_theta += 180.0f;
+  } else {
+    if (self->rb->path_len > 1.0f) {
+      float ux = self->rb->path_x / self->rb->path_len;
+      float uy = self->rb->path_y / self->rb->path_len;
+      float rx = self->rb->x - self->rb->start_x;
+      float ry = self->rb->y - self->rb->start_y;
+      float e_y_standard = rx * uy - ry * ux;
+      float p_theta = atan2f(self->rb->path_y, self->rb->path_x) * (180.0f / 3.14159265f);
+      if (self->rb->is_backward) p_theta += 180.0f;
+      float cross_gain = 0.3f;
+      float dir_sign = self->rb->is_backward ? -1.0f : 1.0f;
+      float correction = cross_gain * e_y_standard * dir_sign;
+      if (correction > 30.0f) correction = 30.0f;
+      if (correction < -30.0f) correction = -30.0f;
+      target_theta = p_theta + correction;
+    } else {
+      target_theta = atan2f(self->rb->goal_y - self->rb->y, self->rb->goal_x - self->rb->x) * (180.0f / 3.14159265f);
+      if (self->rb->is_backward) target_theta += 180.0f;
+    }
+  }
+  target_theta = mdrobotbase_wrap_degrees(target_theta);
+
+  float ref_theta = target_theta;
+  if (self->rb->has_goal_theta && dist_remaining < self->rb->decel_d && self->rb->decel_d > 0.0f) {
+    float ratio = dist_remaining / self->rb->decel_d;
+    float diff = mdrobotbase_wrap_degrees(self->rb->gt - target_theta);
+    ref_theta = target_theta + diff * (1.0f - ratio);
+  }
+
+  float v_cmd = v_profile;
+  float w_cmd = 0.0f;
+
+  if (self->rb->controller_type == PBIO_MDROBOTBASE_CONTROLLER_LQR) {
+    float x_ref = self->rb->start_x + self->rb->dist_ref * cosf(self->rb->path_theta);
+    float y_ref = self->rb->start_y + self->rb->dist_ref * sinf(self->rb->path_theta);
+
+    float dx_ref = x_ref - self->rb->x;
+    float dy_ref = y_ref - self->rb->y;
+
+    float theta_rad = self->rb->theta * (3.14159265f / 180.0f);
+    float cos_theta = cosf(theta_rad);
+    float sin_theta = sinf(theta_rad);
+
+    float e_x_local = cos_theta * dx_ref + sin_theta * dy_ref;
+    float e_y_local = -sin_theta * dx_ref + cos_theta * dy_ref;
+
+    float path_theta_deg = mdrobotbase_wrap_degrees(self->rb->path_theta * (180.0f / 3.14159265f) + (self->rb->is_backward ? 180.0f : 0.0f));
+
+    float cross_steer_gain = 0.35f;
+    float dir_sign = self->rb->is_backward ? -1.0f : 1.0f;
+    float cross_corr = cross_steer_gain * e_y_local * dir_sign;
+    if (cross_corr > 30.0f) cross_corr = 30.0f;
+    if (cross_corr < -30.0f) cross_corr = -30.0f;
+
+    float ref_theta_lqr = path_theta_deg + cross_corr;
+    if (self->rb->has_goal_theta && dist_remaining < self->rb->decel_d && self->rb->decel_d > 0.0f) {
+      float ratio = dist_remaining / self->rb->decel_d;
+      float diff = mdrobotbase_wrap_degrees(self->rb->gt - ref_theta_lqr);
+      ref_theta_lqr = ref_theta_lqr + diff * (1.0f - ratio);
+    }
+
+    float e_theta_deg = mdrobotbase_wrap_degrees(ref_theta_lqr - self->rb->theta);
+
+    float e_x = e_x_local / 1000.0f;
+    float e_y = e_y_local / 1000.0f;
+    float e_theta = e_theta_deg * (3.14159265f / 180.0f);
+
+    float sched_scale = 1.0f;
+    if (self->rb->lqr_schedule_enabled) {
+      float v_abs = fabsf(v_profile);
+      sched_scale = sqrtf(v_abs / 300.0f);
+      if (sched_scale < 0.2f) sched_scale = 0.2f;
+    }
+
+    float scheduled_k_y = self->rb->k_y * sched_scale;
+    float scheduled_k_theta = self->rb->k_theta * sched_scale;
+
+    float u_v = -((self->rb->k_x * comp) * e_x);
+    float u_w = -((scheduled_k_y * comp) * e_y + (scheduled_k_theta * comp) * e_theta);
+
+    v_cmd = v_profile - u_v * 1000.0f;
+    w_cmd = 0.0f - u_w * (180.0f / 3.14159265f);
+  } else {
+    float e_theta = mdrobotbase_wrap_degrees(ref_theta - self->rb->theta);
+
+    float i_term = 0.0f;
+    if (self->rb->ki > 0.0f) {
+      self->rb->turn_integral += e_theta * dt_sec;
+      float max_integral = 100.0f / self->rb->ki;
+      if (self->rb->turn_integral > max_integral) self->rb->turn_integral = max_integral;
+      if (self->rb->turn_integral < -max_integral) self->rb->turn_integral = -max_integral;
+      i_term = self->rb->ki * self->rb->turn_integral;
+    }
+
+    float d_term = -(self->rb->kd * comp) * w_raw;
+    w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
+
+    if (self->rb->pid_min_turn > 0.0f && fabsf(e_theta) > self->rb->pid_min_turn_threshold) {
+      float min_turn = self->rb->pid_min_turn * comp;
+      if (w_cmd > 0.0f) {
+        if (w_cmd < min_turn) w_cmd = min_turn;
+      } else {
+        if (w_cmd > -min_turn) w_cmd = -min_turn;
+      }
+    }
+  }
+
+  float max_dv = self->rb->max_accel * dt_sec;
+  float dv = v_cmd - self->rb->last_v_cmd;
+  if (dv > max_dv) v_cmd = self->rb->last_v_cmd + max_dv;
+  else if (dv < -max_dv) v_cmd = self->rb->last_v_cmd - max_dv;
+  self->rb->last_v_cmd = v_cmd;
+
+  float max_w_accel = (2.0f * self->rb->max_accel / track_mm) * (180.0f / 3.14159265f);
+  if (max_w_accel < 1500.0f) max_w_accel = 1500.0f;
+  float max_dw = max_w_accel * dt_sec;
+  float dw = w_cmd - self->rb->last_w_cmd;
+  if (dw > max_dw) w_cmd = self->rb->last_w_cmd + max_dw;
+  else if (dw < -max_dw) w_cmd = self->rb->last_w_cmd - max_dw;
+  self->rb->last_w_cmd = w_cmd;
+
+  float w_rad = w_cmd * (3.14159265f / 180.0f);
+  float left_vel = v_cmd - w_rad * (track_mm / 2.0f);
+  float right_vel = v_cmd + w_rad * (track_mm / 2.0f);
+
+  if (elapsed_ms > 200) {
+    float v_raw = step / dt_sec;
+    bool is_stalled = (fabsf(v_cmd) > 30.0f && fabsf(v_raw) < 10.0f);
+    if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 250.0f)) {
+      pb_type_mdrobotbase_mark_stalled(self);
+      mdrobotbase_motion_stop(self, false);
+      return PBIO_ERROR_FAILED;
+    }
+  }
+
+  mdrobotbase_drive_wheels(self, left_vel, right_vel, diam_left_mm, diam_right_mm);
+  return PBIO_ERROR_AGAIN;
+}
+
+static pbio_error_t mdrobotbase_step_turn(pb_type_MDRobotBase_obj_t *self,
+                                          float dt_sec,
+                                          uint32_t elapsed_ms,
+                                          float comp,
+                                          float diam_left_mm,
+                                          float diam_right_mm,
+                                          float track_mm) {
+  float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
+  float w_raw = delta_theta / dt_sec;
+  self->rb->last_step_theta = self->rb->theta;
+
+  float e_theta = mdrobotbase_wrap_degrees(self->rb->target_angle - self->rb->theta);
+
+  if (fabsf(e_theta) <= self->rb->tolerance_angle) {
+    if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
+      pb_type_mdrobotbase_mark_completed(self);
+      mdrobotbase_motion_stop(self, true);
+      return PBIO_SUCCESS;
+    }
+  }
+
+  float i_term = 0.0f;
+  if (self->rb->ki_turn > 0.0f) {
+    self->rb->turn_integral += e_theta * dt_sec;
+    float max_integral = 100.0f / self->rb->ki_turn;
+    if (self->rb->turn_integral > max_integral) self->rb->turn_integral = max_integral;
+    if (self->rb->turn_integral < -max_integral) self->rb->turn_integral = -max_integral;
+    i_term = self->rb->ki_turn * self->rb->turn_integral;
+  }
+
+  float d_term = -(self->rb->kd_turn * comp) * w_raw;
+  float turn_kp_val = self->rb->kp_turn;
+  float decel_ang_val = self->rb->decel_angle > 0.1f ? self->rb->decel_angle : 15.0f;
+  float scheduled_kp = (1.0f + self->rb->kd_turn) * (self->rb->speed_deg_s / decel_ang_val);
+  if (scheduled_kp > turn_kp_val) {
+    turn_kp_val = scheduled_kp;
+  }
+  float w_cmd = (turn_kp_val * comp) * e_theta + i_term + d_term;
+  float remaining_angle = fabsf(e_theta);
+  float turned_angle = self->rb->turn_angle_total - remaining_angle;
+  if (turned_angle < 0.0f) turned_angle = 0.0f;
+
+  // Accel limit applies smooth start acceleration ramping
+  float accel_limit = self->rb->speed_deg_s;
+  if (self->rb->accel_angle > 0.0f && turned_angle < self->rb->accel_angle) {
+    accel_limit = self->rb->start_speed +
+                  (self->rb->speed_deg_s - self->rb->start_speed) * (turned_angle / self->rb->accel_angle);
+  }
+
+  // PID feedback naturally handles deceleration. Max turn speed limit caps max authority.
+  float limit = accel_limit < self->rb->speed_deg_s ? accel_limit : self->rb->speed_deg_s;
+  if (limit > self->rb->max_turn_speed) limit = self->rb->max_turn_speed;
+
+  if (w_cmd > limit) w_cmd = limit;
+  if (w_cmd < -limit) w_cmd = -limit;
+
+  if (elapsed_ms > 300) {
+    bool is_stalled = (fabsf(w_cmd) > 60.0f && fabsf(w_raw) < 2.0f);
+    if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
+      pb_type_mdrobotbase_mark_stalled(self);
+      mdrobotbase_motion_stop(self, false);
+      return PBIO_ERROR_FAILED;
+    }
+  }
+
+  float w_rad = w_cmd * (3.14159265f / 180.0f);
+  float left_vel = -w_rad * (track_mm / 2.0f);
+  float right_vel = w_rad * (track_mm / 2.0f);
+
+  mdrobotbase_drive_wheels(self, left_vel, right_vel, diam_left_mm, diam_right_mm);
+  return PBIO_ERROR_AGAIN;
+}
+
+static pbio_error_t mdrobotbase_step_pivot(pb_type_MDRobotBase_obj_t *self,
+                                           float dt_sec,
+                                           uint32_t elapsed_ms,
+                                           float comp,
+                                           float diam_left_mm,
+                                           float diam_right_mm,
+                                           float track_mm) {
+  float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
+  float w_raw = delta_theta / dt_sec;
+  self->rb->last_step_theta = self->rb->theta;
+
+  float e_theta = mdrobotbase_wrap_degrees(self->rb->target_angle - self->rb->theta);
+
+  if (fabsf(e_theta) <= self->rb->tolerance_angle) {
+    if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
+      pb_type_mdrobotbase_mark_completed(self);
+      mdrobotbase_motion_stop(self, true);
+      return PBIO_SUCCESS;
+    }
+  }
+
+  float i_term = 0.0f;
+  if (self->rb->ki_pivot > 0.0f) {
+    self->rb->turn_integral += e_theta * dt_sec;
+    float max_integral = 100.0f / self->rb->ki_pivot;
+    if (self->rb->turn_integral > max_integral) self->rb->turn_integral = max_integral;
+    if (self->rb->turn_integral < -max_integral) self->rb->turn_integral = -max_integral;
+    i_term = self->rb->ki_pivot * self->rb->turn_integral;
+  }
+
+  float d_term = -(self->rb->kd_pivot * comp) * w_raw;
+  float pivot_kp_val = self->rb->kp_pivot;
+  float decel_ang_val = self->rb->decel_angle > 0.1f ? self->rb->decel_angle : 15.0f;
+  float scheduled_kp = (1.0f + self->rb->kd_pivot) * (self->rb->speed_deg_s / decel_ang_val);
+  if (scheduled_kp > pivot_kp_val) {
+    pivot_kp_val = scheduled_kp;
+  }
+  float w_cmd = (pivot_kp_val * comp) * e_theta + i_term + d_term;
+  float remaining_angle = fabsf(e_theta);
+  float turned_angle = self->rb->turn_angle_total - remaining_angle;
+  if (turned_angle < 0.0f) turned_angle = 0.0f;
+
+  // Accel limit applies smooth start acceleration ramping
+  float accel_limit = self->rb->speed_deg_s;
+  if (self->rb->accel_angle > 0.0f && turned_angle < self->rb->accel_angle) {
+    accel_limit = self->rb->start_speed +
+                  (self->rb->speed_deg_s - self->rb->start_speed) * (turned_angle / self->rb->accel_angle);
+  }
+
+  // PID feedback naturally handles deceleration. Max pivot speed limit caps max authority.
+  float limit = accel_limit < self->rb->speed_deg_s ? accel_limit : self->rb->speed_deg_s;
+  if (limit > self->rb->max_pivot_speed) limit = self->rb->max_pivot_speed;
+
+  if (w_cmd > limit) w_cmd = limit;
+  if (w_cmd < -limit) w_cmd = -limit;
+
+  if (elapsed_ms > 300) {
+    bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 2.0f);
+    if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
+      pb_type_mdrobotbase_mark_stalled(self);
+      mdrobotbase_motion_stop(self, false);
+      return PBIO_ERROR_FAILED;
+    }
+  }
+
+  float w_rad = w_cmd * (3.14159265f / 180.0f);
+  if (self->rb->pivot_left) {
+    float right_vel = w_rad * track_mm;
+    int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
+    pbio_servo_run_forever(self->rb->right, right_dps);
+  } else {
+    float left_vel = -w_rad * track_mm;
+    int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
+    pbio_servo_run_forever(self->rb->left, left_dps);
+  }
+  return PBIO_ERROR_AGAIN;
+}
+
+static pbio_error_t mdrobotbase_step_trajectory(pb_type_MDRobotBase_obj_t *self,
+                                                float dt_sec,
+                                                uint32_t elapsed_ms,
+                                                float comp,
+                                                float diam_left_mm,
+                                                float diam_right_mm,
+                                                float track_mm) {
+  (void)dt_sec;
+  (void)elapsed_ms;
+
+  if (self->rb->trajectory_num_points == 0 || self->rb->trajectory_current_point_idx >= self->rb->trajectory_num_points) {
+    pb_type_mdrobotbase_mark_completed(self);
+    mdrobotbase_motion_stop(self, false);
+    return PBIO_SUCCESS;
+  }
+
+  float target_x = self->rb->trajectory_points_x[self->rb->trajectory_current_point_idx];
+  float target_y = self->rb->trajectory_points_y[self->rb->trajectory_current_point_idx];
+
+  float dx = target_x - self->rb->x;
+  float dy = target_y - self->rb->y;
+  float dist_remaining = sqrtf(dx * dx + dy * dy);
+
+  bool is_final_point = (self->rb->trajectory_current_point_idx == self->rb->trajectory_num_points - 1);
+
+  if (is_final_point) {
+    if (dist_remaining <= self->rb->tolerance_dist) {
+      pb_type_mdrobotbase_mark_completed(self);
+      mdrobotbase_motion_stop(self, true);
+      return PBIO_SUCCESS;
+    }
+  } else {
+    if (dist_remaining <= self->rb->trajectory_transition_tolerance) {
+      self->rb->trajectory_current_point_idx++;
+      self->rb->trajectory_seg_start_x = self->rb->x;
+      self->rb->trajectory_seg_start_y = self->rb->y;
+      target_x = self->rb->trajectory_points_x[self->rb->trajectory_current_point_idx];
+      target_y = self->rb->trajectory_points_y[self->rb->trajectory_current_point_idx];
+      dx = target_x - self->rb->x;
+      dy = target_y - self->rb->y;
+      dist_remaining = sqrtf(dx * dx + dy * dy);
+    }
+  }
+
+  float speed = self->rb->is_backward ? -fabsf(self->rb->target_speed) : fabsf(self->rb->target_speed);
+  float target_theta = mdrobotbase_wrap_degrees(atan2f(dy, dx) * (180.0f / 3.14159265f) + (self->rb->is_backward ? 180.0f : 0.0f));
+
+  float e_theta = mdrobotbase_wrap_degrees(target_theta - self->rb->theta);
+
+  float w_cmd = (self->rb->kp_turn * comp) * e_theta;
+  if (w_cmd > self->rb->max_turn_speed) w_cmd = self->rb->max_turn_speed;
+  if (w_cmd < -self->rb->max_turn_speed) w_cmd = -self->rb->max_turn_speed;
+
+  float w_rad = w_cmd * (3.14159265f / 180.0f);
+  float left_vel = speed - w_rad * (track_mm / 2.0f);
+  float right_vel = speed + w_rad * (track_mm / 2.0f);
+
+  mdrobotbase_drive_wheels(self, left_vel, right_vel, diam_left_mm, diam_right_mm);
+  return PBIO_ERROR_AGAIN;
+}
+
 static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *state,
                                                             mp_obj_t parent_obj) {
+  (void)state;
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(parent_obj);
 
   if (!self->rb || !self->rb->motion_in_progress) {
@@ -183,16 +690,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
   // Global motion timeout check
   if (self->rb->timeout_ms > 0 && elapsed_ms >= self->rb->timeout_ms) {
     pb_type_mdrobotbase_mark_timed_out(self);
-    pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-    pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-    if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
-      pbio_servo_reset_angle(self->rb->left, 0, false);
-      pbio_servo_reset_angle(self->rb->right, 0, false);
-      self->rb->last_left_deg = 0.0f;
-      self->rb->last_right_deg = 0.0f;
-    }
-    self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-    self->rb->motion_in_progress = false;
+    mdrobotbase_motion_stop(self, true);
     return PBIO_ERROR_TIMEDOUT;
   }
 
@@ -208,529 +706,14 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
   self->rb->last_step_time_ms = now;
 
   switch (self->rb->motion_type) {
-    case PBIO_MDROBOTBASE_MOTION_NAVIGATE: {
-      if (self->rb->align_final_heading) {
-        // Final heading alignment turn
-        float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
-        float w_raw = delta_theta / dt_sec;
-        self->rb->last_step_theta = self->rb->theta;
-
-        float e_theta = mdrobotbase_wrap_degrees(self->rb->gt - self->rb->theta);
-
-        if (fabsf(e_theta) <= 1.5f) {
-          pb_type_mdrobotbase_mark_completed(self);
-          pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-          pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-          self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-          self->rb->motion_in_progress = false;
-          return PBIO_SUCCESS;
-        }
-
-        float i_term = 0.0f;
-        if (self->rb->ki > 0.0f) {
-          self->rb->turn_integral += e_theta * dt_sec;
-          float max_integral = 100.0f / self->rb->ki;
-          if (self->rb->turn_integral > max_integral) self->rb->turn_integral = max_integral;
-          if (self->rb->turn_integral < -max_integral) self->rb->turn_integral = -max_integral;
-          i_term = self->rb->ki * self->rb->turn_integral;
-        }
-        float d_term = -(self->rb->kd * comp) * w_raw;
-        float w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
-        float limit = self->rb->max_turn_speed;
-        if (w_cmd > limit) w_cmd = limit;
-        if (w_cmd < -limit) w_cmd = -limit;
-
-        if (elapsed_ms > 200) {
-          bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f);
-          if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 200.0f)) {
-            pb_type_mdrobotbase_mark_stalled(self);
-            pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-            pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-            self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-            self->rb->motion_in_progress = false;
-            return PBIO_ERROR_FAILED;
-          }
-        }
-
-        float w_rad = w_cmd * (3.14159265f / 180.0f);
-        float left_vel = -w_rad * (track_mm / 2.0f);
-        float right_vel = w_rad * (track_mm / 2.0f);
-
-        int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
-        int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
-
-        pbio_servo_run_forever(self->rb->left, left_dps);
-        pbio_servo_run_forever(self->rb->right, right_dps);
-        return PBIO_ERROR_AGAIN;
-      }
-
-      float dx = self->rb->goal_x - self->rb->x;
-      float dy = self->rb->goal_y - self->rb->y;
-      float dist_remaining = sqrtf(dx * dx + dy * dy);
-
-      bool plane_crossed = false;
-      if (self->rb->path_len > 1.0f) {
-        float dot = self->rb->path_x * dx + self->rb->path_y * dy;
-        if (dot <= 0.0f) {
-          plane_crossed = true;
-        }
-      }
-
-      if (dist_remaining <= self->rb->tolerance_dist || plane_crossed) {
-        if (self->rb->has_goal_theta) {
-          self->rb->align_final_heading = true;
-          self->rb->turn_integral = 0.0f;
-          self->rb->stall_time_ms = 0.0f;
-          self->rb->last_step_theta = self->rb->theta;
-          return PBIO_ERROR_AGAIN;
-        }
-        pb_type_mdrobotbase_mark_completed(self);
-        pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-        pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-        if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
-          pbio_servo_reset_angle(self->rb->left, 0, false);
-          pbio_servo_reset_angle(self->rb->right, 0, false);
-          self->rb->last_left_deg = 0.0f;
-          self->rb->last_right_deg = 0.0f;
-        }
-        self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-        self->rb->motion_in_progress = false;
-        return PBIO_SUCCESS;
-      }
-
-      float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
-      float w_raw = delta_theta / dt_sec;
-      self->rb->last_step_theta = self->rb->theta;
-
-      float step = sqrtf((self->rb->x - self->rb->last_x) * (self->rb->x - self->rb->last_x) +
-                         (self->rb->y - self->rb->last_y) * (self->rb->y - self->rb->last_y));
-      self->rb->dist_traveled += step;
-      self->rb->last_x = self->rb->x;
-      self->rb->last_y = self->rb->y;
-
-      float v_profile = self->rb->target_speed_for_ramping;
-      bool is_lqr = (self->rb->controller_type == PBIO_MDROBOTBASE_CONTROLLER_LQR);
-      if (self->rb->use_ramping) {
-        float v_acc = self->rb->target_speed_for_ramping;
-        if (self->rb->accel_d > 0.0f && self->rb->dist_traveled < self->rb->accel_d) {
-          float ratio = self->rb->dist_traveled / self->rb->accel_d;
-          float smooth_ratio = (1.0f - cosf(3.14159265f * ratio)) * 0.5f;
-          v_acc = self->rb->current_start_speed +
-                  (self->rb->target_speed_for_ramping - self->rb->current_start_speed) * smooth_ratio;
-        }
-        float v_dec = self->rb->target_speed_for_ramping;
-        if (!is_lqr && self->rb->decel_d > 0.0f && dist_remaining < (self->rb->decel_d + self->rb->tolerance_dist)) {
-          float ratio = (dist_remaining - self->rb->tolerance_dist) / self->rb->decel_d;
-          if (ratio < 0.0f) ratio = 0.0f;
-          if (ratio > 1.0f) ratio = 1.0f;
-          float smooth_ratio = (1.0f - cosf(3.14159265f * ratio)) * 0.5f;
-          v_dec = self->rb->current_end_speed +
-                  (self->rb->target_speed_for_ramping - self->rb->current_end_speed) * smooth_ratio;
-        }
-        v_profile = (fabsf(v_acc) < fabsf(v_dec)) ? v_acc : v_dec;
-
-        if (elapsed_ms < (uint32_t)self->rb->kick_time) {
-          float abs_kick_speed = fabsf(self->rb->kick_speed);
-          float v_profile_abs = fabsf(v_profile);
-          if (v_profile_abs < abs_kick_speed) v_profile_abs = abs_kick_speed;
-          v_profile = (self->rb->target_speed >= 0.0f) ? v_profile_abs : -v_profile_abs;
-        }
-
-        float max_change = self->rb->max_accel * dt_sec;
-        float v_change = v_profile - self->rb->last_v_profile;
-        if (v_change > max_change) v_profile = self->rb->last_v_profile + max_change;
-        else if (v_change < -max_change) v_profile = self->rb->last_v_profile - max_change;
-        self->rb->last_v_profile = v_profile;
-      }
-
-      self->rb->dist_ref += fabsf(v_profile) * dt_sec;
-      if (self->rb->dist_ref > self->rb->path_len) self->rb->dist_ref = self->rb->path_len;
-
-      float target_theta;
-      if (self->rb->controller_type == PBIO_MDROBOTBASE_CONTROLLER_LQR) {
-        target_theta = atan2f(self->rb->goal_y - self->rb->y, self->rb->goal_x - self->rb->x) * (180.0f / 3.14159265f);
-        if (self->rb->is_backward) target_theta += 180.0f;
-      } else {
-        if (self->rb->path_len > 1.0f) {
-          float ux = self->rb->path_x / self->rb->path_len;
-          float uy = self->rb->path_y / self->rb->path_len;
-          float rx = self->rb->x - self->rb->start_x;
-          float ry = self->rb->y - self->rb->start_y;
-          float e_y_standard = rx * uy - ry * ux;
-          float p_theta = atan2f(self->rb->path_y, self->rb->path_x) * (180.0f / 3.14159265f);
-          if (self->rb->is_backward) p_theta += 180.0f;
-          float cross_gain = 0.3f;
-          float dir_sign = self->rb->is_backward ? -1.0f : 1.0f;
-          float correction = cross_gain * e_y_standard * dir_sign;
-          if (correction > 30.0f) correction = 30.0f;
-          if (correction < -30.0f) correction = -30.0f;
-          target_theta = p_theta + correction;
-        } else {
-          target_theta = atan2f(self->rb->goal_y - self->rb->y, self->rb->goal_x - self->rb->x) * (180.0f / 3.14159265f);
-          if (self->rb->is_backward) target_theta += 180.0f;
-        }
-      }
-      target_theta = mdrobotbase_wrap_degrees(target_theta);
-
-      float ref_theta = target_theta;
-      if (self->rb->has_goal_theta && dist_remaining < self->rb->decel_d && self->rb->decel_d > 0.0f) {
-        float ratio = dist_remaining / self->rb->decel_d;
-        float diff = mdrobotbase_wrap_degrees(self->rb->gt - target_theta);
-        ref_theta = target_theta + diff * (1.0f - ratio);
-      }
-
-      float v_cmd = v_profile;
-      float w_cmd = 0.0f;
-
-      if (self->rb->controller_type == PBIO_MDROBOTBASE_CONTROLLER_LQR) {
-        float x_ref = self->rb->start_x + self->rb->dist_ref * cosf(self->rb->path_theta);
-        float y_ref = self->rb->start_y + self->rb->dist_ref * sinf(self->rb->path_theta);
-
-        float dx_ref = x_ref - self->rb->x;
-        float dy_ref = y_ref - self->rb->y;
-
-        float theta_rad = self->rb->theta * (3.14159265f / 180.0f);
-        float cos_theta = cosf(theta_rad);
-        float sin_theta = sinf(theta_rad);
-
-        float e_x_local = cos_theta * dx_ref + sin_theta * dy_ref;
-        float e_y_local = -sin_theta * dx_ref + cos_theta * dy_ref;
-
-        float path_theta_deg = mdrobotbase_wrap_degrees(self->rb->path_theta * (180.0f / 3.14159265f) + (self->rb->is_backward ? 180.0f : 0.0f));
-
-        float cross_steer_gain = 0.35f;
-        float dir_sign = self->rb->is_backward ? -1.0f : 1.0f;
-        float cross_corr = cross_steer_gain * e_y_local * dir_sign;
-        if (cross_corr > 30.0f) cross_corr = 30.0f;
-        if (cross_corr < -30.0f) cross_corr = -30.0f;
-
-        float ref_theta_lqr = path_theta_deg + cross_corr;
-        if (self->rb->has_goal_theta && dist_remaining < self->rb->decel_d && self->rb->decel_d > 0.0f) {
-          float ratio = dist_remaining / self->rb->decel_d;
-          float diff = mdrobotbase_wrap_degrees(self->rb->gt - ref_theta_lqr);
-          ref_theta_lqr = ref_theta_lqr + diff * (1.0f - ratio);
-        }
-
-        float e_theta_deg = mdrobotbase_wrap_degrees(ref_theta_lqr - self->rb->theta);
-
-        float e_x = e_x_local / 1000.0f;
-        float e_y = e_y_local / 1000.0f;
-        float e_theta = e_theta_deg * (3.14159265f / 180.0f);
-
-        float sched_scale = 1.0f;
-        if (self->rb->lqr_schedule_enabled) {
-          float v_abs = fabsf(v_profile);
-          sched_scale = sqrtf(v_abs / 300.0f);
-          if (sched_scale < 0.2f) sched_scale = 0.2f;
-        }
-
-        float scheduled_k_y = self->rb->k_y * sched_scale;
-        float scheduled_k_theta = self->rb->k_theta * sched_scale;
-
-        float u_v = -((self->rb->k_x * comp) * e_x);
-        float u_w = -((scheduled_k_y * comp) * e_y + (scheduled_k_theta * comp) * e_theta);
-
-        v_cmd = v_profile - u_v * 1000.0f;
-        w_cmd = 0.0f - u_w * (180.0f / 3.14159265f);
-      } else {
-        float e_theta = mdrobotbase_wrap_degrees(ref_theta - self->rb->theta);
-
-        float i_term = 0.0f;
-        if (self->rb->ki > 0.0f) {
-          self->rb->turn_integral += e_theta * dt_sec;
-          float max_integral = 100.0f / self->rb->ki;
-          if (self->rb->turn_integral > max_integral) self->rb->turn_integral = max_integral;
-          if (self->rb->turn_integral < -max_integral) self->rb->turn_integral = -max_integral;
-          i_term = self->rb->ki * self->rb->turn_integral;
-        }
-
-        float d_term = -(self->rb->kd * comp) * w_raw;
-        w_cmd = (self->rb->kp * comp) * e_theta + i_term + d_term;
-
-        if (self->rb->pid_min_turn > 0.0f && fabsf(e_theta) > self->rb->pid_min_turn_threshold) {
-          float min_turn = self->rb->pid_min_turn * comp;
-          if (w_cmd > 0.0f) {
-            if (w_cmd < min_turn) w_cmd = min_turn;
-          } else {
-            if (w_cmd > -min_turn) w_cmd = -min_turn;
-          }
-        }
-      }
-
-      float max_dv = self->rb->max_accel * dt_sec;
-      float dv = v_cmd - self->rb->last_v_cmd;
-      if (dv > max_dv) v_cmd = self->rb->last_v_cmd + max_dv;
-      else if (dv < -max_dv) v_cmd = self->rb->last_v_cmd - max_dv;
-      self->rb->last_v_cmd = v_cmd;
-
-      float max_w_accel = (2.0f * self->rb->max_accel / track_mm) * (180.0f / 3.14159265f);
-      if (max_w_accel < 1500.0f) max_w_accel = 1500.0f;
-      float max_dw = max_w_accel * dt_sec;
-      float dw = w_cmd - self->rb->last_w_cmd;
-      if (dw > max_dw) w_cmd = self->rb->last_w_cmd + max_dw;
-      else if (dw < -max_dw) w_cmd = self->rb->last_w_cmd - max_dw;
-      self->rb->last_w_cmd = w_cmd;
-
-      float w_rad = w_cmd * (3.14159265f / 180.0f);
-      float left_vel = v_cmd - w_rad * (track_mm / 2.0f);
-      float right_vel = v_cmd + w_rad * (track_mm / 2.0f);
-
-      int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
-      int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
-
-      if (elapsed_ms > 200) {
-        float v_raw = step / dt_sec;
-        bool is_stalled = (fabsf(v_cmd) > 30.0f && fabsf(v_raw) < 10.0f);
-        if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 250.0f)) {
-          pb_type_mdrobotbase_mark_stalled(self);
-          pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-          pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-          self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-          self->rb->motion_in_progress = false;
-          return PBIO_ERROR_FAILED;
-        }
-      }
-
-      pbio_servo_run_forever(self->rb->left, left_dps);
-      pbio_servo_run_forever(self->rb->right, right_dps);
-      return PBIO_ERROR_AGAIN;
-    }
-
-    case PBIO_MDROBOTBASE_MOTION_TURN: {
-      float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
-      float w_raw = delta_theta / dt_sec;
-      self->rb->last_step_theta = self->rb->theta;
-
-      float e_theta = mdrobotbase_wrap_degrees(self->rb->target_angle - self->rb->theta);
-
-      if (fabsf(e_theta) <= self->rb->tolerance_angle) {
-        if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
-          pb_type_mdrobotbase_mark_completed(self);
-          pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-          pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-          if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
-            pbio_servo_reset_angle(self->rb->left, 0, false);
-            pbio_servo_reset_angle(self->rb->right, 0, false);
-            self->rb->last_left_deg = 0.0f;
-            self->rb->last_right_deg = 0.0f;
-          }
-          self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-          self->rb->motion_in_progress = false;
-          return PBIO_SUCCESS;
-        }
-      }
-
-      float i_term = 0.0f;
-      if (self->rb->ki_turn > 0.0f) {
-        self->rb->turn_integral += e_theta * dt_sec;
-        float max_integral = 100.0f / self->rb->ki_turn;
-        if (self->rb->turn_integral > max_integral) self->rb->turn_integral = max_integral;
-        if (self->rb->turn_integral < -max_integral) self->rb->turn_integral = -max_integral;
-        i_term = self->rb->ki_turn * self->rb->turn_integral;
-      }
-
-      float d_term = -(self->rb->kd_turn * comp) * w_raw;
-      float turn_kp_val = self->rb->kp_turn;
-      float decel_ang_val = self->rb->decel_angle > 0.1f ? self->rb->decel_angle : 15.0f;
-      float scheduled_kp = (1.0f + self->rb->kd_turn) * (self->rb->speed_deg_s / decel_ang_val);
-      if (scheduled_kp > turn_kp_val) {
-        turn_kp_val = scheduled_kp;
-      }
-      float w_cmd = (turn_kp_val * comp) * e_theta + i_term + d_term;
-      float remaining_angle = fabsf(e_theta);
-      float turned_angle = self->rb->turn_angle_total - remaining_angle;
-      if (turned_angle < 0.0f) turned_angle = 0.0f;
-
-      // Accel limit applies smooth start acceleration ramping
-      float accel_limit = self->rb->speed_deg_s;
-      if (self->rb->accel_angle > 0.0f && turned_angle < self->rb->accel_angle) {
-        accel_limit = self->rb->start_speed +
-                      (self->rb->speed_deg_s - self->rb->start_speed) * (turned_angle / self->rb->accel_angle);
-      }
-
-      // PID feedback naturally handles deceleration. Max turn speed limit caps max authority.
-      float limit = accel_limit < self->rb->speed_deg_s ? accel_limit : self->rb->speed_deg_s;
-      if (limit > self->rb->max_turn_speed) limit = self->rb->max_turn_speed;
-
-      if (w_cmd > limit) w_cmd = limit;
-      if (w_cmd < -limit) w_cmd = -limit;
-
-      if (elapsed_ms > 300) {
-        bool is_stalled = (fabsf(w_cmd) > 60.0f && fabsf(w_raw) < 2.0f);
-        if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
-          pb_type_mdrobotbase_mark_stalled(self);
-          pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-          pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-          self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-          self->rb->motion_in_progress = false;
-          return PBIO_ERROR_FAILED;
-        }
-      }
-
-      float w_rad = w_cmd * (3.14159265f / 180.0f);
-      float left_vel = -w_rad * (track_mm / 2.0f);
-      float right_vel = w_rad * (track_mm / 2.0f);
-
-      int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
-      int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
-
-      pbio_servo_run_forever(self->rb->left, left_dps);
-      pbio_servo_run_forever(self->rb->right, right_dps);
-      return PBIO_ERROR_AGAIN;
-    }
-
-    case PBIO_MDROBOTBASE_MOTION_PIVOT: {
-      float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
-      float w_raw = delta_theta / dt_sec;
-      self->rb->last_step_theta = self->rb->theta;
-
-      float e_theta = mdrobotbase_wrap_degrees(self->rb->target_angle - self->rb->theta);
-
-      if (fabsf(e_theta) <= self->rb->tolerance_angle) {
-        if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
-          pb_type_mdrobotbase_mark_completed(self);
-          pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-          pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-          if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
-            pbio_servo_reset_angle(self->rb->left, 0, false);
-            pbio_servo_reset_angle(self->rb->right, 0, false);
-            self->rb->last_left_deg = 0.0f;
-            self->rb->last_right_deg = 0.0f;
-          }
-          self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-          self->rb->motion_in_progress = false;
-          return PBIO_SUCCESS;
-        }
-      }
-
-      float i_term = 0.0f;
-      if (self->rb->ki_pivot > 0.0f) {
-        self->rb->turn_integral += e_theta * dt_sec;
-        float max_integral = 100.0f / self->rb->ki_pivot;
-        if (self->rb->turn_integral > max_integral) self->rb->turn_integral = max_integral;
-        if (self->rb->turn_integral < -max_integral) self->rb->turn_integral = -max_integral;
-        i_term = self->rb->ki_pivot * self->rb->turn_integral;
-      }
-
-      float d_term = -(self->rb->kd_pivot * comp) * w_raw;
-      float pivot_kp_val = self->rb->kp_pivot;
-      float decel_ang_val = self->rb->decel_angle > 0.1f ? self->rb->decel_angle : 15.0f;
-      float scheduled_kp = (1.0f + self->rb->kd_pivot) * (self->rb->speed_deg_s / decel_ang_val);
-      if (scheduled_kp > pivot_kp_val) {
-        pivot_kp_val = scheduled_kp;
-      }
-      float w_cmd = (pivot_kp_val * comp) * e_theta + i_term + d_term;
-      float remaining_angle = fabsf(e_theta);
-      float turned_angle = self->rb->turn_angle_total - remaining_angle;
-      if (turned_angle < 0.0f) turned_angle = 0.0f;
-
-      // Accel limit applies smooth start acceleration ramping
-      float accel_limit = self->rb->speed_deg_s;
-      if (self->rb->accel_angle > 0.0f && turned_angle < self->rb->accel_angle) {
-        accel_limit = self->rb->start_speed +
-                      (self->rb->speed_deg_s - self->rb->start_speed) * (turned_angle / self->rb->accel_angle);
-      }
-
-      // PID feedback naturally handles deceleration. Max pivot speed limit caps max authority.
-      float limit = accel_limit < self->rb->speed_deg_s ? accel_limit : self->rb->speed_deg_s;
-      if (limit > self->rb->max_pivot_speed) limit = self->rb->max_pivot_speed;
-
-      if (w_cmd > limit) w_cmd = limit;
-      if (w_cmd < -limit) w_cmd = -limit;
-
-      if (elapsed_ms > 300) {
-        bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 2.0f);
-        if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
-          pb_type_mdrobotbase_mark_stalled(self);
-          pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-          pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-          self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-          self->rb->motion_in_progress = false;
-          return PBIO_ERROR_FAILED;
-        }
-      }
-
-      float w_rad = w_cmd * (3.14159265f / 180.0f);
-      if (self->rb->pivot_left) {
-        float right_vel = w_rad * track_mm;
-        int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
-        pbio_servo_run_forever(self->rb->right, right_dps);
-      } else {
-        float left_vel = -w_rad * track_mm;
-        int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
-        pbio_servo_run_forever(self->rb->left, left_dps);
-      }
-      return PBIO_ERROR_AGAIN;
-    }
-
-    case PBIO_MDROBOTBASE_MOTION_TRAJECTORY: {
-      if (self->rb->trajectory_num_points == 0 || self->rb->trajectory_current_point_idx >= self->rb->trajectory_num_points) {
-        pb_type_mdrobotbase_mark_completed(self);
-        pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-        pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-        self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-        self->rb->motion_in_progress = false;
-        return PBIO_SUCCESS;
-      }
-
-      float target_x = self->rb->trajectory_points_x[self->rb->trajectory_current_point_idx];
-      float target_y = self->rb->trajectory_points_y[self->rb->trajectory_current_point_idx];
-
-      float dx = target_x - self->rb->x;
-      float dy = target_y - self->rb->y;
-      float dist_remaining = sqrtf(dx * dx + dy * dy);
-
-      bool is_final_point = (self->rb->trajectory_current_point_idx == self->rb->trajectory_num_points - 1);
-
-      if (is_final_point) {
-        if (dist_remaining <= self->rb->tolerance_dist) {
-          pb_type_mdrobotbase_mark_completed(self);
-          pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
-          pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
-          if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
-            pbio_servo_reset_angle(self->rb->left, 0, false);
-            pbio_servo_reset_angle(self->rb->right, 0, false);
-            self->rb->last_left_deg = 0.0f;
-            self->rb->last_right_deg = 0.0f;
-          }
-          self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-          self->rb->motion_in_progress = false;
-          return PBIO_SUCCESS;
-        }
-      } else {
-        if (dist_remaining <= self->rb->trajectory_transition_tolerance) {
-          self->rb->trajectory_current_point_idx++;
-          self->rb->trajectory_seg_start_x = self->rb->x;
-          self->rb->trajectory_seg_start_y = self->rb->y;
-          target_x = self->rb->trajectory_points_x[self->rb->trajectory_current_point_idx];
-          target_y = self->rb->trajectory_points_y[self->rb->trajectory_current_point_idx];
-          dx = target_x - self->rb->x;
-          dy = target_y - self->rb->y;
-          dist_remaining = sqrtf(dx * dx + dy * dy);
-        }
-      }
-
-      float speed = self->rb->is_backward ? -fabsf(self->rb->target_speed) : fabsf(self->rb->target_speed);
-      float target_theta = mdrobotbase_wrap_degrees(atan2f(dy, dx) * (180.0f / 3.14159265f) + (self->rb->is_backward ? 180.0f : 0.0f));
-
-      float e_theta = mdrobotbase_wrap_degrees(target_theta - self->rb->theta);
-
-      float w_cmd = (self->rb->kp_turn * comp) * e_theta;
-      if (w_cmd > self->rb->max_turn_speed) w_cmd = self->rb->max_turn_speed;
-      if (w_cmd < -self->rb->max_turn_speed) w_cmd = -self->rb->max_turn_speed;
-
-      float w_rad = w_cmd * (3.14159265f / 180.0f);
-      float left_vel = speed - w_rad * (track_mm / 2.0f);
-      float right_vel = speed + w_rad * (track_mm / 2.0f);
-
-      int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
-      int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
-
-      pbio_servo_run_forever(self->rb->left, left_dps);
-      pbio_servo_run_forever(self->rb->right, right_dps);
-      return PBIO_ERROR_AGAIN;
-    }
-
+    case PBIO_MDROBOTBASE_MOTION_NAVIGATE:
+      return mdrobotbase_step_navigate(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+    case PBIO_MDROBOTBASE_MOTION_TURN:
+      return mdrobotbase_step_turn(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+    case PBIO_MDROBOTBASE_MOTION_PIVOT:
+      return mdrobotbase_step_pivot(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+    case PBIO_MDROBOTBASE_MOTION_TRAJECTORY:
+      return mdrobotbase_step_trajectory(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
     default:
       return PBIO_SUCCESS;
   }
@@ -2023,13 +2006,13 @@ pb_type_MDRobotBase_set_wheel_diameters(size_t n_args, const mp_obj_t *pos_args,
   #if MICROPY_PY_BUILTINS_FLOAT
   if (mp_obj_is_float(left_diameter_in)) {
     mp_float_t val = mp_obj_get_float(left_diameter_in);
-    if (!isfinite(val) || val <= 0.0) {
+    if (!isfinite(val) || val <= 0.0f) {
       mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter must be positive non-zero finite value"));
     }
   }
   if (mp_obj_is_float(right_diameter_in)) {
     mp_float_t val = mp_obj_get_float(right_diameter_in);
-    if (!isfinite(val) || val <= 0.0) {
+    if (!isfinite(val) || val <= 0.0f) {
       mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter must be positive non-zero finite value"));
     }
   }
@@ -2145,19 +2128,19 @@ static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type,
   #if MICROPY_PY_BUILTINS_FLOAT
   if (mp_obj_is_float(wheel_diameter_left_in)) {
     mp_float_t val = mp_obj_get_float(wheel_diameter_left_in);
-    if (!isfinite(val) || val <= 0.0) {
+    if (!isfinite(val) || val <= 0.0f) {
       mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter and axle track must be positive non-zero finite values"));
     }
   }
   if (mp_obj_is_float(wheel_diameter_right_in)) {
     mp_float_t val = mp_obj_get_float(wheel_diameter_right_in);
-    if (!isfinite(val) || val <= 0.0) {
+    if (!isfinite(val) || val <= 0.0f) {
       mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter and axle track must be positive non-zero finite values"));
     }
   }
   if (mp_obj_is_float(axle_track_in)) {
     mp_float_t val = mp_obj_get_float(axle_track_in);
-    if (!isfinite(val) || val <= 0.0) {
+    if (!isfinite(val) || val <= 0.0f) {
       mp_raise_ValueError(MP_ERROR_TEXT("wheel diameter and axle track must be positive non-zero finite values"));
     }
   }

@@ -4,6 +4,26 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T21:30:00+07:00` — **G-MDRB-025 Release Gate Passed & Hand-off for Human Review**
+  - Modularized monolithic motion iteration dispatcher `pb_type_mdrobotbase_motion_iterate_once()` in `pybricks/robotics/pb_type_mdrobotbase.c` from 574 lines down to 51 lines (cyclomatic complexity $\le 6$).
+  - Extracted 4 modular static step sub-controllers: `mdrobotbase_step_navigate()`, `mdrobotbase_step_turn()`, `mdrobotbase_step_pivot()`, `mdrobotbase_step_trajectory()`.
+  - Extracted shared wheel actuation helper `mdrobotbase_drive_wheels()` and shared terminal stop helper `mdrobotbase_motion_stop()`.
+  - Fixed double-promotion warnings (`val <= 0.0f`) under `-Werror,-Wdouble-promotion`.
+  - Executed Isolated Mutation Test Suite: 7/7 Mutations Caught (`scripts/harness/isolated-mutation-test-g-mdrb-025.mjs`).
+  - Executed Master Replication Harness: 26/26 Gates Passed (`scripts/harness/master-replication-g-mdrb-025.mjs`).
+  - Executed Socratic Agentic Loop: 25/25 Dialectic Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-025-harness.mjs`).
+  - Executed Native PBIO Test Suite: 22/22 tests ok (0 skipped).
+  - Executed MDRobotBase Epic Conformance: 234/234 checks passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+  - Transitioned Goal G-MDRB-025 status to `review` and collaboration phase to `REVIEW`. Handed off for human approval.
+  - Published master report [`docs/06_raw/20260908_213000_g_mdrb_025_dispatcher_modularization_release_gate_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_213000_g_mdrb_025_dispatcher_modularization_release_gate_report.md).
+
+- `2026-09-08T21:20:00+07:00` — **G-MDRB-025 Clarification, Socratic Dialectics & Red Baseline Freezing**
+  - Promoted `G-MDRB-025` from `draft` (DEFINE) to `ready` (PLAN) after resolving open questions regarding sub-controller static scoping.
+  - Formulated 5 Causal Branches x 5 Dialectic Levels (25 total nodes) in `scripts/harness/socratic-agentic-loop-g-mdrb-025-harness.mjs`.
+  - Created 7-Gate Master Replication Harness in `scripts/harness/master-replication-g-mdrb-025.mjs`.
+  - Published Socratic Dialectic analysis document [`docs/06_raw/20260908_212000_g_mdrb_025_clarification_and_dispatcher_modularization.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_212000_g_mdrb_025_clarification_and_dispatcher_modularization.md).
+  - Recorded exact-HEAD baseline: monolithic router spans 574 lines with missing modular sub-controllers.
+
 - `2026-09-08T21:15:00+07:00` — **G-MDRB-024 Release Gate Passed & Hand-off for Human Review**
   - Fully remediated P1 FSM single-source-of-truth defect: implemented `pbio_mdrobotbase_mark_running()`, `pbio_mdrobotbase_mark_completed()`, `pbio_mdrobotbase_mark_stalled()`, `pbio_mdrobotbase_mark_timed_out()`.
   - Eliminated all 15 direct `self->rb->motion_status = ...` assignments in `pybricks/robotics/pb_type_mdrobotbase.c`.

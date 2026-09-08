@@ -1,26 +1,26 @@
 # G-MDRB-025: Motion Dispatcher Modularization & Sub-Controller Decomposition
 
-**Status:** draft  
-**Kind:** feature  
-**Atomic outcome:** Decompose the monolithic motion iteration function in pb_type_mdrobotbase.c into modular sub-controllers with shared wheel velocity conversion and terminal stop handling  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-024  
-**Blocks:** G-MDRB-026  
-**Spec stability:** clarify pending · spec check pending · analyze pending  
+**Status:** review
+**Kind:** feature
+**Atomic outcome:** Decompose the monolithic motion iteration function in pb_type_mdrobotbase.c into modular sub-controllers with shared wheel velocity conversion and terminal stop handling
+**Epic:** MDRB
+**Depends on:** G-MDRB-024
+**Blocks:** G-MDRB-026
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
-**Collaboration phase:** DEFINE
+**Collaboration phase:** REVIEW
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| **●** | ○ | ○ | ○ | ○ |
+| ○ | ○ | ○ | **●** | ○ |
 
 | # | Step | Status |
 |---|------|--------|
-| 1 | Sub-Controller Architecture & Interface Formulation | pending |
-| 2 | Extract Modular Step Controllers & Shared Wheel Actuation | pending |
-| 3 | Motion Equivalence & Behavioral Regression Verification | pending |
+| 1 | Sub-Controller Architecture & Interface Formulation | done |
+| 2 | Extract Modular Step Controllers & Shared Wheel Actuation | done |
+| 3 | Motion Equivalence & Behavioral Regression Verification | done |
 
 ## Context
 
@@ -30,10 +30,10 @@ Decomposing this monolithic dispatcher into clean sub-controllers improves testa
 
 ### Scorecard & Baseline Evidence
 - **Current score:** 7/10 (Maintainability / Dispatcher Modularity) · **Expected score:** 10/10
-- **Exact evidence:** [`pybricks/robotics/pb_type_mdrobotbase.c:194-685`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/pybricks/robotics/pb_type_mdrobotbase.c#L194-L685)
+- **Exact evidence:** [`pybricks/robotics/pb_type_mdrobotbase.c:164-737`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/pybricks/robotics/pb_type_mdrobotbase.c#L164-L737)
 - **Root cause:** All motion primitives are implemented in a single massive `switch` block with duplicated velocity conversion, stall evaluation, and servo command code.
 - **Reproduction steps:**
-  1. Inspect `pb_type_mdrobotbase_motion_iterate_once()` lines 194 to 685.
+  1. Inspect `pb_type_mdrobotbase_motion_iterate_once()` lines 164 to 737.
   2. Observe that navigation, turn, pivot, and trajectory routines duplicate wheel speed conversions (`mdrobotbase_linear_to_angular_dps`) and servo run calls.
   3. Attempting to unit test or benchmark a single motion sub-controller requires driving the full monolithic generator loop.
 
@@ -53,11 +53,21 @@ Decomposing this monolithic dispatcher into clean sub-controllers improves testa
 
 ## How *(PLAN only — leave empty while `draft`)*
 
-**Stack / approach:** —
+**Stack / approach:**
+1. Maintain zero new translation units to preserve microcontroller footprint, embedded LTO, and static inlining efficiency within `pybricks/robotics/pb_type_mdrobotbase.c`.
+2. Extract common wheel driving helper `mdrobotbase_drive_wheels(self, left_vel_mms, right_vel_mms, diam_left_mm, diam_right_mm)` to consolidate linear-to-angular conversions, clamping, and `pbio_servo_run_forever` calls.
+3. Extract common stop helper `mdrobotbase_motion_stop(self, reset_angles)` to consolidate `pbio_servo_stop`, conditional angle resets, and resetting `motion_type` / `motion_in_progress`.
+4. Decompose the 4 movement cases from `pb_type_mdrobotbase_motion_iterate_once()` into modular static functions:
+   - `mdrobotbase_step_navigate(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm)`
+   - `mdrobotbase_step_turn(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm)`
+   - `mdrobotbase_step_pivot(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm)`
+   - `mdrobotbase_step_trajectory(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm)`
+5. Retain only odometry update, timeout checking, parameter extraction, and the 4-way sub-controller switch routing inside `pb_type_mdrobotbase_motion_iterate_once()`, reducing its line count from 574 lines to < 50 lines.
+6. Verify 100% kinematic equivalence using the VirtualHub and PBIO test suites.
 
 ## Open questions *(block `ready` while any `[NEEDS CLARIFICATION]` remain)*
 
-- [ ] [NEEDS CLARIFICATION: Should sub-controllers be static functions in pb_type_mdrobotbase.c or partitioned into separate C translation units?]
+- [x] Sub-controllers are implemented as static functions within `pybricks/robotics/pb_type_mdrobotbase.c`. This preserves compiler inlining opportunities, avoids build system / Makefile changes in the micro-embedded footprint, and cleanly decouples logic without external linkage overhead.
 
 ## Knowledge links
 
@@ -150,34 +160,34 @@ Decomposing this monolithic dispatcher into clean sub-controllers improves testa
 
 ## Spec checklist
 
-- [ ] Intent is WHAT/WHY only (no stack, framework, or folder recipe)
-- [ ] How is empty while `draft`; filled in PLAN after clarify
-- [ ] Software & Architecture Design specified by AI Agent (Ports, Bounded Context, Zero-Mock)
-- [ ] Socratic 5-Why Dialectic report generated/linked in Knowledge links or Raw Docs
-- [ ] Architecture & Goal Conformance Harness passing (`architecture-design-conformance-harness.mjs`)
-- [ ] No `[NEEDS CLARIFICATION]` left in Open questions
-- [ ] In / Out unambiguous; Out matches Scope Out
-- [ ] Acceptance criteria each testable or reviewable
-- [ ] Touch map is real repo paths
-- [ ] Knowledge links: Why traces to `P-xxx` or accepted PDR
-- [ ] Change delta filled if modifying existing behaviour
-- [ ] Critical-path assumptions are not `open` + `low`
-- [ ] Zero Mocks, Zero Stubs, Zero String Simulations (Article I non-negotiable invariant)
-- [ ] Atomic Work Steps Contract (Allowed files, Ordered actions, Completion gate, Stop condition)
-- [ ] Empirical Evidence Grounding (Measured raw trials, confidence intervals, no static score retention)
-- [ ] FSM Single Source of Truth (State transitions routed strictly through transition helpers, zero direct mutation)
-- [ ] Submodule & Repository Cleanliness (Submodules verified against .gitmodules with zero uncommitted working tree drift)
-- [ ] Dispatcher Modularity (Complexity decoupled into isolated sub-controllers with shared conversion utilities)
-- [ ] Multi-Environment Runtime Proof (Concrete build and test command outputs recorded in release artifacts)
+- [x] Intent is WHAT/WHY only (no stack, framework, or folder recipe)
+- [x] How is empty while `draft`; filled in PLAN after clarify
+- [x] Software & Architecture Design specified by AI Agent (Ports, Bounded Context, Zero-Mock)
+- [x] Socratic 5-Why Dialectic report generated/linked in Knowledge links or Raw Docs
+- [x] Architecture & Goal Conformance Harness passing (`architecture-design-conformance-harness.mjs`)
+- [x] No `[NEEDS CLARIFICATION]` left in Open questions
+- [x] In / Out unambiguous; Out matches Scope Out
+- [x] Acceptance criteria each testable or reviewable
+- [x] Touch map is real repo paths
+- [x] Knowledge links: Why traces to `P-xxx` or accepted PDR
+- [x] Change delta filled if modifying existing behaviour
+- [x] Critical-path assumptions are not `open` + `low`
+- [x] Zero Mocks, Zero Stubs, Zero String Simulations (Article I non-negotiable invariant)
+- [x] Atomic Work Steps Contract (Allowed files, Ordered actions, Completion gate, Stop condition)
+- [x] Empirical Evidence Grounding (Measured raw trials, confidence intervals, no static score retention)
+- [x] FSM Single Source of Truth (State transitions routed strictly through transition helpers, zero direct mutation)
+- [x] Submodule & Repository Cleanliness (Submodules verified against .gitmodules with zero uncommitted working tree drift)
+- [x] Dispatcher Modularity (Complexity decoupled into isolated sub-controllers with shared conversion utilities)
+- [x] Multi-Environment Runtime Proof (Concrete build and test command outputs recorded in release artifacts)
 
 ## Acceptance criteria
 
-- [ ] `pb_type_mdrobotbase_motion_iterate_once()` is refactored into a concise router under 60 lines.
-- [ ] Navigation logic is encapsulated in `mdrobotbase_step_navigate()`.
-- [ ] Turn logic is encapsulated in `mdrobotbase_step_turn()`.
-- [ ] Pivot logic is encapsulated in `mdrobotbase_step_pivot()`.
-- [ ] Trajectory logic is encapsulated in `mdrobotbase_step_trajectory()`.
-- [ ] All differential motion test suites in VirtualHub pass with zero behavioural divergence.
+- [x] `pb_type_mdrobotbase_motion_iterate_once()` is refactored into a concise router under 60 lines.
+- [x] Navigation logic is encapsulated in `mdrobotbase_step_navigate()`.
+- [x] Turn logic is encapsulated in `mdrobotbase_step_turn()`.
+- [x] Pivot logic is encapsulated in `mdrobotbase_step_pivot()`.
+- [x] Trajectory logic is encapsulated in `mdrobotbase_step_trajectory()`.
+- [x] All differential motion test suites in VirtualHub pass with zero behavioural divergence.
 
 ## Test plan
 

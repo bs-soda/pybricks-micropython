@@ -7,6 +7,19 @@
 #include <pbio/servo.h>
 #include <pbio/error.h>
 
+#ifndef PBIO_CONFIG_NUM_MDROBOTBASES
+#ifdef PBIO_CONFIG_SERVO_NUM_DEV
+#define PBIO_CONFIG_NUM_MDROBOTBASES (PBIO_CONFIG_SERVO_NUM_DEV / 2)
+#else
+#define PBIO_CONFIG_NUM_MDROBOTBASES 2
+#endif
+#endif
+
+#if PBIO_CONFIG_NUM_MDROBOTBASES < 2
+#undef PBIO_CONFIG_NUM_MDROBOTBASES
+#define PBIO_CONFIG_NUM_MDROBOTBASES 2
+#endif
+
 typedef enum {
     PBIO_MDROBOTBASE_CONTROLLER_PID = 0,
     PBIO_MDROBOTBASE_CONTROLLER_LQR = 1
@@ -19,6 +32,14 @@ typedef enum {
     PBIO_MDROBOTBASE_MOTION_PIVOT,
     PBIO_MDROBOTBASE_MOTION_TRAJECTORY
 } pbio_mdrobotbase_motion_type_t;
+
+typedef enum {
+    PBIO_MDROBOTBASE_STATUS_NONE = 0,
+    PBIO_MDROBOTBASE_STATUS_RUNNING = 1,
+    PBIO_MDROBOTBASE_STATUS_COMPLETED = 2,
+    PBIO_MDROBOTBASE_STATUS_STALLED = 3,
+    PBIO_MDROBOTBASE_STATUS_TIMED_OUT = 4
+} pbio_mdrobotbase_motion_status_t;
 
 typedef struct _pbio_mdrobotbase_t {
     pbio_servo_t *left;
@@ -82,6 +103,7 @@ typedef struct _pbio_mdrobotbase_t {
     float stall_time_ms;
     pbio_control_on_completion_t stop_behavior;
     bool motion_in_progress;
+    pbio_mdrobotbase_motion_status_t motion_status;
 
     // Navigation internal tracking state
     float start_x;
@@ -150,6 +172,9 @@ typedef struct _pbio_mdrobotbase_t {
 
 
 pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track);
+pbio_error_t pbio_mdrobotbase_put_robotbase(pbio_mdrobotbase_t *rb);
+pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track);
+pbio_error_t pbio_mdrobotbase_motion_reset(pbio_mdrobotbase_t *rb);
 pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, float k_y, float k_theta, bool schedule);
 pbio_error_t pbio_mdrobotbase_set_controller(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_controller_t type);
 pbio_error_t pbio_mdrobotbase_set_pid_gains(pbio_mdrobotbase_t *rb, float kp, float ki, float kd);
@@ -177,6 +202,22 @@ pbio_error_t pbio_mdrobotbase_set_fusion_alpha(pbio_mdrobotbase_t *rb, float alp
 pbio_error_t pbio_mdrobotbase_get_fusion_alpha(pbio_mdrobotbase_t *rb, float *alpha);
 pbio_error_t pbio_mdrobotbase_set_gear_ratio(pbio_mdrobotbase_t *rb, float ratio);
 pbio_error_t pbio_mdrobotbase_get_gear_ratio(pbio_mdrobotbase_t *rb, float *ratio);
+pbio_error_t pbio_mdrobotbase_get_motion_status(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t *status);
+pbio_error_t pbio_mdrobotbase_set_motion_status(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t status);
+pbio_error_t pbio_mdrobotbase_get_pose(const pbio_mdrobotbase_t *rb, float *x, float *y, float *theta);
+pbio_error_t pbio_mdrobotbase_is_busy(const pbio_mdrobotbase_t *rb, bool *busy);
+pbio_error_t pbio_mdrobotbase_is_done(const pbio_mdrobotbase_t *rb, bool *done);
+pbio_error_t pbio_mdrobotbase_is_stalled(const pbio_mdrobotbase_t *rb, bool *stalled);
+pbio_error_t pbio_mdrobotbase_get_motion_type(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_type_t *motion_type);
+
+// Kinematic Gear Ratio Conversion Helpers (R = motor / wheel)
+float pbio_mdrobotbase_motor_to_wheel_deg(const pbio_mdrobotbase_t *rb, float motor_deg);
+float pbio_mdrobotbase_wheel_to_motor_deg(const pbio_mdrobotbase_t *rb, float wheel_deg);
+float pbio_mdrobotbase_motor_to_wheel_dps(const pbio_mdrobotbase_t *rb, float motor_dps);
+int32_t pbio_mdrobotbase_wheel_to_motor_dps(const pbio_mdrobotbase_t *rb, float wheel_dps);
+
+// Angle Normalization Invariants
+float pbio_mdrobotbase_wrap_degrees(float angle);
 
 // Native C Color Calibration API
 pbio_error_t pbio_mdrobotbase_color_cal_reset(pbio_mdrobotbase_t *rb);

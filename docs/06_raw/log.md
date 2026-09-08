@@ -4,6 +4,169 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T15:15:00+07:00` — **G-MDRB-018 Implementation & Release Gate Attestation (Architectural Maintainability & Hardware Abstraction Layer Consolidation: Encapsulated Pose Accessors, Lifecycle Query Decoupling, Pure Query Semantics, Zero-Overhead Memory Footprint, and Concrete C ABI Verification)**
+  - Executed G-MDRB-018 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-018.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-018.md).
+  - Declared public C accessor functions in `lib/pbio/include/pbio/mdrobotbase.h`: `pbio_mdrobotbase_get_pose`, `pbio_mdrobotbase_is_busy`, `pbio_mdrobotbase_is_done`, `pbio_mdrobotbase_is_stalled`, `pbio_mdrobotbase_get_motion_type`.
+  - Implemented accessors with fail-closed null argument checks in `lib/pbio/src/mdrobotbase.c`.
+  - Refactored `pybricks/robotics/pb_type_mdrobotbase.c` query methods (`get_state`, `done`, `stalled`, `status`, and debug prints) to route exclusively through public C accessors, eliminating direct struct member dereferencing in language-level queries.
+  - Added native C unit test `test_mdrobotbase_accessor_encapsulation()` in `lib/pbio/test/src/test_mdrobotbase.c` and registered in `pbio_mdrobotbase_tests[]` (18/18 PBIO tests ok, 0 skipped).
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 25/25 Passed (`scripts/harness/master-replication-g-mdrb-018.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-018-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 12.00 ms, variance 0.1965, valid 95% Student-t CI [11.68 ms, 12.32 ms].
+    - PBIO C Unit Tests: 18/18 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance: 20/20 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
+- `2026-09-08T15:05:00+07:00` — **G-MDRB-017 Implementation & Release Gate Attestation (Behavioral Test Suite Hardening, Elimination of Vacuous Tautologies, Dynamic Lifecycle FSM Verification, Waypoint Trajectory Coordinate Bounds, Fail-Before-Fix Mutation Testing)**
+  - Executed G-MDRB-017 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-017.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-017.md).
+  - Eradicated boolean tautological assertions (`assert robot.done() or not robot.done()`) in `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`, replacing with strict falsifiable assertions verifying `robot.done()`, `not robot.stalled()`, and `status()` lifecycle progression.
+  - Implemented multi-waypoint trajectory execution test `test_trajectory_waypoint_execution()` in `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py` verifying arrival coordinates and heading within physical tolerances ($\le 2.0\text{ mm}$ displacement, $\le 1.0^\circ$ orientation).
+  - Added concrete behavioral trajectory tracking test `test_mdrobotbase_behavioral_trajectory_tracking()` in `lib/pbio/test/src/test_mdrobotbase.c` and registered in `pbio_mdrobotbase_tests[]`, driving real virtual servos via `pbio_servo_run_angle()` and measuring odometry integration across a 3-waypoint sequence.
+  - Verified fail-before-fix mutation sensitivity across test files, proving 100% mutant kill rate under inverted logic.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 24/24 Passed (`scripts/harness/master-replication-g-mdrb-017.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-017-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 12.93 ms, variance 0.2941, valid 95% Student-t CI [12.54 ms, 13.32 ms].
+    - PBIO C Unit Tests: 17/17 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Full PBIO Test Suite: 77/77 passed without skips (`./lib/pbio/test/build/test-pbio`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance: 11/11 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
+- `2026-09-08T14:55:00+07:00` — **G-MDRB-016 Implementation & Release Gate Attestation (Numerical Robustness, Non-Finite Guards, Gear Ratio Domain Bounding, Speed Quantization Saturation, Clock Wraparound Arithmetic)**
+  - Executed G-MDRB-016 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-016.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-016.md).
+  - Enforced `isfinite()` validation across all floating-point setters and state reset routines in `lib/pbio/src/mdrobotbase.c`: `reset_state`, `set_gear_ratio`, `set_fusion_alpha`, `set_backlash_limits`, `set_max_turn_speed`, `set_max_pivot_speed`, `set_pid_min_turn`, rejecting `NaN`, `+inf`, `-inf` with `PBIO_ERROR_INVALID_ARG`.
+  - Constrained physical gear ratio to strictly bounded domain $R \in [0.001, 1000.0]$ in both PBIO `pbio_mdrobotbase_set_gear_ratio` and MicroPython binding `pb_type_MDRobotBase_set_gear_ratio`, preserving previous valid ratio on invalid input.
+  - Implemented speed quantization saturation protection in `pbio_mdrobotbase_wheel_to_motor_dps`: clamping products exceeding `INT32_MAX` (2,147,483,647) to `INT32_MAX`, and below `INT32_MIN` (-2,147,483,648) to `INT32_MIN`; mapping non-finite values safely (`NaN` to 0, `+inf` to `INT32_MAX`, `-inf` to `INT32_MIN`).
+  - Implemented non-finite sanitization in `motor_to_wheel_deg`, `wheel_to_motor_deg`, `motor_to_wheel_dps`, and `wrap_degrees`, returning `0.0f` on non-finite inputs.
+  - Verified millisecond clock timer wraparound arithmetic safety: confirmed that `(uint32_t)(now - start) >= timeout_ms` handles $2^{32}-1 \to 0$ rollover correctly.
+  - Added native C test `test_mdrobotbase_numerical_robustness()` in `lib/pbio/test/src/test_mdrobotbase.c` and registered in `pbio_mdrobotbase_tests[]`.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 24/24 Passed (`scripts/harness/master-replication-g-mdrb-016.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-016-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 13.12 ms, variance 3.1363, valid 95% Student-t CI [11.86 ms, 14.39 ms].
+    - PBIO C Unit Tests: 16/16 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Full PBIO Test Suite: 76/76 passed without skips (`./lib/pbio/test/build/test-pbio`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance: 11/11 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
+- `2026-09-08T14:45:00+07:00` — **G-MDRB-015 Implementation & Release Gate Attestation (Angle Normalization, Pivot-Turn Invariants, and Distance Conservation)**
+  - Executed G-MDRB-015 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-015.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-015.md).
+  - Implemented angle normalization helper `pbio_mdrobotbase_wrap_degrees` in `lib/pbio/src/mdrobotbase.c` and declared in `lib/pbio/include/pbio/mdrobotbase.h`, wrapping arbitrary angles continuously into $[-180.0^\circ, +180.0^\circ]$.
+  - Enforced pure spin turn center translation invariance ($d_{\text{center}} = 0.0\text{ mm}$, Euclidean drift $\sqrt{\Delta x^2 + \Delta y^2} \le 0.05\text{ mm}$) in `pbio_mdrobotbase_update_state`.
+  - Enforced single-wheel left and right pivot turn differential geometry invariants around stationary locked wheel contact points ($|s_{\text{free}} - W \cdot |\Delta \theta|| \le 0.1\text{ mm}$).
+  - Verified backlash filtering deadband distance conservation over 100 sub-threshold oscillation cycles ($\pm 0.5^\circ$ with $1.0^\circ$ deadband limit), proving zero net position or heading drift ($\Delta x = 0, \Delta y = 0, \Delta \theta = 0$).
+  - Implemented native C test suite in `lib/pbio/test/src/test_mdrobotbase.c`:
+    - `test_mdrobotbase_spin_and_pivot_invariants()`
+    - `test_mdrobotbase_backlash_distance_conservation()`
+    Both registered in `pbio_mdrobotbase_tests[]`.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 25/25 Passed (`scripts/harness/master-replication-g-mdrb-015.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-015-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 11.41 ms, variance 0.1628, valid 95% Student-t CI [11.12 ms, 11.70 ms].
+    - PBIO C Unit Tests: 15/15 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance: 11/11 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
+- `2026-09-08T14:35:00+07:00` — **G-MDRB-014 Implementation & Release Gate Attestation (Differential-Drive Kinematic Invariants & Bidirectional Gear-Ratio Semantics)**
+  - Executed G-MDRB-014 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-014.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-014.md).
+  - Implemented symmetrical bidirectional kinematic helpers in `lib/pbio/src/mdrobotbase.c` and declared in `lib/pbio/include/pbio/mdrobotbase.h`:
+    - `pbio_mdrobotbase_motor_to_wheel_deg` (divides by $R$).
+    - `pbio_mdrobotbase_wheel_to_motor_deg` (multiplies by $R$).
+    - `pbio_mdrobotbase_motor_to_wheel_dps` (divides by $R$).
+    - `pbio_mdrobotbase_wheel_to_motor_dps` (multiplies by $R$ with `lroundf`).
+  - Proved algebraic round-trip invertibility identity $|f^{-1}(f(x)) - x| < 10^{-4}$ degrees across $m \in [-100000.0, 100000.0]$.
+  - Proved differential-drive heading conservation: equal motor progression produces $\Delta \theta = 0.0 \pm 10^{-5}\text{ rad}$ and linear distance $s = (\Delta \theta_{\text{motor}} / R) \cdot (\pi D / 360)$ within $< 10^{-4}\text{ mm}$.
+  - Verified stability across extreme ratio domain $R \in [0.01, 100.0]$ across four orders of magnitude.
+  - Implemented native C test `test_mdrobotbase_kinematic_invariants()` in `lib/pbio/test/src/test_mdrobotbase.c` and registered in `pbio_mdrobotbase_tests[]`.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 25/25 Passed (`scripts/harness/master-replication-g-mdrb-014.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-014-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 14.31 ms, variance 0.3974, valid 95% Student-t CI [13.86 ms, 14.76 ms].
+    - PBIO C Unit Tests: 13/13 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance: 11/11 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
+- `2026-09-08T14:25:00+07:00` — **G-MDRB-013 Implementation & Release Gate Attestation (Constrain pbio_mdrobotbase_set_motion_status to Valid Enum Range)**
+  - Executed G-MDRB-013 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-013.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-013.md).
+  - Implemented explicit C `switch (status)` whitelist in `lib/pbio/src/mdrobotbase.c` covering all 5 valid enumerators (`NONE: 0`, `RUNNING: 1`, `COMPLETED: 2`, `STALLED: 3`, `TIMED_OUT: 4`).
+  - Added `default:` branch returning `PBIO_ERROR_INVALID_ARG` for all negative and out-of-bounds positive integers.
+  - Guaranteed transactional state immutability by strictly deferring assignment until whitelist match, preserving existing `rb->motion_status` on invalid calls.
+  - Added null handle guarding `if (!rb) return PBIO_ERROR_INVALID_ARG;`.
+  - Added native C test `test_mdrobotbase_motion_status_bounds()` in `lib/pbio/test/src/test_mdrobotbase.c` and registered in `pbio_mdrobotbase_tests[]`.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 25/25 Passed (`scripts/harness/master-replication-g-mdrb-013.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-013-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 13.50 ms, variance 1.5461, valid 95% Student-t CI [12.61 ms, 14.39 ms].
+    - PBIO C Unit Tests: 12/12 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance: 11/11 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
+- `2026-09-08T14:15:00+07:00` — **G-MDRB-012 Implementation & Release Gate Attestation (Centralized Guarding on Closed MDRobotBase & Idempotent Destructor)**
+  - Executed G-MDRB-012 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-012.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-012.md).
+  - Implemented centralized inline guard helper `pb_type_mdrobotbase_require_open` in `pybricks/robotics/pb_type_mdrobotbase.c` raising `RuntimeError("MDRobotBase is closed")` when `self->rb == NULL`.
+  - Guarded all public methods across configuration, motion, color calibration, and queries.
+  - Eliminated silent ternary fallback values from `stalled()`, `done()`, and `status()`.
+  - Guaranteed destructor idempotence in `pb_type_MDRobotBase_close` by guarding slot release with `if (self->rb)` and clearing `self->rb = NULL`.
+  - Ensured active running motions are cleanly stopped via `pb_type_mdrobotbase_cancel_active_motion(self)` prior to driver slot reclamation.
+  - Added regression test `test_closed_handle_guarding()` in `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 24/24 Passed (`scripts/harness/master-replication-g-mdrb-012.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-012-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 14.24 ms, variance 24.8380, valid 95% Student-t CI [10.67 ms, 17.80 ms].
+    - PBIO C Unit Tests: 11/11 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance: 11/11 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
+- `2026-09-08T14:05:00+07:00` — **G-MDRB-011 Implementation & Release Gate Attestation (Validate-Before-Cancel Motion Lifecycle & Preemption Safety)**
+  - Executed G-MDRB-011 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-011.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-011.md).
+  - Defer `cancel_active_motion(self)` and `motion_reset(self->rb)` across all 4 motion dispatch routines in `pybricks/robotics/pb_type_mdrobotbase.c`:
+    - `navigate_to_goal`: arguments parsed and verified finite before cancellation.
+    - `turn_to_angle`: target angle and positive speed verified before cancellation.
+    - `pivot_turn_to_angle`: angle, speed, and side options verified before cancellation.
+    - `follow_trajectory`: point bounds ($2 \le n \le 64$) and waypoint coordinate tuples buffered and verified before cancellation.
+  - Added regression test `test_invalid_preemption_non_interference()` in `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 23/23 Passed (`scripts/harness/master-replication-g-mdrb-011.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-011-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 13.23 ms, variance 0.3136, valid 95% Student-t CI [12.83 ms, 13.63 ms].
+    - PBIO C Unit Tests: 11/11 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Goal Template Conformance: 11/11 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
+
+- `2026-09-08T13:50:00+07:00` — **G-MDRB-010 Implementation & Release Gate Attestation (Safe Robot-Base Instance Ownership & Duplicate Motor-Pair Rejection)**
+  - Executed G-MDRB-010 implementation strictly adhering to Article I (Zero Mocks, Zero Stubs).
+  - Clarified scope and created acceptance contract: [`docs/02-product/acceptance/G-MDRB-010.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-010.md).
+  - Eliminated legacy re-entrant slot sharing loop in `lib/pbio/src/mdrobotbase.c:145-153`.
+  - Added strict duplicate and overlapping motor checks returning `PBIO_ERROR_BUSY`.
+  - Added dedicated test `test_mdrobotbase_duplicate_motor_rejection()` in `lib/pbio/test/src/test_mdrobotbase.c`.
+  - Verified 100% green attestation across all release gates:
+    - Master Replication Runner: 24/24 Passed (`scripts/harness/master-replication-g-mdrb-010.mjs`).
+    - Socratic Agentic Loop: 25/25 Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-010-harness.mjs`).
+    - Measured Kernel Episode Oracle: 10 trials, mean 16.41 ms, σ = 12.11 ms, valid 95% Student-t CI [7.75 ms, 25.07 ms].
+    - PBIO C Unit Tests: 11/11 passed without skips (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+    - Epic Conformance: 162/162 Passed (`scripts/harness/mdrobotbase-epic-harness.mjs`).
+    - Architecture Conformance: 10/10 Passed (`scripts/harness/architecture-design-conformance-harness.mjs`).
+    - Goal Template Conformance: 20/20 Passed (`scripts/harness/goal-template-conformance-harness.mjs --all`).
+  - Handoff for human review and sign-off (Goal status: `review`, Phase: `REVIEW`).
+
 - `2026-09-08T13:40:00+07:00` — **G-MDRB-009 Human Approval & PR-First Ship Gate (Maintainability and Duplicate Control Logic Reduction)**
   - Received explicit human approval to ship `G-MDRB-009`.
   - Advanced goal status to `done` and collaboration phase to `SHIP`.

@@ -32,6 +32,13 @@ typedef struct _pb_type_MDRobotBase_obj_t {
   pb_type_async_t *last_awaitable;
 } pb_type_MDRobotBase_obj_t;
 
+static inline pbio_mdrobotbase_t *pb_type_mdrobotbase_require_open(pb_type_MDRobotBase_obj_t *self) {
+  if (!self->rb) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase is closed"));
+  }
+  return self->rb;
+}
+
 static pbio_error_t update_state_and_debug(pb_type_MDRobotBase_obj_t *self,
                                            float gyro_heading) {
   pbio_error_t err = pbio_mdrobotbase_update_state(self->rb, gyro_heading);
@@ -39,9 +46,11 @@ static pbio_error_t update_state_and_debug(pb_type_MDRobotBase_obj_t *self,
     static uint32_t last_print = 0;
     uint32_t now = pbdrv_clock_get_ms();
     if (now - last_print >= 100) {
-      mp_printf(&mp_plat_print, "Pose: X=%.1f, Y=%.1f, Theta=%.1f\n",
-                (double)self->rb->x, (double)self->rb->y,
-                (double)self->rb->theta);
+      float x = 0.0f, y = 0.0f, theta = 0.0f;
+      if (pbio_mdrobotbase_get_pose(self->rb, &x, &y, &theta) == PBIO_SUCCESS) {
+        mp_printf(&mp_plat_print, "Pose: X=%.1f, Y=%.1f, Theta=%.1f\n",
+                  (double)x, (double)y, (double)theta);
+      }
       last_print = now;
     }
   }
@@ -58,20 +67,90 @@ static float get_battery_compensation_factor(void) {
   return 1.0f;
 }
 
+static void pb_type_mdrobotbase_cancel_active_motion(pb_type_MDRobotBase_obj_t *self) {
+  if (self->last_awaitable) {
+    pb_type_async_schedule_stop_iteration(self->last_awaitable);
+    self->last_awaitable = NULL;
+  }
+  if (self->rb && self->rb->motion_in_progress) {
+    pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
+    pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
+    if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
+      pbio_servo_reset_angle(self->rb->left, 0, false);
+      pbio_servo_reset_angle(self->rb->right, 0, false);
+      self->rb->last_left_deg = 0.0f;
+      self->rb->last_right_deg = 0.0f;
+    }
+    self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+    self->rb->motion_in_progress = false;
+  }
+}
+
 static mp_obj_t __attribute__((unused))
 pb_type_MDRobotBase_stop(mp_obj_t parent_obj) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(parent_obj);
-  pbio_servo_stop(self->rb->left, PBIO_CONTROL_ON_COMPLETION_HOLD);
-  pbio_servo_stop(self->rb->right, PBIO_CONTROL_ON_COMPLETION_HOLD);
-  self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
-  self->rb->motion_in_progress = false;
-  pb_type_async_schedule_stop_iteration(self->last_awaitable);
+  pb_type_mdrobotbase_require_open(self);
+  if (self->last_awaitable) {
+    pb_type_async_schedule_stop_iteration(self->last_awaitable);
+    self->last_awaitable = NULL;
+  }
+  if (self->rb) {
+    pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
+    pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
+    if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
+      pbio_servo_reset_angle(self->rb->left, 0, false);
+      pbio_servo_reset_angle(self->rb->right, 0, false);
+      self->rb->last_left_deg = 0.0f;
+      self->rb->last_right_deg = 0.0f;
+    }
+    self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+    self->rb->motion_in_progress = false;
+  }
   return mp_const_none;
+}
+
+static inline float mdrobotbase_wrap_degrees(float angle) {
+  while (angle > 180.0f) {
+    angle -= 360.0f;
+  }
+  while (angle < -180.0f) {
+    angle += 360.0f;
+  }
+  return angle;
+}
+
+static inline int32_t mdrobotbase_clamp_speed(int32_t dps, int32_t max_speed) {
+  if (dps > max_speed) {
+    return max_speed;
+  }
+  if (dps < -max_speed) {
+    return -max_speed;
+  }
+  return dps;
+}
+
+static inline int32_t mdrobotbase_linear_to_angular_dps(pbio_mdrobotbase_t *rb, float linear_vel_mm_s, float wheel_diam_mm) {
+  float wheel_dps = (linear_vel_mm_s / (3.14159265f * wheel_diam_mm)) * 360.0f;
+  return pbio_mdrobotbase_wheel_to_motor_dps(rb, wheel_dps);
+}
+
+static inline bool mdrobotbase_evaluate_stall(pbio_mdrobotbase_t *rb, bool is_stalled, float dt_sec, float threshold_ms) {
+  if (is_stalled) {
+    rb->stall_time_ms += dt_sec * 1000.0f;
+  } else {
+    rb->stall_time_ms = 0.0f;
+  }
+  return (rb->stall_time_ms > threshold_ms);
 }
 
 static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *state,
                                                             mp_obj_t parent_obj) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(parent_obj);
+
+  if (!self->rb || !self->rb->motion_in_progress) {
+    self->last_awaitable = NULL;
+    return PBIO_SUCCESS;
+  }
 
   if (!pbio_servo_update_loop_is_running(self->rb->left) ||
       !pbio_servo_update_loop_is_running(self->rb->right)) {
@@ -87,6 +166,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
   // Global motion timeout check
   if (self->rb->timeout_ms > 0 && elapsed_ms >= self->rb->timeout_ms) {
+    self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_TIMED_OUT;
     pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
     pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
     if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -97,7 +177,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     }
     self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
     self->rb->motion_in_progress = false;
-    return PBIO_SUCCESS;
+    return PBIO_ERROR_TIMEDOUT;
   }
 
   float diam_left_mm = (float)self->rb->wheel_diameter_left / 1000.0f;
@@ -115,17 +195,14 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     case PBIO_MDROBOTBASE_MOTION_NAVIGATE: {
       if (self->rb->align_final_heading) {
         // Final heading alignment turn
-        float delta_theta = self->rb->theta - self->rb->last_step_theta;
-        while (delta_theta > 180.0f) delta_theta -= 360.0f;
-        while (delta_theta < -180.0f) delta_theta += 360.0f;
+        float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
         float w_raw = delta_theta / dt_sec;
         self->rb->last_step_theta = self->rb->theta;
 
-        float e_theta = self->rb->gt - self->rb->theta;
-        while (e_theta > 180.0f) e_theta -= 360.0f;
-        while (e_theta < -180.0f) e_theta += 360.0f;
+        float e_theta = mdrobotbase_wrap_degrees(self->rb->gt - self->rb->theta);
 
         if (fabsf(e_theta) <= 1.5f) {
+          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
@@ -148,17 +225,14 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         if (w_cmd < -limit) w_cmd = -limit;
 
         if (elapsed_ms > 200) {
-          if (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f) {
-            self->rb->stall_time_ms += dt_sec * 1000.0f;
-          } else {
-            self->rb->stall_time_ms = 0.0f;
-          }
-          if (self->rb->stall_time_ms > 200.0f) {
+          bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 10.0f);
+          if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 200.0f)) {
+            self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_STALLED;
             pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
             pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
             self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
             self->rb->motion_in_progress = false;
-            return PBIO_SUCCESS;
+            return PBIO_ERROR_FAILED;
           }
         }
 
@@ -166,8 +240,8 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         float left_vel = -w_rad * (track_mm / 2.0f);
         float right_vel = w_rad * (track_mm / 2.0f);
 
-        int32_t left_dps = (int32_t)((left_vel / (3.14159265f * diam_left_mm)) * 360.0f);
-        int32_t right_dps = (int32_t)((right_vel / (3.14159265f * diam_right_mm)) * 360.0f);
+        int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
+        int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
 
         pbio_servo_run_forever(self->rb->left, left_dps);
         pbio_servo_run_forever(self->rb->right, right_dps);
@@ -194,6 +268,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
           self->rb->last_step_theta = self->rb->theta;
           return PBIO_ERROR_AGAIN;
         }
+        self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
         pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
         pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
         if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -207,9 +282,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         return PBIO_SUCCESS;
       }
 
-      float delta_theta = self->rb->theta - self->rb->last_step_theta;
-      while (delta_theta > 180.0f) delta_theta -= 360.0f;
-      while (delta_theta < -180.0f) delta_theta += 360.0f;
+      float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
       float w_raw = delta_theta / dt_sec;
       self->rb->last_step_theta = self->rb->theta;
 
@@ -281,15 +354,12 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
           if (self->rb->is_backward) target_theta += 180.0f;
         }
       }
-      while (target_theta > 180.0f) target_theta -= 360.0f;
-      while (target_theta < -180.0f) target_theta += 360.0f;
+      target_theta = mdrobotbase_wrap_degrees(target_theta);
 
       float ref_theta = target_theta;
       if (self->rb->has_goal_theta && dist_remaining < self->rb->decel_d && self->rb->decel_d > 0.0f) {
         float ratio = dist_remaining / self->rb->decel_d;
-        float diff = self->rb->gt - target_theta;
-        while (diff > 180.0f) diff -= 360.0f;
-        while (diff < -180.0f) diff += 360.0f;
+        float diff = mdrobotbase_wrap_degrees(self->rb->gt - target_theta);
         ref_theta = target_theta + diff * (1.0f - ratio);
       }
 
@@ -310,10 +380,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         float e_x_local = cos_theta * dx_ref + sin_theta * dy_ref;
         float e_y_local = -sin_theta * dx_ref + cos_theta * dy_ref;
 
-        float path_theta_deg = self->rb->path_theta * (180.0f / 3.14159265f);
-        if (self->rb->is_backward) path_theta_deg += 180.0f;
-        while (path_theta_deg > 180.0f) path_theta_deg -= 360.0f;
-        while (path_theta_deg < -180.0f) path_theta_deg += 360.0f;
+        float path_theta_deg = mdrobotbase_wrap_degrees(self->rb->path_theta * (180.0f / 3.14159265f) + (self->rb->is_backward ? 180.0f : 0.0f));
 
         float cross_steer_gain = 0.35f;
         float dir_sign = self->rb->is_backward ? -1.0f : 1.0f;
@@ -324,15 +391,11 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         float ref_theta_lqr = path_theta_deg + cross_corr;
         if (self->rb->has_goal_theta && dist_remaining < self->rb->decel_d && self->rb->decel_d > 0.0f) {
           float ratio = dist_remaining / self->rb->decel_d;
-          float diff = self->rb->gt - ref_theta_lqr;
-          while (diff > 180.0f) diff -= 360.0f;
-          while (diff < -180.0f) diff += 360.0f;
+          float diff = mdrobotbase_wrap_degrees(self->rb->gt - ref_theta_lqr);
           ref_theta_lqr = ref_theta_lqr + diff * (1.0f - ratio);
         }
 
-        float e_theta_deg = ref_theta_lqr - self->rb->theta;
-        while (e_theta_deg > 180.0f) e_theta_deg -= 360.0f;
-        while (e_theta_deg < -180.0f) e_theta_deg += 360.0f;
+        float e_theta_deg = mdrobotbase_wrap_degrees(ref_theta_lqr - self->rb->theta);
 
         float e_x = e_x_local / 1000.0f;
         float e_y = e_y_local / 1000.0f;
@@ -354,9 +417,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
         v_cmd = v_profile - u_v * 1000.0f;
         w_cmd = 0.0f - u_w * (180.0f / 3.14159265f);
       } else {
-        float e_theta = ref_theta - self->rb->theta;
-        while (e_theta > 180.0f) e_theta -= 360.0f;
-        while (e_theta < -180.0f) e_theta += 360.0f;
+        float e_theta = mdrobotbase_wrap_degrees(ref_theta - self->rb->theta);
 
         float i_term = 0.0f;
         if (self->rb->ki > 0.0f) {
@@ -398,27 +459,19 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
       float left_vel = v_cmd - w_rad * (track_mm / 2.0f);
       float right_vel = v_cmd + w_rad * (track_mm / 2.0f);
 
-      int32_t left_dps = (int32_t)((left_vel / (3.14159265f * diam_left_mm)) * 360.0f);
-      int32_t right_dps = (int32_t)((right_vel / (3.14159265f * diam_right_mm)) * 360.0f);
-
-      if (left_dps > 1000) left_dps = 1000;
-      if (left_dps < -1000) left_dps = -1000;
-      if (right_dps > 1000) right_dps = 1000;
-      if (right_dps < -1000) right_dps = -1000;
+      int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
+      int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
 
       if (elapsed_ms > 200) {
         float v_raw = step / dt_sec;
-        if (fabsf(v_cmd) > 30.0f && fabsf(v_raw) < 10.0f) {
-          self->rb->stall_time_ms += dt_sec * 1000.0f;
-        } else {
-          self->rb->stall_time_ms = 0.0f;
-        }
-        if (self->rb->stall_time_ms > 250.0f) {
+        bool is_stalled = (fabsf(v_cmd) > 30.0f && fabsf(v_raw) < 10.0f);
+        if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 250.0f)) {
+          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_STALLED;
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
           self->rb->motion_in_progress = false;
-          return PBIO_SUCCESS;
+          return PBIO_ERROR_FAILED;
         }
       }
 
@@ -428,18 +481,15 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     }
 
     case PBIO_MDROBOTBASE_MOTION_TURN: {
-      float delta_theta = self->rb->theta - self->rb->last_step_theta;
-      while (delta_theta > 180.0f) delta_theta -= 360.0f;
-      while (delta_theta < -180.0f) delta_theta += 360.0f;
+      float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
       float w_raw = delta_theta / dt_sec;
       self->rb->last_step_theta = self->rb->theta;
 
-      float e_theta = self->rb->target_angle - self->rb->theta;
-      while (e_theta > 180.0f) e_theta -= 360.0f;
-      while (e_theta < -180.0f) e_theta += 360.0f;
+      float e_theta = mdrobotbase_wrap_degrees(self->rb->target_angle - self->rb->theta);
 
       if (fabsf(e_theta) <= self->rb->tolerance_angle) {
         if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
+          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -490,17 +540,14 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
       if (w_cmd < -limit) w_cmd = -limit;
 
       if (elapsed_ms > 300) {
-        if (fabsf(w_cmd) > 60.0f && fabsf(w_raw) < 2.0f) {
-          self->rb->stall_time_ms += dt_sec * 1000.0f;
-        } else {
-          self->rb->stall_time_ms = 0.0f;
-        }
-        if (self->rb->stall_time_ms > 400.0f) {
+        bool is_stalled = (fabsf(w_cmd) > 60.0f && fabsf(w_raw) < 2.0f);
+        if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
+          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_STALLED;
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
           self->rb->motion_in_progress = false;
-          return PBIO_SUCCESS;
+          return PBIO_ERROR_FAILED;
         }
       }
 
@@ -508,13 +555,8 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
       float left_vel = -w_rad * (track_mm / 2.0f);
       float right_vel = w_rad * (track_mm / 2.0f);
 
-      int32_t left_dps = (int32_t)(((left_vel / (3.14159265f * diam_left_mm)) * 360.0f) * self->rb->gear_ratio);
-      int32_t right_dps = (int32_t)(((right_vel / (3.14159265f * diam_right_mm)) * 360.0f) * self->rb->gear_ratio);
-
-      if (left_dps > 1000) left_dps = 1000;
-      if (left_dps < -1000) left_dps = -1000;
-      if (right_dps > 1000) right_dps = 1000;
-      if (right_dps < -1000) right_dps = -1000;
+      int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
+      int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
 
       pbio_servo_run_forever(self->rb->left, left_dps);
       pbio_servo_run_forever(self->rb->right, right_dps);
@@ -522,18 +564,15 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     }
 
     case PBIO_MDROBOTBASE_MOTION_PIVOT: {
-      float delta_theta = self->rb->theta - self->rb->last_step_theta;
-      while (delta_theta > 180.0f) delta_theta -= 360.0f;
-      while (delta_theta < -180.0f) delta_theta += 360.0f;
+      float delta_theta = mdrobotbase_wrap_degrees(self->rb->theta - self->rb->last_step_theta);
       float w_raw = delta_theta / dt_sec;
       self->rb->last_step_theta = self->rb->theta;
 
-      float e_theta = self->rb->target_angle - self->rb->theta;
-      while (e_theta > 180.0f) e_theta -= 360.0f;
-      while (e_theta < -180.0f) e_theta += 360.0f;
+      float e_theta = mdrobotbase_wrap_degrees(self->rb->target_angle - self->rb->theta);
 
       if (fabsf(e_theta) <= self->rb->tolerance_angle) {
         if (self->rb->stop_behavior == PBIO_CONTROL_ON_COMPLETION_COAST || fabsf(w_raw) < 15.0f) {
+          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -584,32 +623,25 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
       if (w_cmd < -limit) w_cmd = -limit;
 
       if (elapsed_ms > 300) {
-        if (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 2.0f) {
-          self->rb->stall_time_ms += dt_sec * 1000.0f;
-        } else {
-          self->rb->stall_time_ms = 0.0f;
-        }
-        if (self->rb->stall_time_ms > 400.0f) {
+        bool is_stalled = (fabsf(w_cmd) > 40.0f && fabsf(w_raw) < 2.0f);
+        if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
+          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_STALLED;
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
           self->rb->motion_in_progress = false;
-          return PBIO_SUCCESS;
+          return PBIO_ERROR_FAILED;
         }
       }
 
       float w_rad = w_cmd * (3.14159265f / 180.0f);
       if (self->rb->pivot_left) {
         float right_vel = w_rad * track_mm;
-        int32_t right_dps = (int32_t)(((right_vel / (3.14159265f * diam_right_mm)) * 360.0f) * self->rb->gear_ratio);
-        if (right_dps > 1000) right_dps = 1000;
-        if (right_dps < -1000) right_dps = -1000;
+        int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
         pbio_servo_run_forever(self->rb->right, right_dps);
       } else {
         float left_vel = -w_rad * track_mm;
-        int32_t left_dps = (int32_t)(((left_vel / (3.14159265f * diam_left_mm)) * 360.0f) * self->rb->gear_ratio);
-        if (left_dps > 1000) left_dps = 1000;
-        if (left_dps < -1000) left_dps = -1000;
+        int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
         pbio_servo_run_forever(self->rb->left, left_dps);
       }
       return PBIO_ERROR_AGAIN;
@@ -617,6 +649,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
     case PBIO_MDROBOTBASE_MOTION_TRAJECTORY: {
       if (self->rb->trajectory_num_points == 0 || self->rb->trajectory_current_point_idx >= self->rb->trajectory_num_points) {
+        self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
         pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
         pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
         self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
@@ -635,6 +668,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
       if (is_final_point) {
         if (dist_remaining <= self->rb->tolerance_dist) {
+          self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;
           pbio_servo_stop(self->rb->left, self->rb->stop_behavior);
           pbio_servo_stop(self->rb->right, self->rb->stop_behavior);
           if (self->rb->stop_behavior != PBIO_CONTROL_ON_COMPLETION_COAST) {
@@ -661,14 +695,9 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
       }
 
       float speed = self->rb->is_backward ? -fabsf(self->rb->target_speed) : fabsf(self->rb->target_speed);
-      float target_theta = atan2f(dy, dx) * (180.0f / 3.14159265f);
-      if (self->rb->is_backward) target_theta += 180.0f;
-      while (target_theta > 180.0f) target_theta -= 360.0f;
-      while (target_theta < -180.0f) target_theta += 360.0f;
+      float target_theta = mdrobotbase_wrap_degrees(atan2f(dy, dx) * (180.0f / 3.14159265f) + (self->rb->is_backward ? 180.0f : 0.0f));
 
-      float e_theta = target_theta - self->rb->theta;
-      while (e_theta > 180.0f) e_theta -= 360.0f;
-      while (e_theta < -180.0f) e_theta += 360.0f;
+      float e_theta = mdrobotbase_wrap_degrees(target_theta - self->rb->theta);
 
       float w_cmd = (self->rb->kp_turn * comp) * e_theta;
       if (w_cmd > self->rb->max_turn_speed) w_cmd = self->rb->max_turn_speed;
@@ -678,13 +707,8 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
       float left_vel = speed - w_rad * (track_mm / 2.0f);
       float right_vel = speed + w_rad * (track_mm / 2.0f);
 
-      int32_t left_dps = (int32_t)((left_vel / (3.14159265f * diam_left_mm)) * 360.0f);
-      int32_t right_dps = (int32_t)((right_vel / (3.14159265f * diam_right_mm)) * 360.0f);
-
-      if (left_dps > 1000) left_dps = 1000;
-      if (left_dps < -1000) left_dps = -1000;
-      if (right_dps > 1000) right_dps = 1000;
-      if (right_dps < -1000) right_dps = -1000;
+      int32_t left_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, left_vel, diam_left_mm), 1000);
+      int32_t right_dps = mdrobotbase_clamp_speed(mdrobotbase_linear_to_angular_dps(self->rb, right_vel, diam_right_mm), 1000);
 
       pbio_servo_run_forever(self->rb->left, left_dps);
       pbio_servo_run_forever(self->rb->right, right_dps);
@@ -713,6 +737,7 @@ static mp_obj_t pb_type_MDRobotBase_set_lqr_gains(size_t n_args,
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(k_x), PB_ARG_REQUIRED(k_y),
                        PB_ARG_REQUIRED(k_theta), PB_ARG_DEFAULT_TRUE(schedule));
+  pb_type_mdrobotbase_require_open(self);
 
   float x = mp_obj_get_float(k_x_in);
   float y = mp_obj_get_float(k_y_in);
@@ -729,6 +754,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_lqr_gains_obj, 1,
 // pybricks.robotics.MDRobotBase.get_lqr_gains
 static mp_obj_t pb_type_MDRobotBase_get_lqr_gains(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   mp_obj_t gains[3];
   gains[0] = mp_obj_new_float_from_f(self->rb->k_x);
   gains[1] = mp_obj_new_float_from_f(self->rb->k_y);
@@ -744,8 +770,12 @@ static mp_obj_t pb_type_MDRobotBase_set_controller(size_t n_args,
                                                    mp_map_t *kw_args) {
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(type));
+  pb_type_mdrobotbase_require_open(self);
 
   int32_t val = pb_obj_get_int(type_in);
+  if (val != PBIO_MDROBOTBASE_CONTROLLER_PID && val != PBIO_MDROBOTBASE_CONTROLLER_LQR) {
+    mp_raise_ValueError("invalid controller type");
+  }
   pb_assert(pbio_mdrobotbase_set_controller(
       self->rb, (pbio_mdrobotbase_controller_t)val));
 
@@ -757,6 +787,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_controller_obj, 1,
 // pybricks.robotics.MDRobotBase.get_controller
 static mp_obj_t pb_type_MDRobotBase_get_controller(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   return mp_obj_new_int(self->rb->controller_type);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_controller_obj,
@@ -769,6 +800,7 @@ static mp_obj_t pb_type_MDRobotBase_set_pid_gains(size_t n_args,
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(kp), PB_ARG_REQUIRED(ki),
                        PB_ARG_REQUIRED(kd));
+  pb_type_mdrobotbase_require_open(self);
 
   float p = mp_obj_get_float(kp_in);
   float i = mp_obj_get_float(ki_in);
@@ -784,6 +816,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_pid_gains_obj, 1,
 // pybricks.robotics.MDRobotBase.get_pid_gains
 static mp_obj_t pb_type_MDRobotBase_get_pid_gains(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   mp_obj_t gains[3];
   gains[0] = mp_obj_new_float_from_f(self->rb->kp);
   gains[1] = mp_obj_new_float_from_f(self->rb->ki);
@@ -800,6 +833,7 @@ static mp_obj_t pb_type_MDRobotBase_set_turn_pid_gains(size_t n_args,
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(kp), PB_ARG_REQUIRED(ki),
                        PB_ARG_REQUIRED(kd));
+  pb_type_mdrobotbase_require_open(self);
 
   float p = mp_obj_get_float(kp_in);
   float i = mp_obj_get_float(ki_in);
@@ -815,6 +849,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_turn_pid_gains_obj, 1,
 // pybricks.robotics.MDRobotBase.get_turn_pid_gains
 static mp_obj_t pb_type_MDRobotBase_get_turn_pid_gains(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   mp_obj_t gains[3];
   gains[0] = mp_obj_new_float_from_f(self->rb->kp_turn);
   gains[1] = mp_obj_new_float_from_f(self->rb->ki_turn);
@@ -831,6 +866,7 @@ pb_type_MDRobotBase_set_pivot_pid_gains(size_t n_args, const mp_obj_t *pos_args,
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(kp), PB_ARG_REQUIRED(ki),
                        PB_ARG_REQUIRED(kd));
+  pb_type_mdrobotbase_require_open(self);
 
   float p = mp_obj_get_float(kp_in);
   float i = mp_obj_get_float(ki_in);
@@ -846,6 +882,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_pivot_pid_gains_obj,
 // pybricks.robotics.MDRobotBase.get_pivot_pid_gains
 static mp_obj_t pb_type_MDRobotBase_get_pivot_pid_gains(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   mp_obj_t gains[3];
   gains[0] = mp_obj_new_float_from_f(self->rb->kp_pivot);
   gains[1] = mp_obj_new_float_from_f(self->rb->ki_pivot);
@@ -862,6 +899,7 @@ static mp_obj_t pb_type_MDRobotBase_set_pid_min_turn(size_t n_args,
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(min_turn),
                        PB_ARG_REQUIRED(threshold));
+  pb_type_mdrobotbase_require_open(self);
 
   float mt = mp_obj_get_float(min_turn_in);
   float th = mp_obj_get_float(threshold_in);
@@ -876,6 +914,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_pid_min_turn_obj, 1,
 // pybricks.robotics.MDRobotBase.get_pid_min_turn
 static mp_obj_t pb_type_MDRobotBase_get_pid_min_turn(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   mp_obj_t vals[2];
   vals[0] = mp_obj_new_float_from_f(self->rb->pid_min_turn);
   vals[1] = mp_obj_new_float_from_f(self->rb->pid_min_turn_threshold);
@@ -891,6 +930,7 @@ static mp_obj_t pb_type_MDRobotBase_reset_state(size_t n_args,
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(x), PB_ARG_REQUIRED(y),
                        PB_ARG_REQUIRED(theta), PB_ARG_REQUIRED(gyro_heading));
+  pb_type_mdrobotbase_require_open(self);
 
   float x_val = mp_obj_get_float(x_in);
   float y_val = mp_obj_get_float(y_in);
@@ -911,6 +951,7 @@ static mp_obj_t pb_type_MDRobotBase_update_state(size_t n_args,
                                                  mp_map_t *kw_args) {
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(gyro_heading));
+  pb_type_mdrobotbase_require_open(self);
 
   float gyro_val = mp_obj_get_float(gyro_heading_in);
 
@@ -924,10 +965,13 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_update_state_obj, 1,
 // pybricks.robotics.MDRobotBase.get_state
 static mp_obj_t pb_type_MDRobotBase_get_state(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
+  float x = 0.0f, y = 0.0f, theta = 0.0f;
+  pb_assert(pbio_mdrobotbase_get_pose(self->rb, &x, &y, &theta));
   mp_obj_t state[3];
-  state[0] = mp_obj_new_float_from_f(self->rb->x);
-  state[1] = mp_obj_new_float_from_f(self->rb->y);
-  state[2] = mp_obj_new_float_from_f(self->rb->theta);
+  state[0] = mp_obj_new_float_from_f(x);
+  state[1] = mp_obj_new_float_from_f(y);
+  state[2] = mp_obj_new_float_from_f(theta);
   return mp_obj_new_tuple(3, state);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_state_obj,
@@ -936,6 +980,7 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_state_obj,
 // pybricks.robotics.MDRobotBase.set_fusion_alpha
 static mp_obj_t pb_type_MDRobotBase_set_fusion_alpha(mp_obj_t self_in, mp_obj_t alpha_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float alpha = mp_obj_get_float(alpha_in);
   pb_assert(pbio_mdrobotbase_set_fusion_alpha(self->rb, alpha));
   return mp_const_none;
@@ -946,6 +991,7 @@ static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_fusion_alpha_obj,
 // pybricks.robotics.MDRobotBase.get_fusion_alpha
 static mp_obj_t pb_type_MDRobotBase_get_fusion_alpha(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float alpha;
   pb_assert(pbio_mdrobotbase_get_fusion_alpha(self->rb, &alpha));
   return mp_obj_new_float_from_f(alpha);
@@ -956,7 +1002,18 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_fusion_alpha_obj,
 // pybricks.robotics.MDRobotBase.set_gear_ratio
 static mp_obj_t pb_type_MDRobotBase_set_gear_ratio(mp_obj_t self_in, mp_obj_t ratio_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
+  #if MICROPY_PY_BUILTINS_FLOAT
   float ratio = mp_obj_get_float(ratio_in);
+  if (!isfinite(ratio) || ratio < 0.001f || ratio > 1000.0f) {
+    mp_raise_ValueError("gear ratio must be a positive non-zero finite value");
+  }
+  #else
+  float ratio = (float)mp_obj_get_int(ratio_in);
+  if (ratio < 0.001f || ratio > 1000.0f) {
+    mp_raise_ValueError("gear ratio must be a positive non-zero finite value");
+  }
+  #endif
   pb_assert(pbio_mdrobotbase_set_gear_ratio(self->rb, ratio));
   return mp_const_none;
 }
@@ -966,6 +1023,7 @@ static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_gear_ratio_obj,
 // pybricks.robotics.MDRobotBase.get_gear_ratio
 static mp_obj_t pb_type_MDRobotBase_get_gear_ratio(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float ratio;
   pb_assert(pbio_mdrobotbase_get_gear_ratio(self->rb, &ratio));
   return mp_obj_new_float_from_f(ratio);
@@ -978,6 +1036,8 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
                                                      const mp_obj_t *pos_args,
                                                      mp_map_t *kw_args) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+  pb_type_mdrobotbase_require_open(self);
+
 
   static const mp_arg_t allowed_args[] = {
       {MP_QSTR_goal_x, MP_ARG_OBJ | MP_ARG_REQUIRED, {}},
@@ -1003,10 +1063,22 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
 
   float gx = mp_obj_get_float(parsed_args[0].u_obj);
   float gy = mp_obj_get_float(parsed_args[1].u_obj);
+  if (!isfinite(gx) || !isfinite(gy)) {
+    mp_raise_ValueError("coordinates must be finite");
+  }
   mp_obj_t goal_theta_obj = parsed_args[2].u_obj;
+  if (goal_theta_obj != mp_const_none) {
+    float gt_val_check = mp_obj_get_float(goal_theta_obj);
+    if (!isfinite(gt_val_check)) {
+      mp_raise_ValueError("goal_theta must be finite");
+    }
+  }
   float speed = parsed_args[3].u_obj == mp_const_none
                     ? 500.0f
                     : mp_obj_get_float(parsed_args[3].u_obj);
+  if (!isfinite(speed)) {
+    mp_raise_ValueError("speed must be finite");
+  }
   float start_speed = parsed_args[4].u_obj == mp_const_none
                           ? 20.0f
                           : mp_obj_get_float(parsed_args[4].u_obj);
@@ -1118,16 +1190,14 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   if (total_dist > 5.0f) {
     float path_theta_init = atan2f(dy_init, dx_init) * (180.0f / 3.14159265f);
     if (back) path_theta_init += 180.0f;
-    float init_turn_diff = fabsf(path_theta_init - cur_theta);
-    while (init_turn_diff > 180.0f) init_turn_diff = fabsf(init_turn_diff - 360.0f);
+    float init_turn_diff = fabsf(mdrobotbase_wrap_degrees(path_theta_init - cur_theta));
     t_expected += (init_turn_diff / turn_speed);
   }
   if (goal_theta_obj != mp_const_none) {
     float gt_val = mp_obj_get_float(goal_theta_obj);
     float path_theta_init = atan2f(dy_init, dx_init) * (180.0f / 3.14159265f);
     if (back) path_theta_init += 180.0f;
-    float final_turn_diff = fabsf(gt_val - path_theta_init);
-    while (final_turn_diff > 180.0f) final_turn_diff = fabsf(final_turn_diff - 360.0f);
+    float final_turn_diff = fabsf(mdrobotbase_wrap_degrees(gt_val - path_theta_init));
     t_expected += (final_turn_diff / turn_speed);
   }
 
@@ -1188,6 +1258,9 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   if (max_accel < 500.0f) max_accel = 500.0f;
   if (max_accel > 3000.0f) max_accel = 3000.0f;
 
+  pb_type_mdrobotbase_cancel_active_motion(self);
+  pbio_mdrobotbase_motion_reset(self->rb);
+
   self->rb->goal_x = gx;
   self->rb->goal_y = gy;
   self->rb->has_goal_theta = (goal_theta_obj != mp_const_none);
@@ -1231,6 +1304,7 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NAVIGATE;
   self->rb->motion_in_progress = true;
+  self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_RUNNING;
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1242,6 +1316,7 @@ static mp_obj_t pb_type_MDRobotBase_go_forward(size_t n_args,
                                                const mp_obj_t *pos_args,
                                                mp_map_t *kw_args) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+  pb_type_mdrobotbase_require_open(self);
 
   static const mp_arg_t allowed_args[] = {
       {MP_QSTR_distance, MP_ARG_OBJ | MP_ARG_REQUIRED, {}},
@@ -1306,6 +1381,7 @@ static mp_obj_t pb_type_MDRobotBase_go_backward(size_t n_args,
                                                 const mp_obj_t *pos_args,
                                                 mp_map_t *kw_args) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+  pb_type_mdrobotbase_require_open(self);
 
   static const mp_arg_t allowed_args[] = {
       {MP_QSTR_distance, MP_ARG_OBJ | MP_ARG_REQUIRED, {}},
@@ -1371,6 +1447,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
                                                   const mp_obj_t *pos_args,
                                                   mp_map_t *kw_args) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+  pb_type_mdrobotbase_require_open(self);
 
   static const mp_arg_t allowed_args[] = {
       {MP_QSTR_target_angle, MP_ARG_OBJ | MP_ARG_REQUIRED, {}},
@@ -1389,9 +1466,15 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
                    MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
 
   float target_angle = mp_obj_get_float(parsed_args[0].u_obj);
+  if (!isfinite(target_angle)) {
+    mp_raise_ValueError("target_angle must be finite");
+  }
   float speed_deg_s = parsed_args[1].u_obj == mp_const_none
                           ? 300.0f
                           : mp_obj_get_float(parsed_args[1].u_obj);
+  if (!isfinite(speed_deg_s) || speed_deg_s <= 0.0f) {
+    mp_raise_ValueError("speed must be positive and finite");
+  }
   mp_obj_t tolerance_obj = parsed_args[2].u_obj;
   mp_obj_t timeout_ms_obj = parsed_args[3].u_obj;
   mp_obj_t then_obj = parsed_args[4].u_obj;
@@ -1414,9 +1497,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
   }
 
   float cur_theta = self->rb->theta;
-  float e_theta_init = target_angle - cur_theta;
-  while (e_theta_init > 180.0f) e_theta_init -= 360.0f;
-  while (e_theta_init < -180.0f) e_theta_init += 360.0f;
+  float e_theta_init = mdrobotbase_wrap_degrees(target_angle - cur_theta);
   float turn_angle = fabsf(e_theta_init);
 
   uint32_t timeout;
@@ -1441,6 +1522,9 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
     timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
   }
 
+  pb_type_mdrobotbase_cancel_active_motion(self);
+  pbio_mdrobotbase_motion_reset(self->rb);
+
   self->rb->target_angle = target_angle;
   self->rb->speed_deg_s = speed_deg_s;
   self->rb->tolerance_angle = tolerance;
@@ -1460,6 +1544,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_TURN;
   self->rb->motion_in_progress = true;
+  self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_RUNNING;
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1471,6 +1556,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_angle(size_t n_args,
                                                const mp_obj_t *pos_args,
                                                mp_map_t *kw_args) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+  pb_type_mdrobotbase_require_open(self);
 
   static const mp_arg_t allowed_args[] = {
       {MP_QSTR_angle, MP_ARG_OBJ | MP_ARG_REQUIRED, {}},
@@ -1489,9 +1575,7 @@ static mp_obj_t pb_type_MDRobotBase_turn_angle(size_t n_args,
                    MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
 
   float angle = mp_obj_get_float(parsed_args[0].u_obj);
-  float target_angle = self->rb->theta + angle;
-  while (target_angle > 180.0f) target_angle -= 360.0f;
-  while (target_angle < -180.0f) target_angle += 360.0f;
+  float target_angle = mdrobotbase_wrap_degrees(self->rb->theta + angle);
 
   mp_obj_t turn_args[2];
   turn_args[0] = pos_args[0];
@@ -1526,6 +1610,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
                                                         const mp_obj_t *pos_args,
                                                         mp_map_t *kw_args) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+  pb_type_mdrobotbase_require_open(self);
 
   static const mp_arg_t allowed_args[] = {
       {MP_QSTR_target_angle, MP_ARG_OBJ | MP_ARG_REQUIRED, {}},
@@ -1545,9 +1630,15 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
                    MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
 
   float target_angle = mp_obj_get_float(parsed_args[0].u_obj);
+  if (!isfinite(target_angle)) {
+    mp_raise_ValueError("target_angle must be finite");
+  }
   float speed_deg_s = parsed_args[1].u_obj == mp_const_none
                           ? 200.0f
                           : mp_obj_get_float(parsed_args[1].u_obj);
+  if (!isfinite(speed_deg_s) || speed_deg_s <= 0.0f) {
+    mp_raise_ValueError("speed must be positive and finite");
+  }
   mp_obj_t pivot_side_obj = parsed_args[2].u_obj;
   mp_obj_t tolerance_obj = parsed_args[3].u_obj;
   mp_obj_t timeout_ms_obj = parsed_args[4].u_obj;
@@ -1571,9 +1662,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
   }
 
   float cur_theta = self->rb->theta;
-  float e_theta_init = target_angle - cur_theta;
-  while (e_theta_init > 180.0f) e_theta_init -= 360.0f;
-  while (e_theta_init < -180.0f) e_theta_init += 360.0f;
+  float e_theta_init = mdrobotbase_wrap_degrees(target_angle - cur_theta);
   float turn_angle = fabsf(e_theta_init);
 
   bool pivot_left = true;
@@ -1611,6 +1700,9 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
     timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
   }
 
+  pb_type_mdrobotbase_cancel_active_motion(self);
+  pbio_mdrobotbase_motion_reset(self->rb);
+
   self->rb->target_angle = target_angle;
   self->rb->speed_deg_s = speed_deg_s;
   self->rb->pivot_left = pivot_left;
@@ -1637,6 +1729,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_PIVOT;
   self->rb->motion_in_progress = true;
+  self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_RUNNING;
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1648,6 +1741,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_angle(size_t n_args,
                                                      const mp_obj_t *pos_args,
                                                      mp_map_t *kw_args) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+  pb_type_mdrobotbase_require_open(self);
 
   static const mp_arg_t allowed_args[] = {
       {MP_QSTR_angle, MP_ARG_OBJ | MP_ARG_REQUIRED, {}},
@@ -1667,9 +1761,7 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_angle(size_t n_args,
                    MP_ARRAY_SIZE(allowed_args), allowed_args, parsed_args);
 
   float angle = mp_obj_get_float(parsed_args[0].u_obj);
-  float target_angle = self->rb->theta + angle;
-  while (target_angle > 180.0f) target_angle -= 360.0f;
-  while (target_angle < -180.0f) target_angle += 360.0f;
+  float target_angle = mdrobotbase_wrap_degrees(self->rb->theta + angle);
 
   mp_obj_t pivot_args[2];
   pivot_args[0] = pos_args[0];
@@ -1705,6 +1797,7 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
                                                       const mp_obj_t *pos_args,
                                                       mp_map_t *kw_args) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(pos_args[0]);
+  pb_type_mdrobotbase_require_open(self);
 
   static const mp_arg_t allowed_args[] = {
       {MP_QSTR_points, MP_ARG_OBJ | MP_ARG_REQUIRED, {}},
@@ -1729,12 +1822,12 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
   size_t num_points = 0;
   mp_obj_t *points = NULL;
   mp_obj_get_array(points_obj, &num_points, &points);
-  if (num_points == 0) {
-    return mp_const_none;
+  if (num_points < 2) {
+    mp_raise_ValueError("trajectory requires at least 2 points");
   }
 
   if (num_points > 64) {
-    num_points = 64;
+    mp_raise_ValueError("trajectory exceeds maximum capacity of 64 points");
   }
 
   float speed = parsed_args[1].u_obj == mp_const_none
@@ -1758,6 +1851,29 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
   float transition_tolerance = parsed_args[7].u_obj == mp_const_none
                                    ? 50.0f
                                    : mp_obj_get_float(parsed_args[7].u_obj);
+
+  if (!isfinite(speed) || speed <= 0.0f) {
+    mp_raise_ValueError("speed must be positive and finite");
+  }
+  if (!isfinite(start_speed) || start_speed < 0.0f) {
+    mp_raise_ValueError("start_speed must be non-negative and finite");
+  }
+  if (!isfinite(end_speed) || end_speed < 0.0f) {
+    mp_raise_ValueError("end_speed must be non-negative and finite");
+  }
+  if (!isfinite(accel_d) || accel_d <= 0.0f) {
+    mp_raise_ValueError("accel_d must be positive and finite");
+  }
+  if (!isfinite(decel_d) || decel_d <= 0.0f) {
+    mp_raise_ValueError("decel_d must be positive and finite");
+  }
+  if (!isfinite(tolerance) || tolerance <= 0.0f) {
+    mp_raise_ValueError("tolerance must be positive and finite");
+  }
+  if (!isfinite(transition_tolerance) || transition_tolerance <= 0.0f) {
+    mp_raise_ValueError("transition_tolerance must be positive and finite");
+  }
+
   bool ramping = parsed_args[8].u_bool;
   bool back = parsed_args[9].u_obj == mp_const_none
                   ? false
@@ -1766,12 +1882,22 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
       pb_type_enum_get_value(parsed_args[10].u_obj, &pb_enum_type_Stop);
   mp_obj_t timeout_ms_obj = parsed_args[11].u_obj;
 
+  float temp_x[64];
+  float temp_y[64];
   for (size_t i = 0; i < num_points; i++) {
     size_t p_len;
     mp_obj_t *p_coords;
     mp_obj_get_array(points[i], &p_len, &p_coords);
-    self->rb->trajectory_points_x[i] = mp_obj_get_float(p_coords[0]);
-    self->rb->trajectory_points_y[i] = mp_obj_get_float(p_coords[1]);
+    if (p_len < 2) {
+      mp_raise_ValueError("trajectory point must have at least (x, y) coordinates");
+    }
+    float px = mp_obj_get_float(p_coords[0]);
+    float py = mp_obj_get_float(p_coords[1]);
+    if (!isfinite(px) || !isfinite(py)) {
+      mp_raise_ValueError("trajectory coordinates must be finite");
+    }
+    temp_x[i] = px;
+    temp_y[i] = py;
   }
 
   uint32_t timeout;
@@ -1779,6 +1905,14 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
     timeout = (uint32_t)(num_points * 2000) + 1000;
   } else {
     timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
+  }
+
+  pb_type_mdrobotbase_cancel_active_motion(self);
+  pbio_mdrobotbase_motion_reset(self->rb);
+
+  for (size_t i = 0; i < num_points; i++) {
+    self->rb->trajectory_points_x[i] = temp_x[i];
+    self->rb->trajectory_points_y[i] = temp_y[i];
   }
 
   self->rb->trajectory_num_points = num_points;
@@ -1802,6 +1936,7 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
   self->rb->last_step_time_ms = self->rb->start_time_ms;
   self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_TRAJECTORY;
   self->rb->motion_in_progress = true;
+  self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_RUNNING;
 
   return pb_type_mdrobotbase_wait_or_await(self);
 }
@@ -1812,6 +1947,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_follow_trajectory_obj, 1,
 static mp_obj_t pb_type_MDRobotBase_set_backlash_filter(mp_obj_t self_in,
                                                         mp_obj_t enabled_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   bool enabled = mp_obj_is_true(enabled_in);
   pb_assert(pbio_mdrobotbase_set_backlash_filter(self->rb, enabled));
   return mp_const_none;
@@ -1822,6 +1958,7 @@ static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_backlash_filter_obj,
 // pybricks.robotics.MDRobotBase.get_backlash_filter
 static mp_obj_t pb_type_MDRobotBase_get_backlash_filter(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   bool enabled = false;
   pb_assert(pbio_mdrobotbase_get_backlash_filter(self->rb, &enabled));
   return mp_obj_new_bool(enabled);
@@ -1836,6 +1973,7 @@ pb_type_MDRobotBase_set_backlash_limits(size_t n_args, const mp_obj_t *pos_args,
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(left_limit),
                        PB_ARG_REQUIRED(right_limit));
+  pb_type_mdrobotbase_require_open(self);
 
   float left = mp_obj_get_float(left_limit_in);
   float right = mp_obj_get_float(right_limit_in);
@@ -1850,6 +1988,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_backlash_limits_obj,
 // pybricks.robotics.MDRobotBase.get_backlash_limits
 static mp_obj_t pb_type_MDRobotBase_get_backlash_limits(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float left = 0.0f;
   float right = 0.0f;
   pb_assert(pbio_mdrobotbase_get_backlash_limits(self->rb, &left, &right));
@@ -1867,6 +2006,22 @@ pb_type_MDRobotBase_set_wheel_diameters(size_t n_args, const mp_obj_t *pos_args,
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                        self, PB_ARG_REQUIRED(left_diameter),
                        PB_ARG_REQUIRED(right_diameter));
+  pb_type_mdrobotbase_require_open(self);
+
+  #if MICROPY_PY_BUILTINS_FLOAT
+  if (mp_obj_is_float(left_diameter_in)) {
+    mp_float_t val = mp_obj_get_float(left_diameter_in);
+    if (!isfinite(val) || val <= 0.0) {
+      mp_raise_ValueError("wheel diameter must be positive non-zero finite value");
+    }
+  }
+  if (mp_obj_is_float(right_diameter_in)) {
+    mp_float_t val = mp_obj_get_float(right_diameter_in);
+    if (!isfinite(val) || val <= 0.0) {
+      mp_raise_ValueError("wheel diameter must be positive non-zero finite value");
+    }
+  }
+  #endif
 
   int32_t left = pb_obj_get_scaled_int(left_diameter_in, 1000);
   int32_t right = pb_obj_get_scaled_int(right_diameter_in, 1000);
@@ -1881,6 +2036,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_wheel_diameters_obj,
 // pybricks.robotics.MDRobotBase.get_wheel_diameters
 static mp_obj_t pb_type_MDRobotBase_get_wheel_diameters(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   int32_t left = 0;
   int32_t right = 0;
   pb_assert(pbio_mdrobotbase_get_wheel_diameters(self->rb, &left, &right));
@@ -1895,6 +2051,7 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_wheel_diameters_obj,
 static mp_obj_t pb_type_MDRobotBase_set_max_angular_speed(mp_obj_t self_in,
                                                           mp_obj_t speed_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float speed = mp_obj_get_float(speed_in);
   pb_assert(pbio_mdrobotbase_set_max_angular_speed(self->rb, speed));
   return mp_const_none;
@@ -1905,6 +2062,7 @@ static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_max_angular_speed_obj,
 // pybricks.robotics.MDRobotBase.get_max_angular_speed
 static mp_obj_t pb_type_MDRobotBase_get_max_angular_speed(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float speed;
   pb_assert(pbio_mdrobotbase_get_max_angular_speed(self->rb, &speed));
   return mp_obj_new_float(speed);
@@ -1916,6 +2074,7 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_max_angular_speed_obj,
 static mp_obj_t pb_type_MDRobotBase_set_max_turn_speed(mp_obj_t self_in,
                                                        mp_obj_t speed_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float speed = mp_obj_get_float(speed_in);
   pb_assert(pbio_mdrobotbase_set_max_turn_speed(self->rb, speed));
   return mp_const_none;
@@ -1926,6 +2085,7 @@ static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_max_turn_speed_obj,
 // pybricks.robotics.MDRobotBase.get_max_turn_speed
 static mp_obj_t pb_type_MDRobotBase_get_max_turn_speed(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float speed;
   pb_assert(pbio_mdrobotbase_get_max_turn_speed(self->rb, &speed));
   return mp_obj_new_float(speed);
@@ -1937,6 +2097,7 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_max_turn_speed_obj,
 static mp_obj_t pb_type_MDRobotBase_set_max_pivot_speed(mp_obj_t self_in,
                                                         mp_obj_t speed_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float speed = mp_obj_get_float(speed_in);
   pb_assert(pbio_mdrobotbase_set_max_pivot_speed(self->rb, speed));
   return mp_const_none;
@@ -1947,6 +2108,7 @@ static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_max_pivot_speed_obj,
 // pybricks.robotics.MDRobotBase.get_max_pivot_speed
 static mp_obj_t pb_type_MDRobotBase_get_max_pivot_speed(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   float speed;
   pb_assert(pbio_mdrobotbase_get_max_pivot_speed(self->rb, &speed));
   return mp_obj_new_float(speed);
@@ -1963,6 +2125,31 @@ static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type,
                       PB_ARG_REQUIRED(wheel_diameter_left),
                       PB_ARG_REQUIRED(wheel_diameter_right),
                       PB_ARG_REQUIRED(axle_track), PB_ARG_DEFAULT_FALSE(debug));
+
+  if (left_motor_in == right_motor_in) {
+    mp_raise_ValueError("left and right motors must be distinct");
+  }
+
+  #if MICROPY_PY_BUILTINS_FLOAT
+  if (mp_obj_is_float(wheel_diameter_left_in)) {
+    mp_float_t val = mp_obj_get_float(wheel_diameter_left_in);
+    if (!isfinite(val) || val <= 0.0) {
+      mp_raise_ValueError("wheel diameter and axle track must be positive non-zero finite values");
+    }
+  }
+  if (mp_obj_is_float(wheel_diameter_right_in)) {
+    mp_float_t val = mp_obj_get_float(wheel_diameter_right_in);
+    if (!isfinite(val) || val <= 0.0) {
+      mp_raise_ValueError("wheel diameter and axle track must be positive non-zero finite values");
+    }
+  }
+  if (mp_obj_is_float(axle_track_in)) {
+    mp_float_t val = mp_obj_get_float(axle_track_in);
+    if (!isfinite(val) || val <= 0.0) {
+      mp_raise_ValueError("wheel diameter and axle track must be positive non-zero finite values");
+    }
+  }
+  #endif
 
   pb_type_MDRobotBase_obj_t *self =
       mp_obj_malloc(pb_type_MDRobotBase_obj_t, type);
@@ -1985,6 +2172,7 @@ static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type,
 // Native C Color Calibration Python API Bindings
 static mp_obj_t pb_type_MDRobotBase_reset_color_calibration(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
   pb_assert(pbio_mdrobotbase_color_cal_reset(self->rb));
   return mp_const_none;
 }
@@ -1997,6 +2185,7 @@ static mp_obj_t pb_type_MDRobotBase_set_color_baseline(size_t n_args, const mp_o
                       PB_ARG_REQUIRED(base_h),
                       PB_ARG_REQUIRED(base_s),
                       PB_ARG_REQUIRED(base_v));
+  pb_type_mdrobotbase_require_open(self);
   pb_assert(pbio_mdrobotbase_color_cal_set_baseline(
       self->rb,
       mp_obj_get_float(base_h_in),
@@ -2011,6 +2200,7 @@ static mp_obj_t pb_type_MDRobotBase_set_color_threshold(size_t n_args, const mp_
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                       self,
                       PB_ARG_REQUIRED(threshold));
+  pb_type_mdrobotbase_require_open(self);
   pb_assert(pbio_mdrobotbase_color_cal_set_threshold(
       self->rb,
       mp_obj_get_float(threshold_in)));
@@ -2026,6 +2216,7 @@ static mp_obj_t pb_type_MDRobotBase_add_color_prototype(size_t n_args, const mp_
                       PB_ARG_REQUIRED(h),
                       PB_ARG_REQUIRED(s),
                       PB_ARG_REQUIRED(v));
+  pb_type_mdrobotbase_require_open(self);
   pb_assert(pbio_mdrobotbase_color_cal_add_prototype(
       self->rb,
       (uint8_t)mp_obj_get_int(color_id_in),
@@ -2043,6 +2234,7 @@ static mp_obj_t pb_type_MDRobotBase_classify_color(size_t n_args, const mp_obj_t
                       PB_ARG_REQUIRED(h),
                       PB_ARG_REQUIRED(s),
                       PB_ARG_REQUIRED(v));
+  pb_type_mdrobotbase_require_open(self);
   uint8_t matched_color_id = 0;
   float min_dist = 0.0f;
   pb_assert(pbio_mdrobotbase_color_cal_classify(
@@ -2062,8 +2254,64 @@ static mp_obj_t pb_type_MDRobotBase_classify_color(size_t n_args, const mp_obj_t
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_classify_color_obj, 1,
                                   pb_type_MDRobotBase_classify_color);
 
+// Finalizer and slot reclamation
+static mp_obj_t pb_type_MDRobotBase_close(mp_obj_t self_in) {
+  pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  if (self->rb) {
+    pb_type_mdrobotbase_cancel_active_motion(self);
+    pbio_mdrobotbase_put_robotbase(self->rb);
+    self->rb = NULL;
+  }
+  return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_close_obj,
+                                 pb_type_MDRobotBase_close);
+
+// pybricks.robotics.MDRobotBase.stalled
+static mp_obj_t pb_type_MDRobotBase_stalled(mp_obj_t self_in) {
+  pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
+  bool stalled = false;
+  pb_assert(pbio_mdrobotbase_is_stalled(self->rb, &stalled));
+  return mp_obj_new_bool(stalled);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_stalled_obj,
+                                 pb_type_MDRobotBase_stalled);
+
+// pybricks.robotics.MDRobotBase.done
+static mp_obj_t pb_type_MDRobotBase_done(mp_obj_t self_in) {
+  pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
+  bool done = true;
+  pb_assert(pbio_mdrobotbase_is_done(self->rb, &done));
+  return mp_obj_new_bool(done);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_done_obj,
+                                 pb_type_MDRobotBase_done);
+
+// pybricks.robotics.MDRobotBase.status
+static mp_obj_t pb_type_MDRobotBase_status(mp_obj_t self_in) {
+  pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
+  pbio_mdrobotbase_motion_status_t status = PBIO_MDROBOTBASE_STATUS_NONE;
+  pb_assert(pbio_mdrobotbase_get_motion_status(self->rb, &status));
+  return MP_OBJ_NEW_SMALL_INT(status);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_status_obj,
+                                 pb_type_MDRobotBase_status);
+
 // locals dict elements
 static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
+    {MP_ROM_QSTR(MP_QSTR___del__),
+     MP_ROM_PTR(&pb_type_MDRobotBase_close_obj)},
+    {MP_ROM_QSTR(MP_QSTR_close),
+     MP_ROM_PTR(&pb_type_MDRobotBase_close_obj)},
+    {MP_ROM_QSTR(MP_QSTR_stalled),
+     MP_ROM_PTR(&pb_type_MDRobotBase_stalled_obj)},
+    {MP_ROM_QSTR(MP_QSTR_done),
+     MP_ROM_PTR(&pb_type_MDRobotBase_done_obj)},
+    {MP_ROM_QSTR(MP_QSTR_status),
+     MP_ROM_PTR(&pb_type_MDRobotBase_status_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_lqr_gains),
      MP_ROM_PTR(&pb_type_MDRobotBase_set_lqr_gains_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_lqr_gains),

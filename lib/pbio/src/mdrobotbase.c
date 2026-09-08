@@ -1,3 +1,6 @@
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include <math.h>
 #include <stdlib.h>
 #include <pbio/error.h>
@@ -6,36 +9,61 @@
 #include <pbio/control_settings.h>
 
 #ifndef PBIO_CONFIG_NUM_MDROBOTBASES
-#define PBIO_CONFIG_NUM_MDROBOTBASES 1
+#ifdef PBIO_CONFIG_SERVO_NUM_DEV
+#define PBIO_CONFIG_NUM_MDROBOTBASES (PBIO_CONFIG_SERVO_NUM_DEV / 2)
+#else
+#define PBIO_CONFIG_NUM_MDROBOTBASES 2
+#endif
+#endif
+
+#if PBIO_CONFIG_NUM_MDROBOTBASES < 2
+#undef PBIO_CONFIG_NUM_MDROBOTBASES
+#define PBIO_CONFIG_NUM_MDROBOTBASES 2
 #endif
 
 static pbio_mdrobotbase_t mdrobotbases[PBIO_CONFIG_NUM_MDROBOTBASES];
+static bool mdrobotbase_in_use[PBIO_CONFIG_NUM_MDROBOTBASES];
 
-pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track) {
-    if (!left || !right) {
+pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track) {
+    if (!rb || !left || !right || left == right ||
+        wheel_diameter_left <= 0 || wheel_diameter_right <= 0 || axle_track <= 0 ||
+        wheel_diameter_left > 1000000 || wheel_diameter_right > 1000000 || axle_track > 5000000) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    
-    pbio_mdrobotbase_t *rb = &mdrobotbases[0];
+
+    // Zero entire struct memory ensuring no uninitialized bytes or dirty accumulators
+    memset(rb, 0, sizeof(pbio_mdrobotbase_t));
+
     rb->left = left;
     rb->right = right;
     rb->axle_track = axle_track;
     rb->wheel_diameter_left = wheel_diameter_left;
     rb->wheel_diameter_right = wheel_diameter_right;
-    
+
     // Set default controller type
     rb->controller_type = PBIO_MDROBOTBASE_CONTROLLER_PID;
-    
+
     // Set default LQR gains
     rb->k_x = 1.0f;
     rb->k_y = 1.0f;
     rb->k_theta = 1.0f;
-    
+    rb->lqr_schedule_enabled = true;
+
     // Set default PID gains
     rb->kp = 1.0f;
     rb->ki = 0.0f;
     rb->kd = 0.0f;
-    
+
+    // Set default turn PID gains
+    rb->kp_turn = 1.0f;
+    rb->ki_turn = 0.0f;
+    rb->kd_turn = 0.0f;
+
+    // Set default pivot PID gains
+    rb->kp_pivot = 1.0f;
+    rb->ki_pivot = 0.0f;
+    rb->kd_pivot = 0.0f;
+
     // Initialize state variables
     rb->x = 0.0f;
     rb->y = 0.0f;
@@ -46,27 +74,150 @@ pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbi
     rb->fusion_alpha = 0.95f;
     rb->gear_ratio = 1.0f;
     rb->last_accel_x = 0.0f;
+
+    // Backlash filter defaults
     rb->backlash_filter_enabled = true;
     rb->backlash_left_limit = 1.0f;
     rb->backlash_right_limit = 1.0f;
     rb->backlash_left_accum = 0.0f;
     rb->backlash_right_accum = 0.0f;
+
+    // Maximum speed limits
     rb->max_angular_speed = 1000.0f;
     rb->max_turn_speed = 1000.0f;
     rb->max_pivot_speed = 1000.0f;
-    rb->lqr_schedule_enabled = true;
+
+    // PID min turn settings
     rb->pid_min_turn = 0.0f;
     rb->pid_min_turn_threshold = 0.15f;
-    rb->kp_turn = 1.0f;
-    rb->ki_turn = 0.0f;
-    rb->kd_turn = 0.0f;
-    
+
+    // Transient motion state explicitly zeroed
+    rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+    rb->motion_in_progress = false;
+    rb->stall_time_ms = 0.0f;
+    rb->turn_integral = 0.0f;
+    rb->dist_traveled = 0.0f;
+    rb->motion_status = PBIO_MDROBOTBASE_STATUS_NONE;
+
+    // Trajectory tracking state explicitly zeroed
+    rb->trajectory_num_points = 0;
+    rb->trajectory_current_point_idx = 0;
+    rb->trajectory_transition_tolerance = 0.0f;
+    rb->trajectory_final_segment_started = false;
+
+    // Color calibration state explicitly zeroed
+    rb->color_cal.num_prototypes = 0;
+    rb->color_cal.is_calibrated = false;
+
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_motion_reset(pbio_mdrobotbase_t *rb) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+    rb->motion_in_progress = false;
+    rb->stall_time_ms = 0.0f;
+    rb->turn_integral = 0.0f;
+    rb->dist_traveled = 0.0f;
+    rb->target_speed_for_ramping = 0.0f;
+    rb->trajectory_num_points = 0;
+    rb->trajectory_current_point_idx = 0;
+    rb->trajectory_final_segment_started = false;
+    rb->motion_status = PBIO_MDROBOTBASE_STATUS_NONE;
+
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track) {
+    if (!rb_address) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *rb_address = NULL;
+
+    if (!left || !right || left == right ||
+        wheel_diameter_left <= 0 || wheel_diameter_right <= 0 || axle_track <= 0 ||
+        wheel_diameter_left > 1000000 || wheel_diameter_right > 1000000 || axle_track > 5000000) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    // Reject duplicate or overlapping motor allocations
+    for (int i = 0; i < PBIO_CONFIG_NUM_MDROBOTBASES; i++) {
+        pbio_mdrobotbase_t *rb = &mdrobotbases[i];
+        if (mdrobotbase_in_use[i] &&
+            (rb->left == left || rb->left == right ||
+             rb->right == left || rb->right == right)) {
+            return PBIO_ERROR_BUSY;
+        }
+    }
+
+    // Scan for the first free pool slot
+    int slot = -1;
+    for (int i = 0; i < PBIO_CONFIG_NUM_MDROBOTBASES; i++) {
+        if (!mdrobotbase_in_use[i]) {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot < 0) {
+        return PBIO_ERROR_BUSY;
+    }
+
+    pbio_mdrobotbase_t *rb = &mdrobotbases[slot];
+    mdrobotbase_in_use[slot] = true;
+
+    pbio_error_t err = pbio_mdrobotbase_init(rb, left, right, wheel_diameter_left, wheel_diameter_right, axle_track);
+    if (err != PBIO_SUCCESS) {
+        mdrobotbase_in_use[slot] = false;
+        return err;
+    }
+
     *rb_address = rb;
     return PBIO_SUCCESS;
 }
 
-pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, float k_y, float k_theta, bool schedule) {
+pbio_error_t pbio_mdrobotbase_put_robotbase(pbio_mdrobotbase_t *rb) {
     if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    // Verify pointer address belongs to static pool array and is properly aligned
+    if (rb < &mdrobotbases[0] || rb >= &mdrobotbases[PBIO_CONFIG_NUM_MDROBOTBASES]) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    ptrdiff_t diff = rb - &mdrobotbases[0];
+    if (diff < 0 || diff >= PBIO_CONFIG_NUM_MDROBOTBASES) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    int slot = (int)diff;
+    if (!mdrobotbase_in_use[slot]) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    // Stop physical motors safely
+    if (rb->left) {
+        pbio_servo_stop(rb->left, PBIO_CONTROL_ON_COMPLETION_COAST);
+    }
+    if (rb->right) {
+        pbio_servo_stop(rb->right, PBIO_CONTROL_ON_COMPLETION_COAST);
+    }
+
+    rb->left = NULL;
+    rb->right = NULL;
+    rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+    rb->motion_in_progress = false;
+
+    mdrobotbase_in_use[slot] = false;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, float k_y, float k_theta, bool schedule) {
+    if (!rb || !isfinite(k_x) || !isfinite(k_y) || !isfinite(k_theta) || k_x < 0.0f || k_y < 0.0f || k_theta < 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->k_x = k_x;
@@ -77,7 +228,7 @@ pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, f
 }
 
 pbio_error_t pbio_mdrobotbase_set_controller(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_controller_t type) {
-    if (!rb) {
+    if (!rb || (type != PBIO_MDROBOTBASE_CONTROLLER_PID && type != PBIO_MDROBOTBASE_CONTROLLER_LQR)) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->controller_type = type;
@@ -85,7 +236,7 @@ pbio_error_t pbio_mdrobotbase_set_controller(pbio_mdrobotbase_t *rb, pbio_mdrobo
 }
 
 pbio_error_t pbio_mdrobotbase_set_pid_gains(pbio_mdrobotbase_t *rb, float kp, float ki, float kd) {
-    if (!rb) {
+    if (!rb || !isfinite(kp) || !isfinite(ki) || !isfinite(kd) || kp < 0.0f || ki < 0.0f || kd < 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->kp = kp;
@@ -95,7 +246,7 @@ pbio_error_t pbio_mdrobotbase_set_pid_gains(pbio_mdrobotbase_t *rb, float kp, fl
 }
 
 pbio_error_t pbio_mdrobotbase_set_turn_pid_gains(pbio_mdrobotbase_t *rb, float kp, float ki, float kd) {
-    if (!rb) {
+    if (!rb || !isfinite(kp) || !isfinite(ki) || !isfinite(kd) || kp < 0.0f || ki < 0.0f || kd < 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->kp_turn = kp;
@@ -115,7 +266,7 @@ pbio_error_t pbio_mdrobotbase_get_turn_pid_gains(pbio_mdrobotbase_t *rb, float *
 }
 
 pbio_error_t pbio_mdrobotbase_set_pivot_pid_gains(pbio_mdrobotbase_t *rb, float kp, float ki, float kd) {
-    if (!rb) {
+    if (!rb || !isfinite(kp) || !isfinite(ki) || !isfinite(kd) || kp < 0.0f || ki < 0.0f || kd < 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->kp_pivot = kp;
@@ -135,7 +286,7 @@ pbio_error_t pbio_mdrobotbase_get_pivot_pid_gains(pbio_mdrobotbase_t *rb, float 
 }
 
 pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float y, float theta, float gyro_heading) {
-    if (!rb) {
+    if (!rb || !isfinite(x) || !isfinite(y) || !isfinite(theta) || !isfinite(gyro_heading)) {
         return PBIO_ERROR_INVALID_ARG;
     }
     
@@ -187,6 +338,10 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     
     rb->last_left_deg = left_deg;
     rb->last_right_deg = right_deg;
+
+    // Scale motor degree deltas to output wheel degrees using gear ratio
+    d_left_ticks = pbio_mdrobotbase_motor_to_wheel_deg(rb, d_left_ticks);
+    d_right_ticks = pbio_mdrobotbase_motor_to_wheel_deg(rb, d_right_ticks);
     
     if (rb->backlash_filter_enabled) {
         // Evaluate left wheel backlash hysteresis
@@ -261,9 +416,7 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
         rb->y += d_center * sinf(avg_angle_rad);
     }
     
-    rb->theta += delta_theta;
-    while (rb->theta > 180.0f) rb->theta -= 360.0f;
-    while (rb->theta < -180.0f) rb->theta += 360.0f;
+    rb->theta = pbio_mdrobotbase_wrap_degrees(rb->theta + delta_theta);
     
     return PBIO_SUCCESS;
 }
@@ -305,7 +458,7 @@ pbio_error_t pbio_mdrobotbase_get_max_angular_speed(pbio_mdrobotbase_t *rb, floa
 }
 
 pbio_error_t pbio_mdrobotbase_set_max_turn_speed(pbio_mdrobotbase_t *rb, float speed) {
-    if (!rb) {
+    if (!rb || !isfinite(speed) || speed <= 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->max_turn_speed = speed;
@@ -321,7 +474,7 @@ pbio_error_t pbio_mdrobotbase_get_max_turn_speed(pbio_mdrobotbase_t *rb, float *
 }
 
 pbio_error_t pbio_mdrobotbase_set_max_pivot_speed(pbio_mdrobotbase_t *rb, float speed) {
-    if (!rb) {
+    if (!rb || !isfinite(speed) || speed <= 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->max_pivot_speed = speed;
@@ -337,7 +490,7 @@ pbio_error_t pbio_mdrobotbase_get_max_pivot_speed(pbio_mdrobotbase_t *rb, float 
 }
 
 pbio_error_t pbio_mdrobotbase_set_pid_min_turn(pbio_mdrobotbase_t *rb, float min_turn, float threshold) {
-    if (!rb) {
+    if (!rb || !isfinite(min_turn) || !isfinite(threshold) || min_turn < 0.0f || threshold < 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->pid_min_turn = min_turn;
@@ -355,10 +508,7 @@ pbio_error_t pbio_mdrobotbase_get_pid_min_turn(pbio_mdrobotbase_t *rb, float *mi
 }
 
 pbio_error_t pbio_mdrobotbase_set_backlash_limits(pbio_mdrobotbase_t *rb, float left_limit, float right_limit) {
-    if (!rb) {
-        return PBIO_ERROR_INVALID_ARG;
-    }
-    if (left_limit < 0.0f || right_limit < 0.0f) {
+    if (!rb || !isfinite(left_limit) || !isfinite(right_limit) || left_limit < 0.0f || right_limit < 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->backlash_left_limit = left_limit;
@@ -379,7 +529,7 @@ pbio_error_t pbio_mdrobotbase_set_wheel_diameters(pbio_mdrobotbase_t *rb, int32_
     if (!rb) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    if (left <= 0 || right <= 0) {
+    if (left <= 0 || right <= 0 || left > 1000000 || right > 1000000) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->wheel_diameter_left = left;
@@ -397,7 +547,7 @@ pbio_error_t pbio_mdrobotbase_get_wheel_diameters(pbio_mdrobotbase_t *rb, int32_
 }
 
 pbio_error_t pbio_mdrobotbase_set_fusion_alpha(pbio_mdrobotbase_t *rb, float alpha) {
-    if (!rb || alpha < 0.0f || alpha > 1.0f) {
+    if (!rb || !isfinite(alpha) || alpha < 0.0f || alpha > 1.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->fusion_alpha = alpha;
@@ -413,7 +563,7 @@ pbio_error_t pbio_mdrobotbase_get_fusion_alpha(pbio_mdrobotbase_t *rb, float *al
 }
 
 pbio_error_t pbio_mdrobotbase_set_gear_ratio(pbio_mdrobotbase_t *rb, float ratio) {
-    if (!rb || ratio <= 0.0f) {
+    if (!rb || !isfinite(ratio) || ratio < 0.001f || ratio > 1000.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->gear_ratio = ratio;
@@ -426,6 +576,134 @@ pbio_error_t pbio_mdrobotbase_get_gear_ratio(pbio_mdrobotbase_t *rb, float *rati
     }
     *ratio = rb->gear_ratio;
     return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_motion_status(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t *status) {
+    if (!rb || !status) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *status = rb->motion_status;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_set_motion_status(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t status) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    switch (status) {
+        case PBIO_MDROBOTBASE_STATUS_NONE:
+        case PBIO_MDROBOTBASE_STATUS_RUNNING:
+        case PBIO_MDROBOTBASE_STATUS_COMPLETED:
+        case PBIO_MDROBOTBASE_STATUS_STALLED:
+        case PBIO_MDROBOTBASE_STATUS_TIMED_OUT:
+            rb->motion_status = status;
+            return PBIO_SUCCESS;
+        default:
+            return PBIO_ERROR_INVALID_ARG;
+    }
+}
+
+pbio_error_t pbio_mdrobotbase_get_pose(const pbio_mdrobotbase_t *rb, float *x, float *y, float *theta) {
+    if (!rb || !x || !y || !theta) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *x = rb->x;
+    *y = rb->y;
+    *theta = rb->theta;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_is_busy(const pbio_mdrobotbase_t *rb, bool *busy) {
+    if (!rb || !busy) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *busy = rb->motion_in_progress;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_is_done(const pbio_mdrobotbase_t *rb, bool *done) {
+    if (!rb || !done) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *done = !rb->motion_in_progress;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_is_stalled(const pbio_mdrobotbase_t *rb, bool *stalled) {
+    if (!rb || !stalled) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *stalled = (rb->motion_status == PBIO_MDROBOTBASE_STATUS_STALLED);
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_motion_type(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_type_t *motion_type) {
+    if (!rb || !motion_type) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *motion_type = rb->motion_type;
+    return PBIO_SUCCESS;
+}
+
+float pbio_mdrobotbase_motor_to_wheel_deg(const pbio_mdrobotbase_t *rb, float motor_deg) {
+    if (!rb || !isfinite(motor_deg)) {
+        return 0.0f;
+    }
+    if (rb->gear_ratio <= 0.0001f) {
+        return motor_deg;
+    }
+    return motor_deg / rb->gear_ratio;
+}
+
+float pbio_mdrobotbase_wheel_to_motor_deg(const pbio_mdrobotbase_t *rb, float wheel_deg) {
+    if (!rb || !isfinite(wheel_deg)) {
+        return 0.0f;
+    }
+    if (rb->gear_ratio <= 0.0001f) {
+        return wheel_deg;
+    }
+    return wheel_deg * rb->gear_ratio;
+}
+
+float pbio_mdrobotbase_motor_to_wheel_dps(const pbio_mdrobotbase_t *rb, float motor_dps) {
+    if (!rb || !isfinite(motor_dps)) {
+        return 0.0f;
+    }
+    if (rb->gear_ratio <= 0.0001f) {
+        return motor_dps;
+    }
+    return motor_dps / rb->gear_ratio;
+}
+
+int32_t pbio_mdrobotbase_wheel_to_motor_dps(const pbio_mdrobotbase_t *rb, float wheel_dps) {
+    if (!rb || isnan(wheel_dps)) {
+        return 0;
+    }
+    if (isinf(wheel_dps)) {
+        return (wheel_dps > 0.0f) ? INT32_MAX : INT32_MIN;
+    }
+    float r = (rb->gear_ratio > 0.0001f) ? rb->gear_ratio : 1.0f;
+    float product = wheel_dps * r;
+    if (product > (float)INT32_MAX) {
+        return INT32_MAX;
+    }
+    if (product < (float)INT32_MIN) {
+        return INT32_MIN;
+    }
+    return (int32_t)lroundf(product);
+}
+
+float pbio_mdrobotbase_wrap_degrees(float angle) {
+    if (!isfinite(angle)) {
+        return 0.0f;
+    }
+    while (angle > 180.0f) {
+        angle -= 360.0f;
+    }
+    while (angle < -180.0f) {
+        angle += 360.0f;
+    }
+    return angle;
 }
 
 // Native C Color Calibration Implementation

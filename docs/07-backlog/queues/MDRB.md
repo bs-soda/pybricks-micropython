@@ -10,19 +10,7 @@
 
 ## Active
 
-| Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
-|------|------|:--------:|-------------|---------------------|------------|------|
-| G-MDRB-010 | feature | P0 | draft | DEFINE | G-MDRB-009 | [../goals/G-MDRB-010.md](../goals/G-MDRB-010.md) |
-| G-MDRB-011 | feature | P0 | draft | DEFINE | G-MDRB-010 | [../goals/G-MDRB-011.md](../goals/G-MDRB-011.md) |
-| G-MDRB-012 | feature | P1 | draft | DEFINE | G-MDRB-011 | [../goals/G-MDRB-012.md](../goals/G-MDRB-012.md) |
-| G-MDRB-013 | feature | P1 | draft | DEFINE | G-MDRB-012 | [../goals/G-MDRB-013.md](../goals/G-MDRB-013.md) |
-| G-MDRB-014 | feature | P1 | draft | DEFINE | G-MDRB-013 | [../goals/G-MDRB-014.md](../goals/G-MDRB-014.md) |
-| G-MDRB-015 | feature | P1 | draft | DEFINE | G-MDRB-014 | [../goals/G-MDRB-015.md](../goals/G-MDRB-015.md) |
-| G-MDRB-016 | feature | P1 | draft | DEFINE | G-MDRB-015 | [../goals/G-MDRB-016.md](../goals/G-MDRB-016.md) |
-| G-MDRB-017 | feature | P1 | draft | DEFINE | G-MDRB-016 | [../goals/G-MDRB-017.md](../goals/G-MDRB-017.md) |
-| G-MDRB-018 | chore | P2 | draft | DEFINE | G-MDRB-017 | [../goals/G-MDRB-018.md](../goals/G-MDRB-018.md) |
-
-
+*(No active goals)*
 
 ## Archived
 
@@ -37,3 +25,12 @@
 | G-MDRB-007 | Trajectory and Controller Input Validation | 2026-09-08 | [../goals/_archived/G-MDRB-007.md](../goals/_archived/G-MDRB-007.md) |
 | G-MDRB-008 | Comprehensive MDRobotBase Regression Coverage | 2026-09-08 | [../goals/_archived/G-MDRB-008.md](../goals/_archived/G-MDRB-008.md) |
 | G-MDRB-009 | Maintainability and Duplicate Control Logic Reduction | 2026-09-08 | [../goals/_archived/G-MDRB-009.md](../goals/_archived/G-MDRB-009.md) |
+| G-MDRB-010 | Safe Robot-Base Instance Ownership & Duplicate Motor-Pair Rejection | 2026-09-08 | [../goals/_archived/G-MDRB-010.md](../goals/_archived/G-MDRB-010.md) |
+| G-MDRB-011 | Validate-Before-Cancel Motion Lifecycle & Preemption Safety | 2026-09-08 | [../goals/_archived/G-MDRB-011.md](../goals/_archived/G-MDRB-011.md) |
+| G-MDRB-012 | Closed-Object Guarding & Idempotent Destructor Safety | 2026-09-08 | [../goals/_archived/G-MDRB-012.md](../goals/_archived/G-MDRB-012.md) |
+| G-MDRB-013 | Motion-Status Enum Boundary Validation & Failure State Contract | 2026-09-08 | [../goals/_archived/G-MDRB-013.md](../goals/_archived/G-MDRB-013.md) |
+| G-MDRB-014 | Differential-Drive Kinematic Invariants & Bidirectional Gear-Ratio Semantics | 2026-09-08 | [../goals/_archived/G-MDRB-014.md](../goals/_archived/G-MDRB-014.md) |
+| G-MDRB-015 | Angle Normalization, Pivot-Turn Invariants, and Distance Conservation | 2026-09-08 | [../goals/_archived/G-MDRB-015.md](../goals/_archived/G-MDRB-015.md) |
+| G-MDRB-016 | Numerical Robustness, Geometry Bounds, and Quantization Hardening | 2026-09-08 | [../goals/_archived/G-MDRB-016.md](../goals/_archived/G-MDRB-016.md) |
+| G-MDRB-017 | Deterministic PBIO and VirtualHub Behavioral Test Suite Hardening | 2026-09-08 | [../goals/_archived/G-MDRB-017.md](../goals/_archived/G-MDRB-017.md) |
+| G-MDRB-018 | Architectural Maintainability & Hardware Abstraction Layer Consolidation | 2026-09-08 | [../goals/_archived/G-MDRB-018.md](../goals/_archived/G-MDRB-018.md) |

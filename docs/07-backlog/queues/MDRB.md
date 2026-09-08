@@ -12,7 +12,6 @@
 
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
-| G-MDRB-025 | feature | P2 | review | REVIEW | G-MDRB-024 | [../goals/G-MDRB-025.md](../goals/G-MDRB-025.md) |
 | G-MDRB-026 | chore | P2 | review | REVIEW | G-MDRB-025 | [../goals/G-MDRB-026.md](../goals/G-MDRB-026.md) |
 | G-MDRB-027 | qa | P1 | review | REVIEW | G-MDRB-026 | [../goals/G-MDRB-027.md](../goals/G-MDRB-027.md) |
 | G-MDRB-028 | api | P1 | ready | PLAN | G-MDRB-027 | [../goals/G-MDRB-028.md](../goals/G-MDRB-028.md) |
@@ -50,3 +49,4 @@
 | G-MDRB-022 | Behavioral Motion Preemption Safety & Non-Disruptive Invalid Command Rejection | 2026-09-08 | [../goals/_archived/G-MDRB-022.md](../goals/_archived/G-MDRB-022.md) |
 | G-MDRB-023 | Multi-Scale Numerical Invariant Verification, Submodule Sanitization & Scorecard Elevation | 2026-09-08 | [../goals/_archived/G-MDRB-023.md](../goals/_archived/G-MDRB-023.md) |
 | G-MDRB-024 | Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement | 2026-09-08 | [../goals/_archived/G-MDRB-024.md](../goals/_archived/G-MDRB-024.md) |
+| G-MDRB-025 | Motion Dispatcher Modularization & Sub-Controller Decomposition | 2026-09-08 | [../goals/_archived/G-MDRB-025.md](../goals/_archived/G-MDRB-025.md) |

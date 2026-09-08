@@ -1,6 +1,6 @@
 # G-MDRB-025: Motion Dispatcher Modularization & Sub-Controller Decomposition
 
-**Status:** review
+**Status:** done
 **Kind:** feature
 **Atomic outcome:** Decompose the monolithic motion iteration function in pb_type_mdrobotbase.c into modular sub-controllers with shared wheel velocity conversion and terminal stop handling
 **Epic:** MDRB
@@ -10,11 +10,11 @@
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

@@ -11,6 +11,14 @@ Tests lifecycle transitions:
 - Proper release and cleanup
 """
 
+import os
+import sys
+import unittest
+
+_pkg_dir = os.path.dirname(os.path.abspath(__file__))
+if _pkg_dir not in sys.path:
+    sys.path.insert(0, _pkg_dir)
+
 from pybricks.pupdevices import Motor
 from pybricks.parameters import Port, Direction, Stop
 from pybricks.robotics import MDRobotBase
@@ -19,6 +27,7 @@ from pybricks.tools import run_task, wait
 left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
 right_motor = Motor(Port.B)
 robot = MDRobotBase(left_motor, right_motor, wheel_diameter=56.0, axle_track=112.0)
+
 
 async def test_idle_stop_idempotence():
     print("Testing idle stop idempotence...")
@@ -361,5 +370,38 @@ async def main():
     await test_closed_object_exhaustive_audit()
     print("All MDRobotBase async lifecycle regression tests passed!")
 
-run_task(main())
+class TestMDRobotBaseLifecycle(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        global robot, left_motor, right_motor
+        left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B)
+        robot = MDRobotBase(left_motor, right_motor, wheel_diameter=56.0, axle_track=112.0)
+
+    async def test_idle_stop_idempotence(self):
+        await test_idle_stop_idempotence()
+
+    async def test_motion_preemption(self):
+        await test_motion_preemption()
+
+    async def test_gear_ratio_boundaries(self):
+        await test_gear_ratio_boundaries()
+
+    async def test_lifecycle_status_queries(self):
+        await test_lifecycle_status_queries()
+
+    async def test_invalid_preemption_non_interference(self):
+        await test_invalid_preemption_non_interference()
+
+    async def test_behavioral_motion_preemption_immunity(self):
+        await test_behavioral_motion_preemption_immunity()
+
+    async def test_closed_handle_guarding(self):
+        await test_closed_handle_guarding()
+
+    async def test_closed_object_exhaustive_audit(self):
+        await test_closed_object_exhaustive_audit()
+
+if __name__ == "__main__":
+    unittest.main()
+
 

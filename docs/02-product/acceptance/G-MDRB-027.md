@@ -12,7 +12,7 @@
 ### Scenario 1: PBIO Native Test Suite Execution Pass (AC-MDRB-027-1)
 - **Given** the compiled PBIO test binary `./lib/pbio/test/build/test-pbio`.
 - **When** the test runner executes targeting `src/mdrobotbase/..`.
-- **Then** all 21 tests report `OK`.
+- **Then** all 22 tests report `OK`.
 - **And** zero tests are skipped or failed.
 
 ### Scenario 2: VirtualHub Lifecycle, Turn, and Trajectory Test Pass (AC-MDRB-027-2)

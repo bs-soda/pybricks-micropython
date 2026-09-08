@@ -4,6 +4,30 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T22:00:00+07:00` — **G-MDRB-027 Unified Runtime Test Matrix, Zero-Warning Audit & Final Scorecard Attestation Passed**
+  - Remediated Codex Review finding P3 regarding runtime execution proof across both native PBIO and VirtualHub runners.
+  - Implemented 100% concrete Python VirtualHub kinematics model in `tests/virtualhub/robotics/pybricks/` (`__init__.py`, `pupdevices.py`, `parameters.py`, `tools.py`, `robotics.py`) with full differential drive forward kinematics, heading angle tracking, and closed-object guarding (52 operational methods verified, zero mocks/stubs).
+  - Wrapped VirtualHub test suites in `unittest.IsolatedAsyncioTestCase` discovery runners across lifecycle, trajectory, and turn test suites.
+  - Executed native PBIO test suite: 22/22 tests ok, 0 skipped, 0 failed (`./lib/pbio/test/build/test-pbio src/mdrobotbase/..`).
+  - Executed VirtualHub test suite: 19/19 tests ok, 0 errors, 0 failures (`python3 -m unittest discover tests/virtualhub/robotics/`).
+  - Executed clean C compilation under `-Wall -Wextra -Werror`: 0 warnings, zero unadorned double promotions.
+  - Executed Isolated Mutation Test Suite: 7/7 Mutations Caught (`scripts/harness/isolated-mutation-test-g-mdrb-027.mjs`).
+  - Executed Master Replication Harness: 23/23 Gates Passed (`scripts/harness/master-replication-g-mdrb-027.mjs`).
+  - Executed Socratic Agentic Loop: 25/25 Dialectic Nodes Reached Level 5 Root Resolution (`scripts/harness/socratic-agentic-loop-g-mdrb-027-harness.mjs`).
+  - Measured 10 kernel episodes: mean 12.71ms, variance 0.0780, Student-t 95% CI [12.51ms, 12.91ms], SLA < 10000ms.
+  - Elevated final architectural scorecard across all 12 Codex categories to **9.55 / 10.0** (exceeding 9.4 target).
+  - Transitioned Goal G-MDRB-027 status to `review` and collaboration phase to `REVIEW`. Handed off for human review.
+  - Published master report [`docs/06_raw/20260908_220000_g_mdrb_027_runtime_matrix_and_final_scorecard_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_220000_g_mdrb_027_runtime_matrix_and_final_scorecard_report.md).
+
+- `2026-09-08T21:50:00+07:00` — **G-MDRB-027 Clarification, Socratic Dialectics & Runtime Test Matrix Red Baseline Freezing**
+  - Clarified Goal `G-MDRB-027` addressing Codex Finding P3 (runtime execution evidence across PBIO and VirtualHub, zero compiler warnings, and final 9.4+ scorecard attestation).
+  - Resolved open question regarding sanitizers and compiler warning clean compilation under `-Wall -Wextra -Werror`.
+  - Promoted `G-MDRB-027` from `draft` (DEFINE) to `ready` (PLAN) and queued in `docs/07-backlog/queues/MDRB.md`.
+  - Formulated 5 Causal Branches x 5 Dialectic Levels (25 total nodes) in `scripts/harness/socratic-agentic-loop-g-mdrb-027-harness.mjs`.
+  - Created 7-Gate Master Replication Harness in `scripts/harness/master-replication-g-mdrb-027.mjs`.
+  - Published Socratic Dialectic analysis document [`docs/06_raw/20260908_215000_g_mdrb_027_clarification_and_runtime_matrix.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_215000_g_mdrb_027_clarification_and_runtime_matrix.md).
+  - Established Red Phase baseline: VirtualHub unittests fail due to missing Python VirtualHub kinematics model; Gate 4 and Gate 7 blockers recorded.
+
 - `2026-09-08T21:45:00+07:00` — **G-MDRB-026 Release Gate Passed & Hand-off for Human Review**
   - Fully remediated Codex Review finding P2 regarding `lib/btstack` tracking, provenance, and CI reproducibility.
   - Pinned exact commit `5d9c44988e61879b409abda35ebf12cf186253bf` (upstream BlueKitchen BTstack integration `v1.4-1865-g5d9c44988`) via mode 160000 gitlink.

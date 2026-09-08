@@ -62,7 +62,7 @@ static const uint8_t _program_data[] = {
 #include "genhdr/mpversion.h"
 
 
-static struct {
+static union {
     // ensure that data is properly aligned for pbsys_storage_data_map_t
     pbsys_storage_data_map_t data_map;
     uint8_t data[PBDRV_CONFIG_BLOCK_DEVICE_RAM_SIZE];

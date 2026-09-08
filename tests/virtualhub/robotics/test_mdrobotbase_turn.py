@@ -1,12 +1,20 @@
+import os
+import sys
+import unittest
+
+_pkg_dir = os.path.dirname(os.path.abspath(__file__))
+if _pkg_dir not in sys.path:
+    sys.path.insert(0, _pkg_dir)
+
 from pybricks.pupdevices import Motor
 from pybricks.parameters import Port, Direction, Stop
 from pybricks.robotics import MDRobotBase
 from pybricks.tools import run_task, wait
 
-# Unit test for MDRobotBase turn and pivot turn functions in native C
 left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
 right_motor = Motor(Port.B)
 robot = MDRobotBase(left_motor, right_motor, wheel_diameter=56.0, axle_track=112.0)
+
 
 async def test_spin_turns():
     print("Testing turn_to_angle and turn_angle...")
@@ -76,4 +84,22 @@ async def main():
     await test_invalid_turn_preemption_immunity()
     print("All native C MDRobotBase turn unit tests completed!")
 
-run_task(main())
+class TestMDRobotBaseTurn(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        global robot, left_motor, right_motor
+        left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B)
+        robot = MDRobotBase(left_motor, right_motor, wheel_diameter=56.0, axle_track=112.0)
+
+    async def test_spin_turns(self):
+        await test_spin_turns()
+
+    async def test_pivot_turns(self):
+        await test_pivot_turns()
+
+    async def test_invalid_turn_preemption_immunity(self):
+        await test_invalid_turn_preemption_immunity()
+
+if __name__ == "__main__":
+    unittest.main()
+

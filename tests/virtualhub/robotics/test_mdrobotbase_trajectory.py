@@ -12,6 +12,14 @@ Tests fail-closed boundaries:
 - Controller enum validation (PID, LQR)
 """
 
+import os
+import sys
+import unittest
+
+_pkg_dir = os.path.dirname(os.path.abspath(__file__))
+if _pkg_dir not in sys.path:
+    sys.path.insert(0, _pkg_dir)
+
 from pybricks.pupdevices import Motor
 from pybricks.parameters import Port, Direction, Stop
 from pybricks.robotics import MDRobotBase
@@ -20,6 +28,7 @@ from pybricks.tools import run_task
 left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
 right_motor = Motor(Port.B)
 robot = MDRobotBase(left_motor, right_motor, wheel_diameter=56.0, axle_track=112.0)
+
 
 async def test_trajectory_capacity():
     print("Testing trajectory capacity limits (> 64 points)...")
@@ -148,4 +157,37 @@ async def main():
     await test_multiscale_kinematic_configuration()
     print("All MDRobotBase trajectory and input validation regression tests passed!")
 
-run_task(main())
+class TestMDRobotBaseTrajectory(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        global robot, left_motor, right_motor
+        left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B)
+        robot = MDRobotBase(left_motor, right_motor, wheel_diameter=56.0, axle_track=112.0)
+
+    async def test_trajectory_capacity(self):
+        await test_trajectory_capacity()
+
+    async def test_trajectory_minimum_points(self):
+        await test_trajectory_minimum_points()
+
+    async def test_waypoint_tuple_dimensionality(self):
+        await test_waypoint_tuple_dimensionality()
+
+    async def test_coordinate_finiteness(self):
+        await test_coordinate_finiteness()
+
+    async def test_dynamics_positivity(self):
+        await test_dynamics_positivity()
+
+    async def test_controller_enum_validation(self):
+        await test_controller_enum_validation()
+
+    async def test_trajectory_waypoint_execution(self):
+        await test_trajectory_waypoint_execution()
+
+    async def test_multiscale_kinematic_configuration(self):
+        await test_multiscale_kinematic_configuration()
+
+if __name__ == "__main__":
+    unittest.main()
+

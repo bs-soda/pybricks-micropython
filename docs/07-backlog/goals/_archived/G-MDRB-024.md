@@ -1,6 +1,6 @@
 # G-MDRB-024: Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement
 
-**Status:** review
+**Status:** done
 **Kind:** feature
 **Atomic outcome:** Eliminate direct motion_status field assignments in the MicroPython C binding and route all status updates through validated FSM transition helpers coupled atomically with motion_in_progress
 **Epic:** MDRB
@@ -10,11 +10,11 @@
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

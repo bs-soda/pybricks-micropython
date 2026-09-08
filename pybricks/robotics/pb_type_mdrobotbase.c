@@ -59,6 +59,20 @@ static inline pbio_error_t pb_type_mdrobotbase_motion_reset(pb_type_MDRobotBase_
   return pbio_mdrobotbase_motion_reset(self->rb);
 }
 
+// Backward compatibility aliases for semantic lifecycle transitions
+static inline pbio_error_t pb_type_mdrobotbase_mark_running(pb_type_MDRobotBase_obj_t *self) {
+  return pb_type_mdrobotbase_motion_start(self);
+}
+static inline pbio_error_t pb_type_mdrobotbase_mark_completed(pb_type_MDRobotBase_obj_t *self) {
+  return pb_type_mdrobotbase_motion_complete(self);
+}
+static inline pbio_error_t pb_type_mdrobotbase_mark_stalled(pb_type_MDRobotBase_obj_t *self) {
+  return pb_type_mdrobotbase_motion_stall(self);
+}
+static inline pbio_error_t pb_type_mdrobotbase_mark_timed_out(pb_type_MDRobotBase_obj_t *self) {
+  return pb_type_mdrobotbase_motion_timeout(self);
+}
+
 
 static pbio_error_t update_state_and_debug(pb_type_MDRobotBase_obj_t *self,
                                            float gyro_heading) {

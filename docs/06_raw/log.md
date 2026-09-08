@@ -4,6 +4,19 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-08
 
+- `2026-09-08T22:56:00+07:00` — **G-MDRB-024 Shipped & Archived: Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement**
+  - Following explicit human authorization ("approve and ship G-MDRB-024"), advanced Goal `G-MDRB-024` from `review` (`REVIEW`) through `approved` to `done` (`SHIP`).
+  - Archived goal card to [`docs/07-backlog/goals/_archived/G-MDRB-024.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-024.md).
+  - Updated queue backlog in [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md) moving G-MDRB-024 to Archived table.
+  - Re-executed full multi-environment test suite:
+    - Master Replication Runner (`master-replication-g-mdrb-024.mjs`): 26/26 gates passed (100% green).
+    - Socratic Dialectic Loop (`socratic-agentic-loop-g-mdrb-024-harness.mjs`): 25/25 dialectic nodes resolved down to Level 5 across all 5 branches.
+    - Native PBIO Test Suite (`test-pbio src/mdrobotbase/..`): 22/22 tests passed (0 skipped, 0 failed).
+    - VirtualHub Python Test Suite (`test_mdrobotbase_*.py`): 26/26 tests passed in 1.83s.
+    - Epic Conformance Suite (`mdrobotbase-epic-harness.mjs`): 291/291 checks passed across all 33 goals.
+  - Published comprehensive shipping certification report [`docs/06_raw/20260908_225600_g_mdrb_024_shipping_and_archival_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260908_225600_g_mdrb_024_shipping_and_archival_certification.md).
+  - All artifacts and code committed on feature branch `feature/mdrobotbase-enhancement` (PR-first workflow, zero local merges to develop/main).
+
 - `2026-09-08T22:55:00+07:00` — **MDRB Epic Color Detector Overhaul: Complete Socratic & Replication Verification (G-MDRB-028 to G-MDRB-033)**
   - Fully implemented, executed, and verified all 18 test harnesses across the 6 newly generated color detector goals:
     - 6 Socratic 5-Why Dialectic Harnesses (`socratic-agentic-loop-g-mdrb-028` to `033`): 150/150 dialectic nodes resolved (100% green).

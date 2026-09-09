@@ -1,6 +1,6 @@
 # G-MDRB-028: Color Input Contract Unification & Structured Classification Output
 
-**Status:** ready  
+**Status:** review  
 **Kind:** api  
 **Atomic outcome:** Standardize public color classification contracts across native PBIO C and VirtualHub Python to accept both raw RGB and HSV inputs, returning structured classification `(color_id, distance, confidence)`  
 **Epic:** MDRB  
@@ -10,17 +10,17 @@
 
 #### Plan
 
-**Collaboration phase:** PLAN
+**Collaboration phase:** REVIEW
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | **●** | ○ | ○ | ○ |
+| ○ | ○ | ○ | **●** | ○ |
 
 | # | Step | Status |
 |---|------|--------|
-| 1 | Standardize C Native ABI & Python Contract Signatures | pending |
-| 2 | Implement Dual RGB & HSV Ingestion in Native C & VirtualHub | pending |
-| 3 | Verify Structured Return Invariants & Contract Parity | pending |
+| 1 | Standardize C Native ABI & Python Contract Signatures | done |
+| 2 | Implement Dual RGB & HSV Ingestion in Native C & VirtualHub | done |
+| 3 | Verify Structured Return Invariants & Contract Parity | done |
 
 ## Context
 

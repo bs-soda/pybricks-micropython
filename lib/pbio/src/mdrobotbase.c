@@ -851,14 +851,43 @@ pbio_error_t pbio_mdrobotbase_color_cal_add_prototype(pbio_mdrobotbase_t *rb, ui
     return PBIO_SUCCESS;
 }
 
-pbio_error_t pbio_mdrobotbase_color_cal_classify(pbio_mdrobotbase_t *rb, float h, float s, float v, uint8_t *matched_color_id, float *min_distance) {
-    if (!rb || !matched_color_id || !min_distance) {
+static void mdrobotbase_rgb_to_hsv(float r, float g, float b, float *h, float *s, float *v) {
+    float max_c = fmaxf(r, fmaxf(g, b));
+    float min_c = fminf(r, fminf(g, b));
+    float delta = max_c - min_c;
+    *v = max_c;
+    if (max_c <= 1e-6f || delta <= 1e-6f) {
+        *h = 0.0f;
+        *s = 0.0f;
+        return;
+    }
+    *s = (delta / max_c) * 100.0f;
+    float hue = 0.0f;
+    if (max_c == r) {
+        hue = 60.0f * fmodf((g - b) / delta, 6.0f);
+    } else if (max_c == g) {
+        hue = 60.0f * (((b - r) / delta) + 2.0f);
+    } else {
+        hue = 60.0f * (((r - g) / delta) + 4.0f);
+    }
+    if (hue < 0.0f) {
+        hue += 360.0f;
+    }
+    *h = hue;
+}
+
+pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h, float s, float v, uint8_t *color_id, float *distance, float *confidence) {
+    if (!rb || !color_id || !distance || !confidence) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(h) || !isfinite(s) || !isfinite(v) || h < 0.0f || s < 0.0f || v < 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     
     if (rb->color_cal.num_prototypes == 0) {
-        *matched_color_id = 0; // Color.NONE
-        *min_distance = 999999.0f;
+        *color_id = 0; // Color.NONE
+        *distance = 999999.0f;
+        *confidence = 0.0f;
         return PBIO_SUCCESS;
     }
     
@@ -869,7 +898,8 @@ pbio_error_t pbio_mdrobotbase_color_cal_classify(pbio_mdrobotbase_t *rb, float h
     float z = v * v_scale;
     
     float min_d = 999999.0f;
-    uint8_t best_id = 0; // Defaults to 0 (Color.NONE)
+    float second_min_d = 999999.0f;
+    uint8_t best_id = 0;
     
     for (size_t i = 0; i < rb->color_cal.num_prototypes; i++) {
         float dx = x - rb->color_cal.prototypes[i].x;
@@ -878,21 +908,62 @@ pbio_error_t pbio_mdrobotbase_color_cal_classify(pbio_mdrobotbase_t *rb, float h
         float dist = sqrtf(dx * dx + dy * dy + dz * dz);
         
         if (dist < min_d) {
+            second_min_d = min_d;
             min_d = dist;
             best_id = rb->color_cal.prototypes[i].color_id;
+        } else if (dist < second_min_d) {
+            second_min_d = dist;
         }
     }
     
-    // Threshold Guard: If min distance exceeds max_distance_threshold, classify as Color.NONE (0)
     float max_thresh = (rb->color_cal.max_distance_threshold > 0.0f) ? rb->color_cal.max_distance_threshold : 40.0f;
     if (min_d > max_thresh) {
-        *matched_color_id = 0; // Color.NONE
-    } else {
-        *matched_color_id = best_id;
+        *color_id = 0; // Color.NONE
+        *distance = min_d;
+        *confidence = 0.0f;
+        return PBIO_SUCCESS;
     }
     
-    *min_distance = min_d;
+    *color_id = best_id;
+    *distance = min_d;
+    
+    float conf = 0.0f;
+    if (rb->color_cal.num_prototypes == 1) {
+        conf = 1.0f - (min_d / max_thresh);
+    } else {
+        float margin = second_min_d - min_d;
+        conf = margin / (second_min_d + min_d + 1e-4f);
+    }
+    if (conf < 0.0f) {
+        conf = 0.0f;
+    } else if (conf > 1.0f) {
+        conf = 1.0f;
+    }
+    *confidence = conf;
+    
     return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_color_classify_rgb(pbio_mdrobotbase_t *rb, float r, float g, float b, uint8_t *color_id, float *distance, float *confidence) {
+    if (!rb || !color_id || !distance || !confidence) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(r) || !isfinite(g) || !isfinite(b) || r < 0.0f || g < 0.0f || b < 0.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    
+    float h = 0.0f, s = 0.0f, v = 0.0f;
+    mdrobotbase_rgb_to_hsv(r, g, b, &h, &s, &v);
+    return pbio_mdrobotbase_color_classify_hsv(rb, h, s, v, color_id, distance, confidence);
+}
+
+pbio_error_t pbio_mdrobotbase_color_cal_classify(pbio_mdrobotbase_t *rb, float h, float s, float v, uint8_t *matched_color_id, float *min_distance) {
+    if (!matched_color_id) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *matched_color_id = 0;
+    float confidence = 0.0f;
+    return pbio_mdrobotbase_color_classify_hsv(rb, h, s, v, matched_color_id, min_distance, &confidence);
 }
 
 

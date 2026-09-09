@@ -2245,28 +2245,89 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_add_color_prototype_obj, 1
 static mp_obj_t pb_type_MDRobotBase_classify_color(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                       self,
+                      PB_ARG_REQUIRED(c1),
+                      PB_ARG_REQUIRED(c2),
+                      PB_ARG_REQUIRED(c3));
+  pb_type_mdrobotbase_require_open(self);
+  uint8_t matched_color_id = 0;
+  float min_dist = 0.0f;
+  float confidence = 0.0f;
+  pb_assert(pbio_mdrobotbase_color_classify_rgb(
+      self->rb,
+      mp_obj_get_float(c1_in),
+      mp_obj_get_float(c2_in),
+      mp_obj_get_float(c3_in),
+      &matched_color_id,
+      &min_dist,
+      &confidence));
+
+  mp_obj_t tuple[3] = {
+      MP_OBJ_NEW_SMALL_INT(matched_color_id),
+      mp_obj_new_float(min_dist),
+      mp_obj_new_float(confidence)
+  };
+  return mp_obj_new_tuple(3, tuple);
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_classify_color_obj, 1,
+                                  pb_type_MDRobotBase_classify_color);
+
+static mp_obj_t pb_type_MDRobotBase_classify_color_rgb(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+  PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
+                      self,
+                      PB_ARG_REQUIRED(r),
+                      PB_ARG_REQUIRED(g),
+                      PB_ARG_REQUIRED(b));
+  pb_type_mdrobotbase_require_open(self);
+  uint8_t matched_color_id = 0;
+  float min_dist = 0.0f;
+  float confidence = 0.0f;
+  pb_assert(pbio_mdrobotbase_color_classify_rgb(
+      self->rb,
+      mp_obj_get_float(r_in),
+      mp_obj_get_float(g_in),
+      mp_obj_get_float(b_in),
+      &matched_color_id,
+      &min_dist,
+      &confidence));
+
+  mp_obj_t tuple[3] = {
+      MP_OBJ_NEW_SMALL_INT(matched_color_id),
+      mp_obj_new_float(min_dist),
+      mp_obj_new_float(confidence)
+  };
+  return mp_obj_new_tuple(3, tuple);
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_classify_color_rgb_obj, 1,
+                                  pb_type_MDRobotBase_classify_color_rgb);
+
+static mp_obj_t pb_type_MDRobotBase_classify_color_hsv(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+  PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
+                      self,
                       PB_ARG_REQUIRED(h),
                       PB_ARG_REQUIRED(s),
                       PB_ARG_REQUIRED(v));
   pb_type_mdrobotbase_require_open(self);
   uint8_t matched_color_id = 0;
   float min_dist = 0.0f;
-  pb_assert(pbio_mdrobotbase_color_cal_classify(
+  float confidence = 0.0f;
+  pb_assert(pbio_mdrobotbase_color_classify_hsv(
       self->rb,
       mp_obj_get_float(h_in),
       mp_obj_get_float(s_in),
       mp_obj_get_float(v_in),
       &matched_color_id,
-      &min_dist));
+      &min_dist,
+      &confidence));
 
-  mp_obj_t tuple[2] = {
+  mp_obj_t tuple[3] = {
       MP_OBJ_NEW_SMALL_INT(matched_color_id),
-      mp_obj_new_float(min_dist)
+      mp_obj_new_float(min_dist),
+      mp_obj_new_float(confidence)
   };
-  return mp_obj_new_tuple(2, tuple);
+  return mp_obj_new_tuple(3, tuple);
 }
-static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_classify_color_obj, 1,
-                                  pb_type_MDRobotBase_classify_color);
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_classify_color_hsv_obj, 1,
+                                  pb_type_MDRobotBase_classify_color_hsv);
 
 // Finalizer and slot reclamation
 static mp_obj_t pb_type_MDRobotBase_close(mp_obj_t self_in) {
@@ -2414,6 +2475,10 @@ static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
      MP_ROM_PTR(&pb_type_MDRobotBase_add_color_prototype_obj)},
     {MP_ROM_QSTR(MP_QSTR_classify_color),
      MP_ROM_PTR(&pb_type_MDRobotBase_classify_color_obj)},
+    {MP_ROM_QSTR(MP_QSTR_classify_color_rgb),
+     MP_ROM_PTR(&pb_type_MDRobotBase_classify_color_rgb_obj)},
+    {MP_ROM_QSTR(MP_QSTR_classify_color_hsv),
+     MP_ROM_PTR(&pb_type_MDRobotBase_classify_color_hsv_obj)},
 };
 static MP_DEFINE_CONST_DICT(pb_type_MDRobotBase_locals_dict,
                             pb_type_MDRobotBase_locals_dict_table);

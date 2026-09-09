@@ -584,15 +584,92 @@ class MDRobotBase:
         self._color_prototypes[int(color_id)] = (float(r), float(g), float(b))
 
     @_require_open
-    def classify_color(self, r: float, g: float, b: float) -> int:
+    def classify_color_rgb(self, r: float, g: float, b: float) -> Tuple[int, float, float]:
+        r = float(r)
+        g = float(g)
+        b = float(b)
+        if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
+            raise ValueError("Color channel values must be finite numbers")
+        if r < 0.0 or g < 0.0 or b < 0.0:
+            raise ValueError("Color channel values must be non-negative")
+
+        if not self._color_prototypes:
+            return (0, 999999.0, 0.0)
+
         best_id = 0
         min_dist = float("inf")
-        for cid, (pr, pg, pb) in self._color_prototypes.items():
+        second_min_dist = float("inf")
+
+        for cid, proto in self._color_prototypes.items():
+            pr, pg, pb = proto[:3]
             dist = math.sqrt((r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2)
             if dist < min_dist:
+                second_min_dist = min_dist
                 min_dist = dist
                 best_id = cid
-        return best_id
+            elif dist < second_min_dist:
+                second_min_dist = dist
+
+        threshold = self._color_threshold if self._color_threshold > 0.0 else 40.0
+        if min_dist > threshold:
+            return (0, float(min_dist), 0.0)
+
+        if len(self._color_prototypes) == 1:
+            confidence = max(0.0, min(1.0, 1.0 - (min_dist / threshold)))
+        else:
+            confidence = max(0.0, min(1.0, (second_min_dist - min_dist) / (second_min_dist + min_dist + 1e-6)))
+
+        return (int(best_id), float(min_dist), float(confidence))
+
+    @_require_open
+    def classify_color_hsv(self, h: float, s: float, v: float) -> Tuple[int, float, float]:
+        h = float(h)
+        s = float(s)
+        v = float(v)
+        if not (math.isfinite(h) and math.isfinite(s) and math.isfinite(v)):
+            raise ValueError("Color channel values must be finite numbers")
+        if h < 0.0 or s < 0.0 or v < 0.0:
+            raise ValueError("Color channel values must be non-negative")
+
+        max_proto = 1.0
+        if self._color_prototypes:
+            max_proto = max(max(p[:3]) for p in self._color_prototypes.values())
+
+        s_norm = s / 100.0 if s > 1.0 else s
+        if max_proto > 1.0:
+            scale = 100.0 if max_proto <= 100.0 else 255.0
+            v_norm = v / scale if v > 1.0 else v
+        else:
+            scale = 1.0
+            v_norm = v if v <= 1.0 else v / 100.0
+
+        c = v_norm * s_norm
+        h_prime = (h % 360.0) / 60.0
+        x = c * (1.0 - abs((h_prime % 2.0) - 1.0))
+        m = v_norm - c
+
+        if 0.0 <= h_prime < 1.0:
+            r1, g1, b1 = c, x, 0.0
+        elif 1.0 <= h_prime < 2.0:
+            r1, g1, b1 = x, c, 0.0
+        elif 2.0 <= h_prime < 3.0:
+            r1, g1, b1 = 0.0, c, x
+        elif 3.0 <= h_prime < 4.0:
+            r1, g1, b1 = 0.0, x, c
+        elif 4.0 <= h_prime < 5.0:
+            r1, g1, b1 = x, 0.0, c
+        else:
+            r1, g1, b1 = c, 0.0, x
+
+        r = (r1 + m) * scale
+        g = (g1 + m) * scale
+        b = (b1 + m) * scale
+
+        return self.classify_color_rgb(r, g, b)
+
+    @_require_open
+    def classify_color(self, r: float, g: float, b: float) -> Tuple[int, float, float]:
+        return self.classify_color_rgb(r, g, b)
 
     @_require_open
     def curve(self, radius: float, angle: float, then: Stop = Stop.HOLD, wait: bool = True):

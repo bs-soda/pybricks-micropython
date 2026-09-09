@@ -248,4 +248,8 @@ pbio_error_t pbio_mdrobotbase_color_cal_add_prototype(pbio_mdrobotbase_t *rb, ui
 pbio_error_t pbio_mdrobotbase_color_cal_set_threshold(pbio_mdrobotbase_t *rb, float max_distance_threshold);
 pbio_error_t pbio_mdrobotbase_color_cal_classify(pbio_mdrobotbase_t *rb, float h, float s, float v, uint8_t *matched_color_id, float *min_distance);
 
+// Native C Color Classification API (G-MDRB-028: Unified Structured Contract)
+pbio_error_t pbio_mdrobotbase_color_classify_rgb(pbio_mdrobotbase_t *rb, float r, float g, float b, uint8_t *color_id, float *distance, float *confidence);
+pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h, float s, float v, uint8_t *color_id, float *distance, float *confidence);
+
 #endif // _PBIO_MDROBOTBASE_H_

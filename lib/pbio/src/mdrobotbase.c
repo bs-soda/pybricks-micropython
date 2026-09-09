@@ -108,6 +108,17 @@ pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, p
     // Color calibration state explicitly zeroed
     rb->color_cal.num_prototypes = 0;
     rb->color_cal.is_calibrated = false;
+    rb->color_cal.black_ref[0] = 0.0f;
+    rb->color_cal.black_ref[1] = 0.0f;
+    rb->color_cal.black_ref[2] = 0.0f;
+    rb->color_cal.white_ref[0] = 100.0f;
+    rb->color_cal.white_ref[1] = 100.0f;
+    rb->color_cal.white_ref[2] = 100.0f;
+    rb->color_cal.gain[0] = 0.01f;
+    rb->color_cal.gain[1] = 0.01f;
+    rb->color_cal.gain[2] = 0.01f;
+    rb->color_cal.has_black_ref = false;
+    rb->color_cal.has_white_ref = false;
 
     return PBIO_SUCCESS;
 }
@@ -808,6 +819,17 @@ pbio_error_t pbio_mdrobotbase_color_cal_reset(pbio_mdrobotbase_t *rb) {
     rb->color_cal.v_scale = 3.0f;
     rb->color_cal.max_distance_threshold = 40.0f; // Default distance cutoff threshold
     rb->color_cal.is_calibrated = false;
+    rb->color_cal.black_ref[0] = 0.0f;
+    rb->color_cal.black_ref[1] = 0.0f;
+    rb->color_cal.black_ref[2] = 0.0f;
+    rb->color_cal.white_ref[0] = 100.0f;
+    rb->color_cal.white_ref[1] = 100.0f;
+    rb->color_cal.white_ref[2] = 100.0f;
+    rb->color_cal.gain[0] = 0.01f;
+    rb->color_cal.gain[1] = 0.01f;
+    rb->color_cal.gain[2] = 0.01f;
+    rb->color_cal.has_black_ref = false;
+    rb->color_cal.has_white_ref = false;
     return PBIO_SUCCESS;
 }
 
@@ -944,6 +966,85 @@ pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h
     return PBIO_SUCCESS;
 }
 
+pbio_error_t pbio_mdrobotbase_color_cal_set_black_reference(pbio_mdrobotbase_t *rb, float r, float g, float b) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(r) || !isfinite(g) || !isfinite(b) || r < 0.0f || g < 0.0f || b < 0.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (rb->color_cal.has_white_ref) {
+        if (rb->color_cal.white_ref[0] <= r + 5.0f ||
+            rb->color_cal.white_ref[1] <= g + 5.0f ||
+            rb->color_cal.white_ref[2] <= b + 5.0f) {
+            return PBIO_ERROR_INVALID_ARG;
+        }
+        rb->color_cal.gain[0] = 1.0f / (rb->color_cal.white_ref[0] - r);
+        rb->color_cal.gain[1] = 1.0f / (rb->color_cal.white_ref[1] - g);
+        rb->color_cal.gain[2] = 1.0f / (rb->color_cal.white_ref[2] - b);
+    }
+    rb->color_cal.black_ref[0] = r;
+    rb->color_cal.black_ref[1] = g;
+    rb->color_cal.black_ref[2] = b;
+    rb->color_cal.has_black_ref = true;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_color_cal_set_white_reference(pbio_mdrobotbase_t *rb, float r, float g, float b) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(r) || !isfinite(g) || !isfinite(b) || r < 0.0f || g < 0.0f || b < 0.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    float r0 = rb->color_cal.has_black_ref ? rb->color_cal.black_ref[0] : 0.0f;
+    float g0 = rb->color_cal.has_black_ref ? rb->color_cal.black_ref[1] : 0.0f;
+    float b0 = rb->color_cal.has_black_ref ? rb->color_cal.black_ref[2] : 0.0f;
+
+    if (r <= r0 + 5.0f || g <= g0 + 5.0f || b <= b0 + 5.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    rb->color_cal.gain[0] = 1.0f / (r - r0);
+    rb->color_cal.gain[1] = 1.0f / (g - g0);
+    rb->color_cal.gain[2] = 1.0f / (b - b0);
+
+    rb->color_cal.white_ref[0] = r;
+    rb->color_cal.white_ref[1] = g;
+    rb->color_cal.white_ref[2] = b;
+    rb->color_cal.has_white_ref = true;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_color_normalize(pbio_mdrobotbase_t *rb, float r, float g, float b, float *r_norm, float *g_norm, float *b_norm) {
+    if (!rb || !r_norm || !g_norm || !b_norm) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(r) || !isfinite(g) || !isfinite(b) || r < 0.0f || g < 0.0f || b < 0.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    float r0 = rb->color_cal.has_black_ref ? rb->color_cal.black_ref[0] : 0.0f;
+    float g0 = rb->color_cal.has_black_ref ? rb->color_cal.black_ref[1] : 0.0f;
+    float b0 = rb->color_cal.has_black_ref ? rb->color_cal.black_ref[2] : 0.0f;
+
+    float kr = rb->color_cal.gain[0];
+    float kg = rb->color_cal.gain[1];
+    float kb = rb->color_cal.gain[2];
+
+    float rn = (r - r0) * kr;
+    float gn = (g - g0) * kg;
+    float bn = (b - b0) * kb;
+
+    if (rn < 0.0f) rn = 0.0f; else if (rn > 1.0f) rn = 1.0f;
+    if (gn < 0.0f) gn = 0.0f; else if (gn > 1.0f) gn = 1.0f;
+    if (bn < 0.0f) bn = 0.0f; else if (bn > 1.0f) bn = 1.0f;
+
+    *r_norm = rn;
+    *g_norm = gn;
+    *b_norm = bn;
+    return PBIO_SUCCESS;
+}
+
 pbio_error_t pbio_mdrobotbase_color_classify_rgb(pbio_mdrobotbase_t *rb, float r, float g, float b, uint8_t *color_id, float *distance, float *confidence) {
     if (!rb || !color_id || !distance || !confidence) {
         return PBIO_ERROR_INVALID_ARG;
@@ -952,8 +1053,23 @@ pbio_error_t pbio_mdrobotbase_color_classify_rgb(pbio_mdrobotbase_t *rb, float r
         return PBIO_ERROR_INVALID_ARG;
     }
     
+    float in_r = r;
+    float in_g = g;
+    float in_b = b;
+
+    if (rb->color_cal.has_black_ref || rb->color_cal.has_white_ref) {
+        float rn = 0.0f, gn = 0.0f, bn = 0.0f;
+        pbio_error_t err = pbio_mdrobotbase_color_normalize(rb, r, g, b, &rn, &gn, &bn);
+        if (err != PBIO_SUCCESS) {
+            return err;
+        }
+        in_r = rn * 100.0f;
+        in_g = gn * 100.0f;
+        in_b = bn * 100.0f;
+    }
+
     float h = 0.0f, s = 0.0f, v = 0.0f;
-    mdrobotbase_rgb_to_hsv(r, g, b, &h, &s, &v);
+    mdrobotbase_rgb_to_hsv(in_r, in_g, in_b, &h, &s, &v);
     return pbio_mdrobotbase_color_classify_hsv(rb, h, s, v, color_id, distance, confidence);
 }
 

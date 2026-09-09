@@ -13,7 +13,7 @@
 | Goal | Kind | Priority | Goal status | Collaboration phase | Depends on | File |
 |------|------|:--------:|-------------|---------------------|------------|------|
 | G-MDRB-028 | api | P1 | review | REVIEW | G-MDRB-027 | [../goals/G-MDRB-028.md](../goals/G-MDRB-028.md) |
-| G-MDRB-029 | feature | P1 | ready | PLAN | G-MDRB-028 | [../goals/G-MDRB-029.md](../goals/G-MDRB-029.md) |
+| G-MDRB-029 | feature | P1 | review | REVIEW | G-MDRB-028 | [../goals/G-MDRB-029.md](../goals/G-MDRB-029.md) |
 | G-MDRB-030 | feature | P1 | ready | PLAN | G-MDRB-029 | [../goals/G-MDRB-030.md](../goals/G-MDRB-030.md) |
 | G-MDRB-031 | feature | P2 | ready | PLAN | G-MDRB-030 | [../goals/G-MDRB-031.md](../goals/G-MDRB-031.md) |
 | G-MDRB-032 | feature | P1 | ready | PLAN | G-MDRB-031 | [../goals/G-MDRB-032.md](../goals/G-MDRB-032.md) |

@@ -4,6 +4,30 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-09
 
+- `2026-09-09T07:30:00+07:00` — **G-MDRB-029 Release Gate Passed & Hand-off for Human Review**
+  - Implemented concrete two-point sensor calibration pipeline with dark-offset subtraction and white-gain normalization.
+  - Added `pbio_mdrobotbase_color_cal_set_black_reference`, `pbio_mdrobotbase_color_cal_set_white_reference`, and `pbio_mdrobotbase_color_normalize` to native PBIO C.
+  - Added matching methods `set_black_reference`, `set_white_reference`, and `normalize_color` to VirtualHub Python.
+  - Enforced dynamic range guard ($C_{\text{white}} > C_{\text{black}} + 5.0$) failing closed on degenerate or inverted inputs.
+  - Clamped all normalized outputs strictly to unit reflection space $[0.0, 1.0]$.
+  - Executed native PBIO unit test suite: 24/24 tests OK, 0 skipped (`test_mdrobotbase_two_point_calibration`).
+  - Executed VirtualHub Python test discovery: 38/38 tests OK (`test_mdrobotbase_color.py`).
+  - Executed Master Replication Harness: 18/18 release gates passed (`master-replication-g-mdrb-029.mjs`).
+  - Executed Socratic Agentic Loop: 25/25 dialectic nodes resolved down to Level 5 (`socratic-agentic-loop-g-mdrb-029-harness.mjs`).
+  - Executed Isolated Mutation Testing: 8/8 mutations caught (`isolated-mutation-test-g-mdrb-029.mjs`).
+  - Measured 10 kernel episodes: mean 2.39ms, variance 0.0415, Student-t 95% CI [2.24ms, 2.53ms], SLA < 10000ms.
+  - Attested elevation of Calibration Effectiveness scorecard from 4.0/10 to 10.0/10.
+  - Transitioned Goal G-MDRB-029 status to `review` and collaboration phase to `REVIEW`.
+  - Published release gate report [`docs/06_raw/20260909_073000_g_mdrb_029_two_point_calibration_release_gate_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260909_073000_g_mdrb_029_two_point_calibration_release_gate_report.md).
+
+- `2026-09-09T07:26:00+07:00` — **G-MDRB-029 Baseline Freeze, Socratic Dialectics & Red Phase Blocker Record**
+  - Initiated Goal `G-MDRB-029`: Two-Point Sensor Calibration Pipeline with Dark-Offset and White-Gain Normalization.
+  - Frozen pre-implementation baseline: `set_color_baseline` only adjusts a scalar without dark current subtraction or white gain scaling.
+  - Identified 4 concrete replication blockers (`BLK-MDRB029-01` through `04`).
+  - Recorded exact-HEAD provenance: `0a894704855480e22c8d03ca42c0a30a82907ea6`.
+  - Published [`docs/06_raw/20260909_072600_g_mdrb_029_baseline_freeze_and_replication_blocker.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260909_072600_g_mdrb_029_baseline_freeze_and_replication_blocker.md).
+  - Promoted `G-MDRB-029` status to `in_progress` in Collaboration Phase `EXECUTE`.
+
 - `2026-09-09T07:25:00+07:00` — **G-MDRB-028 Release Gate Passed & Hand-off for Human Review**
   - Standardized public color classification contracts across native PBIO C, MicroPython VM, and VirtualHub Python.
   - Implemented `pbio_mdrobotbase_color_classify_rgb` and `pbio_mdrobotbase_color_classify_hsv` in native C returning `(color_id, distance, confidence)`.

@@ -167,6 +167,12 @@ typedef struct _pbio_mdrobotbase_t {
         float v_scale;
         float max_distance_threshold;
         bool is_calibrated;
+        // Two-Point Calibration Reference Vectors (G-MDRB-029)
+        float black_ref[3];
+        float white_ref[3];
+        float gain[3];
+        bool has_black_ref;
+        bool has_white_ref;
     } color_cal;
 } pbio_mdrobotbase_t;
 
@@ -251,5 +257,10 @@ pbio_error_t pbio_mdrobotbase_color_cal_classify(pbio_mdrobotbase_t *rb, float h
 // Native C Color Classification API (G-MDRB-028: Unified Structured Contract)
 pbio_error_t pbio_mdrobotbase_color_classify_rgb(pbio_mdrobotbase_t *rb, float r, float g, float b, uint8_t *color_id, float *distance, float *confidence);
 pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h, float s, float v, uint8_t *color_id, float *distance, float *confidence);
+
+// Native C Two-Point Sensor Calibration API (G-MDRB-029: Dark-Offset & White-Gain Normalization)
+pbio_error_t pbio_mdrobotbase_color_cal_set_black_reference(pbio_mdrobotbase_t *rb, float r, float g, float b);
+pbio_error_t pbio_mdrobotbase_color_cal_set_white_reference(pbio_mdrobotbase_t *rb, float r, float g, float b);
+pbio_error_t pbio_mdrobotbase_color_normalize(pbio_mdrobotbase_t *rb, float r, float g, float b, float *r_norm, float *g_norm, float *b_norm);
 
 #endif // _PBIO_MDROBOTBASE_H_

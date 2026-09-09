@@ -1,6 +1,6 @@
 # G-MDRB-029: Two-Point Sensor Calibration Pipeline with Dark-Offset and White-Gain Normalization
 
-**Status:** ready  
+**Status:** review  
 **Kind:** feature  
 **Atomic outcome:** Implement true two-point sensor calibration computing per-channel dark current offset $[R_0, G_0, B_0]$ and white reference intensity $[R_w, G_w, B_w]$ with normalized unit output $[0.0, 1.0]$  
 **Epic:** MDRB  
@@ -10,17 +10,17 @@
 
 #### Plan
 
-**Collaboration phase:** PLAN
+**Collaboration phase:** REVIEW
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | **●** | ○ | ○ | ○ |
+| ○ | ○ | ○ | **●** | ○ |
 
 | # | Step | Status |
 |---|------|--------|
-| 1 | Two-Point Sensor Calibration Data Structure & Math Specification | pending |
-| 2 | Implement Dark Offset Subtraction & White Gain Normalization in C & Python | pending |
-| 3 | Empirical Verification Across Multi-Lux Illumination Sweeps | pending |
+| 1 | Two-Point Sensor Calibration Data Structure & Math Specification | done |
+| 2 | Implement Dark Offset Subtraction & White Gain Normalization in C & Python | done |
+| 3 | Empirical Verification Across Multi-Lux Illumination Sweeps | done |
 
 ## Context
 

@@ -86,6 +86,9 @@ class MDRobotBase:
         self._color_baseline = (0.0, 0.0, 0.0)
         self._color_threshold = 10.0
         self._color_prototypes = {}
+        self._black_reference = None
+        self._white_reference = None
+        self._gain = (0.01, 0.01, 0.01)
 
     def close(self):
         """Idempotently terminates all robot tasks and marks handle as closed."""
@@ -570,10 +573,64 @@ class MDRobotBase:
         self._color_baseline = (0.0, 0.0, 0.0)
         self._color_threshold = 10.0
         self._color_prototypes.clear()
+        self._black_reference = None
+        self._white_reference = None
+        self._gain = (0.01, 0.01, 0.01)
 
     @_require_open
     def set_color_baseline(self, r: float, g: float, b: float):
         self._color_baseline = (float(r), float(g), float(b))
+
+    @_require_open
+    def set_black_reference(self, r: float, g: float, b: float):
+        r = float(r)
+        g = float(g)
+        b = float(b)
+        if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
+            raise ValueError("Reference channel values must be finite numbers")
+        if r < 0.0 or g < 0.0 or b < 0.0:
+            raise ValueError("Reference channel values must be non-negative")
+        if self._white_reference is not None:
+            wr, wg, wb = self._white_reference
+            if wr <= r + 5.0 or wg <= g + 5.0 or wb <= b + 5.0:
+                raise ValueError("White reference must be strictly greater than black reference + 5.0")
+            self._gain = (1.0 / (wr - r), 1.0 / (wg - g), 1.0 / (wb - b))
+        self._black_reference = (r, g, b)
+
+    @_require_open
+    def set_white_reference(self, r: float, g: float, b: float):
+        r = float(r)
+        g = float(g)
+        b = float(b)
+        if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
+            raise ValueError("Reference channel values must be finite numbers")
+        if r < 0.0 or g < 0.0 or b < 0.0:
+            raise ValueError("Reference channel values must be non-negative")
+        r0 = self._black_reference[0] if self._black_reference is not None else 0.0
+        g0 = self._black_reference[1] if self._black_reference is not None else 0.0
+        b0 = self._black_reference[2] if self._black_reference is not None else 0.0
+        if r <= r0 + 5.0 or g <= g0 + 5.0 or b <= b0 + 5.0:
+            raise ValueError("White reference must be strictly greater than black reference + 5.0")
+        self._gain = (1.0 / (r - r0), 1.0 / (g - g0), 1.0 / (b - b0))
+        self._white_reference = (r, g, b)
+
+    @_require_open
+    def normalize_color(self, r: float, g: float, b: float) -> Tuple[float, float, float]:
+        r = float(r)
+        g = float(g)
+        b = float(b)
+        if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
+            raise ValueError("Color channel values must be finite numbers")
+        if r < 0.0 or g < 0.0 or b < 0.0:
+            raise ValueError("Color channel values must be non-negative")
+        r0 = self._black_reference[0] if self._black_reference is not None else 0.0
+        g0 = self._black_reference[1] if self._black_reference is not None else 0.0
+        b0 = self._black_reference[2] if self._black_reference is not None else 0.0
+        kr, kg, kb = self._gain
+        rn = max(0.0, min(1.0, (r - r0) * kr))
+        gn = max(0.0, min(1.0, (g - g0) * kg))
+        bn = max(0.0, min(1.0, (b - b0) * kb))
+        return (rn, gn, bn)
 
     @_require_open
     def set_color_threshold(self, threshold: float):
@@ -593,6 +650,11 @@ class MDRobotBase:
         if r < 0.0 or g < 0.0 or b < 0.0:
             raise ValueError("Color channel values must be non-negative")
 
+        in_r, in_g, in_b = r, g, b
+        if self._black_reference is not None or self._white_reference is not None:
+            rn, gn, bn = self.normalize_color(r, g, b)
+            in_r, in_g, in_b = rn * 100.0, gn * 100.0, bn * 100.0
+
         if not self._color_prototypes:
             return (0, 999999.0, 0.0)
 
@@ -602,7 +664,7 @@ class MDRobotBase:
 
         for cid, proto in self._color_prototypes.items():
             pr, pg, pb = proto[:3]
-            dist = math.sqrt((r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2)
+            dist = math.sqrt((in_r - pr) ** 2 + (in_g - pg) ** 2 + (in_b - pb) ** 2)
             if dist < min_dist:
                 second_min_dist = min_dist
                 min_dist = dist

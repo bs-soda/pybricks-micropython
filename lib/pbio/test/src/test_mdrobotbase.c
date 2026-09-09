@@ -2259,6 +2259,111 @@ end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }
 
+static pbio_error_t test_mdrobotbase_two_point_calibration(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left;
+    static pbio_servo_t *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+    static float rn, gn, bn;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    // Setup mock servos and allocate drivebase
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_assert(rb != NULL);
+
+    // 1. Scenario 1: Dark-Offset Calibration Subtraction (AC-MDRB-029-1)
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_black_reference(rb, 20.0f, 15.0f, 10.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(rb, 220.0f, 215.0f, 210.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 20.0f, 15.0f, 10.0f, &rn, &gn, &bn), ==, PBIO_SUCCESS);
+    tt_want(rn == 0.0f);
+    tt_want(gn == 0.0f);
+    tt_want(bn == 0.0f);
+
+    // 2. Scenario 2: White-Reference Gain Normalization (AC-MDRB-029-2)
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 220.0f, 215.0f, 210.0f, &rn, &gn, &bn), ==, PBIO_SUCCESS);
+    tt_want(rn == 1.0f);
+    tt_want(gn == 1.0f);
+    tt_want(bn == 1.0f);
+
+    // Clamping checks: below dark clamps to 0.0, above white clamps to 1.0
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 0.0f, 0.0f, 0.0f, &rn, &gn, &bn), ==, PBIO_SUCCESS);
+    tt_want(rn == 0.0f);
+    tt_want(gn == 0.0f);
+    tt_want(bn == 0.0f);
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 300.0f, 300.0f, 300.0f, &rn, &gn, &bn), ==, PBIO_SUCCESS);
+    tt_want(rn == 1.0f);
+    tt_want(gn == 1.0f);
+    tt_want(bn == 1.0f);
+
+    // 3. Scenario 3: Mid-Scale Proportional Linearity (AC-MDRB-029-3)
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_black_reference(rb, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(rb, 100.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 50.0f, 25.0f, 75.0f, &rn, &gn, &bn), ==, PBIO_SUCCESS);
+    tt_want(fabsf(rn - 0.5f) < 0.001f);
+    tt_want(fabsf(gn - 0.25f) < 0.001f);
+    tt_want(fabsf(bn - 0.75f) < 0.001f);
+
+    // 4. Scenario 4: Degenerate Dynamic Range Rejection (AC-MDRB-029-4)
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_black_reference(rb, 50.0f, 50.0f, 50.0f), ==, PBIO_SUCCESS);
+    // Difference <= 5.0 must be rejected
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(rb, 52.0f, 52.0f, 52.0f), ==, PBIO_ERROR_INVALID_ARG);
+    // Inverted range (white < black) must be rejected
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(rb, 40.0f, 40.0f, 40.0f), ==, PBIO_ERROR_INVALID_ARG);
+    // Negative and non-finite checks
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_black_reference(rb, -1.0f, 10.0f, 10.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(rb, NAN, 100.0f, 100.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, -5.0f, 50.0f, 50.0f, &rn, &gn, &bn), ==, PBIO_ERROR_INVALID_ARG);
+    // Null pointer checks
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_black_reference(NULL, 0.0f, 0.0f, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(NULL, 100.0f, 100.0f, 100.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_normalize(NULL, 50.0f, 50.0f, 50.0f, &rn, &gn, &bn), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 50.0f, 50.0f, 50.0f, NULL, &gn, &bn), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 50.0f, 50.0f, 50.0f, &rn, NULL, &bn), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 50.0f, 50.0f, 50.0f, &rn, &gn, NULL), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 5. Scenario 5: Multi-Lux Illumination Invariant (AC-MDRB-029-5)
+    // Surface reflectance: R=0.8, G=0.2, B=0.1
+    // Condition 1: Low ambient (500 lux): ambient = 10, white = 110 (span = 100)
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_black_reference(rb, 10.0f, 10.0f, 10.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(rb, 110.0f, 110.0f, 110.0f), ==, PBIO_SUCCESS);
+    float r1, g1, b1;
+    // Reading = 10 + 0.8*100 = 90, 10 + 0.2*100 = 30, 10 + 0.1*100 = 20
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 90.0f, 30.0f, 20.0f, &r1, &g1, &b1), ==, PBIO_SUCCESS);
+    tt_want(fabsf(r1 - 0.8f) < 0.001f);
+    tt_want(fabsf(g1 - 0.2f) < 0.001f);
+    tt_want(fabsf(b1 - 0.1f) < 0.001f);
+
+    // Condition 2: High ambient (1500 lux): ambient = 30, white = 330 (span = 300)
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_black_reference(rb, 30.0f, 30.0f, 30.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(rb, 330.0f, 330.0f, 330.0f), ==, PBIO_SUCCESS);
+    float r2, g2, b2;
+    // Reading = 30 + 0.8*300 = 270, 30 + 0.2*300 = 90, 30 + 0.1*300 = 60
+    tt_uint_op(pbio_mdrobotbase_color_normalize(rb, 270.0f, 90.0f, 60.0f, &r2, &g2, &b2), ==, PBIO_SUCCESS);
+    tt_want(fabsf(r2 - 0.8f) < 0.001f);
+    tt_want(fabsf(g2 - 0.2f) < 0.001f);
+    tt_want(fabsf(b2 - 0.1f) < 0.001f);
+
+    // Illumination invariance: drift must be < 5% (here < 0.1%)
+    tt_want(fabsf(r2 - r1) < 0.05f);
+    tt_want(fabsf(g2 - g1) < 0.05f);
+    tt_want(fabsf(b2 - b1) < 0.05f);
+
+    // Clean lifecycle teardown
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
 struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_basics),
     PBIO_THREAD_TEST(test_mdrobotbase_motion_state),
@@ -2283,6 +2388,7 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_multiscale_kinematic_invariants),
     PBIO_THREAD_TEST(test_mdrobotbase_fsm_terminal_helpers),
     PBIO_THREAD_TEST(test_mdrobotbase_color_classification),
+    PBIO_THREAD_TEST(test_mdrobotbase_two_point_calibration),
     END_OF_TESTCASES
 };
 

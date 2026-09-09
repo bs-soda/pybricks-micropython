@@ -24,6 +24,26 @@ def _require_open(func):
         return func(self, *args, **kwargs)
     return wrapper
 
+
+def _rgb_to_hsv_helper(r: float, g: float, b: float) -> Tuple[float, float, float]:
+    max_c = max(r, max(g, b))
+    min_c = min(r, min(g, b))
+    delta = max_c - min_c
+    v = max_c
+    if max_c <= 1e-6 or delta <= 1e-6:
+        return (0.0, 0.0, v)
+    s = (delta / max_c) * 100.0
+    if max_c == r:
+        hue = 60.0 * (((g - b) / delta) % 6.0)
+    elif max_c == g:
+        hue = 60.0 * (((b - r) / delta) + 2.0)
+    else:
+        hue = 60.0 * (((r - g) / delta) + 4.0)
+    if hue < 0.0:
+        hue += 360.0
+    return (hue, s, v)
+
+
 class MDRobotBase:
     """
     Concrete differential-drive mobile robotics base implementing real kinematic
@@ -637,6 +657,73 @@ class MDRobotBase:
         self._color_threshold = float(threshold)
 
     @_require_open
+    def circular_hue_distance(self, h1: float, h2: float) -> float:
+        h1 = float(h1)
+        h2 = float(h2)
+        if not (math.isfinite(h1) and math.isfinite(h2)):
+            return 180.0
+        h1 = h1 % 360.0
+        if h1 < 0.0:
+            h1 += 360.0
+        h2 = h2 % 360.0
+        if h2 < 0.0:
+            h2 += 360.0
+        diff = abs(h1 - h2)
+        return min(diff, 360.0 - diff)
+
+    @_require_open
+    def rgb_to_lab(self, r: float, g: float, b: float) -> Tuple[float, float, float]:
+        r = float(r)
+        g = float(g)
+        b = float(b)
+        if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
+            raise ValueError("Color coordinates must be finite numbers")
+        if r < 0.0 or g < 0.0 or b < 0.0:
+            raise ValueError("Color coordinates must be non-negative")
+
+        r_norm, g_norm, b_norm = r, g, b
+        if r_norm > 1.0 or g_norm > 1.0 or b_norm > 1.0:
+            r_norm /= 100.0
+            g_norm /= 100.0
+            b_norm /= 100.0
+        r_norm = min(1.0, max(0.0, r_norm))
+        g_norm = min(1.0, max(0.0, g_norm))
+        b_norm = min(1.0, max(0.0, b_norm))
+
+        def srgb_to_lin(c):
+            if c <= 0.04045:
+                return c / 12.92
+            return ((c + 0.055) / 1.055) ** 2.4
+
+        r_lin = srgb_to_lin(r_norm)
+        g_lin = srgb_to_lin(g_norm)
+        b_lin = srgb_to_lin(b_norm)
+
+        # Standard D65 Matrix
+        x = 0.4124564 * r_lin + 0.3575761 * g_lin + 0.1804375 * b_lin
+        y = 0.2126729 * r_lin + 0.7151522 * g_lin + 0.0721750 * b_lin
+        z = 0.0193339 * r_lin + 0.1191920 * g_lin + 0.9503041 * b_lin
+
+        xr = x / 0.95047
+        yr = y / 1.00000
+        zr = z / 1.08883
+
+        def f(t):
+            if t > 0.00885645:
+                return t ** (1.0 / 3.0)
+            return 7.787037 * t + (16.0 / 116.0)
+
+        fx = f(xr)
+        fy = f(yr)
+        fz = f(zr)
+
+        l = 116.0 * fy - 16.0
+        a = 500.0 * (fx - fy)
+        b_val = 200.0 * (fy - fz)
+
+        return (l, a, b_val)
+
+    @_require_open
     def add_color_prototype(self, color_id: int, r: float, g: float, b: float):
         self._color_prototypes[int(color_id)] = (float(r), float(g), float(b))
 
@@ -658,13 +745,31 @@ class MDRobotBase:
         if not self._color_prototypes:
             return (0, 999999.0, 0.0)
 
+        s_h, s_s, s_v = _rgb_to_hsv_helper(in_r, in_g, in_b)
+        s_l, s_a, s_b = self.rgb_to_lab(in_r, in_g, in_b)
+
+        wh, ws, wv, wlab = 0.40, 0.20, 0.10, 0.30
+
         best_id = 0
         min_dist = float("inf")
         second_min_dist = float("inf")
 
         for cid, proto in self._color_prototypes.items():
             pr, pg, pb = proto[:3]
-            dist = math.sqrt((in_r - pr) ** 2 + (in_g - pg) ** 2 + (in_b - pb) ** 2)
+            p_h, p_s, p_v = _rgb_to_hsv_helper(pr, pg, pb)
+            p_l, p_a, p_b = self.rgb_to_lab(pr, pg, pb)
+
+            dh = self.circular_hue_distance(s_h, p_h)
+            dh_norm = dh / 180.0
+            ds_norm = abs(s_s - p_s) / 100.0
+            dv_norm = abs(s_v - p_v) / 100.0
+
+            dE = math.sqrt((s_l - p_l) ** 2 + (s_a - p_a) ** 2 + (s_b - p_b) ** 2)
+            dE_norm = min(1.0, dE / 100.0)
+
+            d_norm = math.sqrt(wh * dh_norm ** 2 + ws * ds_norm ** 2 + wv * dv_norm ** 2 + wlab * dE_norm ** 2)
+            dist = d_norm * 100.0
+
             if dist < min_dist:
                 second_min_dist = min_dist
                 min_dist = dist

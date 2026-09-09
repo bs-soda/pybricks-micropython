@@ -873,6 +873,108 @@ pbio_error_t pbio_mdrobotbase_color_cal_add_prototype(pbio_mdrobotbase_t *rb, ui
     return PBIO_SUCCESS;
 }
 
+static void mdrobotbase_hsv_to_rgb(float h, float s, float v, float *r, float *g, float *b) {
+    if (s <= 1e-6f) {
+        *r = v;
+        *g = v;
+        *b = v;
+        return;
+    }
+    h = fmodf(h, 360.0f);
+    if (h < 0.0f) {
+        h += 360.0f;
+    }
+    float h_sector = h / 60.0f;
+    int i = (int)floorf(h_sector);
+    float f = h_sector - (float)i;
+    float s_norm = s / 100.0f;
+    if (s_norm > 1.0f) s_norm = 1.0f;
+    float p = v * (1.0f - s_norm);
+    float q = v * (1.0f - s_norm * f);
+    float t = v * (1.0f - s_norm * (1.0f - f));
+    switch (i % 6) {
+        case 0: *r = v; *g = t; *b = p; break;
+        case 1: *r = q; *g = v; *b = p; break;
+        case 2: *r = p; *g = v; *b = t; break;
+        case 3: *r = p; *g = q; *b = v; break;
+        case 4: *r = t; *g = p; *b = v; break;
+        case 5: *r = v; *g = p; *b = q; break;
+        default: *r = v; *g = v; *b = v; break;
+    }
+}
+
+float pbio_mdrobotbase_circular_hue_distance(float h1, float h2) {
+    if (!isfinite(h1) || !isfinite(h2)) {
+        return 180.0f;
+    }
+    h1 = fmodf(h1, 360.0f);
+    if (h1 < 0.0f) {
+        h1 += 360.0f;
+    }
+    h2 = fmodf(h2, 360.0f);
+    if (h2 < 0.0f) {
+        h2 += 360.0f;
+    }
+    float diff = fabsf(h1 - h2);
+    return (diff <= 180.0f) ? diff : (360.0f - diff);
+}
+
+static inline float mdrobotbase_srgb_to_linear(float c) {
+    if (c <= 0.04045f) {
+        return c / 12.92f;
+    }
+    return powf((c + 0.055f) / 1.055f, 2.4f);
+}
+
+static inline float mdrobotbase_lab_f(float t) {
+    if (t > 0.00885645f) {
+        return cbrtf(t);
+    }
+    return 7.787037f * t + 0.137931034f;
+}
+
+pbio_error_t pbio_mdrobotbase_rgb_to_lab(float r, float g, float b, float *l, float *a, float *b_val) {
+    if (!l || !a || !b_val) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(r) || !isfinite(g) || !isfinite(b) || r < 0.0f || g < 0.0f || b < 0.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    float r_norm = r;
+    float g_norm = g;
+    float b_norm = b;
+    if (r_norm > 1.0f || g_norm > 1.0f || b_norm > 1.0f) {
+        r_norm /= 100.0f;
+        g_norm /= 100.0f;
+        b_norm /= 100.0f;
+    }
+    if (r_norm > 1.0f) r_norm = 1.0f;
+    if (g_norm > 1.0f) g_norm = 1.0f;
+    if (b_norm > 1.0f) b_norm = 1.0f;
+
+    float r_lin = mdrobotbase_srgb_to_linear(r_norm);
+    float g_lin = mdrobotbase_srgb_to_linear(g_norm);
+    float b_lin = mdrobotbase_srgb_to_linear(b_norm);
+
+    // Standard D65 Matrix
+    float x = 0.4124564f * r_lin + 0.3575761f * g_lin + 0.1804375f * b_lin;
+    float y = 0.2126729f * r_lin + 0.7151522f * g_lin + 0.0721750f * b_lin;
+    float z = 0.0193339f * r_lin + 0.1191920f * g_lin + 0.9503041f * b_lin;
+
+    float xr = x / 0.95047f;
+    float yr = y / 1.00000f;
+    float zr = z / 1.08883f;
+
+    float fx = mdrobotbase_lab_f(xr);
+    float fy = mdrobotbase_lab_f(yr);
+    float fz = mdrobotbase_lab_f(zr);
+
+    *l = 116.0f * fy - 16.0f;
+    *a = 500.0f * (fx - fy);
+    *b_val = 200.0f * (fy - fz);
+    return PBIO_SUCCESS;
+}
+
 static void mdrobotbase_rgb_to_hsv(float r, float g, float b, float *h, float *s, float *v) {
     float max_c = fmaxf(r, fmaxf(g, b));
     float min_c = fminf(r, fminf(g, b));
@@ -913,21 +1015,45 @@ pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h
         return PBIO_SUCCESS;
     }
     
-    float h_rad = h * 3.141592653589793f / 180.0f;
-    float v_scale = (rb->color_cal.base_v > 5.0f) ? 3.0f : 35.0f;
-    float x = s * cosf(h_rad);
-    float y = s * sinf(h_rad);
-    float z = v * v_scale;
-    
+    float s_r = 0.0f, s_g = 0.0f, s_b = 0.0f;
+    mdrobotbase_hsv_to_rgb(h, s, v, &s_r, &s_g, &s_b);
+    float s_l = 0.0f, s_a = 0.0f, s_b_val = 0.0f;
+    pbio_mdrobotbase_rgb_to_lab(s_r, s_g, s_b, &s_l, &s_a, &s_b_val);
+
+    const float wh = 0.40f;
+    const float ws = 0.20f;
+    const float wv = 0.10f;
+    const float wlab = 0.30f;
+
     float min_d = 999999.0f;
     float second_min_d = 999999.0f;
     uint8_t best_id = 0;
     
     for (size_t i = 0; i < rb->color_cal.num_prototypes; i++) {
-        float dx = x - rb->color_cal.prototypes[i].x;
-        float dy = y - rb->color_cal.prototypes[i].y;
-        float dz = z - rb->color_cal.prototypes[i].z;
-        float dist = sqrtf(dx * dx + dy * dy + dz * dz);
+        float dh = pbio_mdrobotbase_circular_hue_distance(h, rb->color_cal.prototypes[i].h);
+        float dh_norm = dh / 180.0f;
+        float ds_norm = fabsf(s - rb->color_cal.prototypes[i].s) / 100.0f;
+        float dv_norm = fabsf(v - rb->color_cal.prototypes[i].v) / 100.0f;
+
+        float p_r = 0.0f, p_g = 0.0f, p_b = 0.0f;
+        mdrobotbase_hsv_to_rgb(rb->color_cal.prototypes[i].h, rb->color_cal.prototypes[i].s, rb->color_cal.prototypes[i].v, &p_r, &p_g, &p_b);
+        float p_l = 0.0f, p_a = 0.0f, p_b_val = 0.0f;
+        pbio_mdrobotbase_rgb_to_lab(p_r, p_g, p_b, &p_l, &p_a, &p_b_val);
+
+        float dl = s_l - p_l;
+        float da = s_a - p_a;
+        float db = s_b_val - p_b_val;
+        float dE = sqrtf(dl * dl + da * da + db * db);
+        float dE_norm = dE / 100.0f;
+        if (dE_norm > 1.0f) {
+            dE_norm = 1.0f;
+        }
+
+        float d_norm = sqrtf(wh * dh_norm * dh_norm +
+                             ws * ds_norm * ds_norm +
+                             wv * dv_norm * dv_norm +
+                             wlab * dE_norm * dE_norm);
+        float dist = d_norm * 100.0f;
         
         if (dist < min_d) {
             second_min_d = min_d;

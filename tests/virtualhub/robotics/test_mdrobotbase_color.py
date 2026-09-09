@@ -219,6 +219,98 @@ class TestMDRobotBaseColorContract(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.robot.normalize_color(50.0, 50.0, 50.0)
 
+    def test_circular_hue_distance_scenarios(self):
+        """Scenario 1 & 2: Circular hue distance shortest-arc computation and symmetry."""
+        dh1 = self.robot.circular_hue_distance(359.0, 1.0)
+        dh2 = self.robot.circular_hue_distance(1.0, 359.0)
+        self.assertAlmostEqual(dh1, 2.0, places=4)
+        self.assertAlmostEqual(dh2, 2.0, places=4)
+        self.assertEqual(dh1, dh2)
+
+        # Opposite angles
+        dh_opp = self.robot.circular_hue_distance(0.0, 180.0)
+        self.assertAlmostEqual(dh_opp, 180.0, places=4)
+        self.assertLessEqual(dh_opp, 180.0)
+
+        # Angle wrapping
+        self.assertAlmostEqual(self.robot.circular_hue_distance(720.0, 10.0), 10.0, places=4)
+        self.assertAlmostEqual(self.robot.circular_hue_distance(-10.0, 10.0), 20.0, places=4)
+
+        # Non-finite values
+        self.assertEqual(self.robot.circular_hue_distance(float("nan"), 1.0), 180.0)
+        self.assertEqual(self.robot.circular_hue_distance(float("inf"), 1.0), 180.0)
+
+    def test_cie_lab_reference_transformations(self):
+        """Scenario 3 & 4: CIE Lab pure white and pure black reference mapping."""
+        # Pure White [1.0, 1.0, 1.0] -> L* in [99.9, 100.1], a* in [-0.5, 0.5], b* in [-0.5, 0.5]
+        l_w, a_w, b_w = self.robot.rgb_to_lab(1.0, 1.0, 1.0)
+        self.assertGreaterEqual(l_w, 99.9)
+        self.assertLessEqual(l_w, 100.1)
+        self.assertLess(abs(a_w), 0.5)
+        self.assertLess(abs(b_w), 0.5)
+
+        # Pure Black [0.0, 0.0, 0.0] -> L* == 0.0, a* == 0.0, b* == 0.0
+        l_k, a_k, b_k = self.robot.rgb_to_lab(0.0, 0.0, 0.0)
+        self.assertAlmostEqual(l_k, 0.0, places=4)
+        self.assertAlmostEqual(a_k, 0.0, places=4)
+        self.assertAlmostEqual(b_k, 0.0, places=4)
+
+        # Percentage scale [100.0, 100.0, 100.0]
+        l_w2, a_w2, b_w2 = self.robot.rgb_to_lab(100.0, 100.0, 100.0)
+        self.assertGreaterEqual(l_w2, 99.9)
+        self.assertLessEqual(l_w2, 100.1)
+
+        # Validation errors
+        with self.assertRaises(ValueError):
+            self.robot.rgb_to_lab(-1.0, 0.5, 0.5)
+        with self.assertRaises(ValueError):
+            self.robot.rgb_to_lab(float("nan"), 0.5, 0.5)
+        with self.assertRaises(ValueError):
+            self.robot.rgb_to_lab(float("inf"), 0.5, 0.5)
+
+    def test_similar_color_discrimination_and_wraparound(self):
+        """Scenario 5: Circular hue wraparound classification & similar color discrimination."""
+        self.robot.set_color_threshold(40.0)
+        # Add prototypes:
+        # 1: Red (100, 0, 0)
+        self.robot.add_color_prototype(1, 100.0, 0.0, 0.0)
+        # 2: Orange (100, 50, 0)
+        self.robot.add_color_prototype(2, 100.0, 50.0, 0.0)
+        # 3: Cyan (0, 100, 100)
+        self.robot.add_color_prototype(3, 0.0, 100.0, 100.0)
+        # 4: Blue (0, 0, 100)
+        self.robot.add_color_prototype(4, 0.0, 0.0, 100.0)
+
+        # Red sample with wraparound hue h=359°
+        cid, dist, conf = self.robot.classify_color_hsv(359.0, 100.0, 100.0)
+        self.assertEqual(cid, 1)
+        self.assertLess(dist, 10.0)
+        self.assertGreater(conf, 0.5)
+
+        # Warm test sample h=10°: closer to Red (0°) than Orange (30°)
+        cid, dist, conf = self.robot.classify_color_hsv(10.0, 100.0, 100.0)
+        self.assertEqual(cid, 1)
+
+        # Warm test sample h=25°: closer to Orange (30°) than Red (0°)
+        cid, dist, conf = self.robot.classify_color_hsv(25.0, 100.0, 100.0)
+        self.assertEqual(cid, 2)
+
+        # Cyan vs Blue discrimination: sample h=185° matches Cyan (3)
+        cid, dist, conf = self.robot.classify_color_hsv(185.0, 100.0, 100.0)
+        self.assertEqual(cid, 3)
+
+        # Sample h=235° matches Blue (4)
+        cid, dist, conf = self.robot.classify_color_hsv(235.0, 100.0, 100.0)
+        self.assertEqual(cid, 4)
+
+    def test_closed_object_perceptual_guarding(self):
+        """Closed instance raises RuntimeError on circular hue and lab calls."""
+        self.robot.close()
+        with self.assertRaises(RuntimeError):
+            self.robot.circular_hue_distance(359.0, 1.0)
+        with self.assertRaises(RuntimeError):
+            self.robot.rgb_to_lab(1.0, 1.0, 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2364,6 +2364,110 @@ end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }
 
+static pbio_error_t test_mdrobotbase_perceptual_color_classifier(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left;
+    static pbio_servo_t *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    // 1. Scenario 1 & 2: Circular Hue Distance Arithmetic & Invariants
+    float dh1 = pbio_mdrobotbase_circular_hue_distance(359.0f, 1.0f);
+    float dh2 = pbio_mdrobotbase_circular_hue_distance(1.0f, 359.0f);
+    tt_want(fabsf(dh1 - 2.0f) < 1e-4f);
+    tt_want(fabsf(dh2 - 2.0f) < 1e-4f);
+    tt_want(dh1 == dh2);
+
+    float dh_opp = pbio_mdrobotbase_circular_hue_distance(0.0f, 180.0f);
+    tt_want(fabsf(dh_opp - 180.0f) < 1e-4f);
+    tt_want(dh_opp <= 180.0f);
+
+    float dh_wrap = pbio_mdrobotbase_circular_hue_distance(720.0f, 10.0f);
+    tt_want(fabsf(dh_wrap - 10.0f) < 1e-4f);
+
+    float dh_neg = pbio_mdrobotbase_circular_hue_distance(-10.0f, 10.0f);
+    tt_want(fabsf(dh_neg - 20.0f) < 1e-4f);
+
+    float dh_nan = pbio_mdrobotbase_circular_hue_distance(NAN, 1.0f);
+    tt_want(dh_nan == 180.0f);
+
+    // 2. Scenario 3 & 4: CIE Lab White and Black Reference Transformations
+    float l = -1.0f, a = -1.0f, b = -1.0f;
+    // Pure White [1.0, 1.0, 1.0] -> L* in [99.9, 100.1], a* in [-0.5, 0.5], b* in [-0.5, 0.5]
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, &l, &a, &b), ==, PBIO_SUCCESS);
+    tt_want(l >= 99.9f && l <= 100.1f);
+    tt_want(fabsf(a) < 0.5f);
+    tt_want(fabsf(b) < 0.5f);
+
+    // Pure Black [0.0, 0.0, 0.0] -> L* == 0.0, a* == 0.0, b* == 0.0
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(0.0f, 0.0f, 0.0f, &l, &a, &b), ==, PBIO_SUCCESS);
+    tt_want(fabsf(l) < 1e-4f);
+    tt_want(fabsf(a) < 1e-4f);
+    tt_want(fabsf(b) < 1e-4f);
+
+    // Fail-Closed Validation
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(-0.1f, 0.5f, 0.5f, &l, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(NAN, 0.5f, 0.5f, &l, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, NULL, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, &l, NULL, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, &l, &a, NULL), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 3. Scenario 5: Color Classification with Wraparound & Similar Color Discrimination
+    lego_device_type_id_t dev_id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &dev_id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, dev_id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &dev_id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, dev_id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_assert(rb != NULL);
+
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+    // Add prototypes:
+    // Color 1: Red (h=0°, s=100, v=100)
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, 0.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    // Color 2: Orange (h=30°, s=100, v=100)
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 2, 30.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    // Color 3: Cyan (h=180°, s=100, v=100)
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 3, 180.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    // Color 4: Blue (h=240°, s=100, v=100)
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 4, 240.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+
+    uint8_t cid = 0;
+    float dist = 0.0f, conf = 0.0f;
+
+    // Red wraparound test: sample h=359° must match Red (1), not Orange or None
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 359.0f, 100.0f, 100.0f, &cid, &dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(cid, ==, 1);
+    tt_want(dist < 10.0f);
+    tt_want(conf > 0.5f);
+
+    // Warm test sample h=10°: closer to Red (0°) than Orange (30°)
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 10.0f, 100.0f, 100.0f, &cid, &dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(cid, ==, 1);
+
+    // Warm test sample h=25°: closer to Orange (30°) than Red (0°)
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 25.0f, 100.0f, 100.0f, &cid, &dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(cid, ==, 2);
+
+    // Cyan vs Blue discrimination: sample h=185° matches Cyan (3)
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 185.0f, 100.0f, 100.0f, &cid, &dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(cid, ==, 3);
+
+    // Sample h=235° matches Blue (4)
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 235.0f, 100.0f, 100.0f, &cid, &dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(cid, ==, 4);
+
+    // Clean teardown
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
 struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_basics),
     PBIO_THREAD_TEST(test_mdrobotbase_motion_state),
@@ -2389,6 +2493,7 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_fsm_terminal_helpers),
     PBIO_THREAD_TEST(test_mdrobotbase_color_classification),
     PBIO_THREAD_TEST(test_mdrobotbase_two_point_calibration),
+    PBIO_THREAD_TEST(test_mdrobotbase_perceptual_color_classifier),
     END_OF_TESTCASES
 };
 

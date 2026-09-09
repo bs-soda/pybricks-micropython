@@ -263,4 +263,8 @@ pbio_error_t pbio_mdrobotbase_color_cal_set_black_reference(pbio_mdrobotbase_t *
 pbio_error_t pbio_mdrobotbase_color_cal_set_white_reference(pbio_mdrobotbase_t *rb, float r, float g, float b);
 pbio_error_t pbio_mdrobotbase_color_normalize(pbio_mdrobotbase_t *rb, float r, float g, float b, float *r_norm, float *g_norm, float *b_norm);
 
+// Native C Perceptual Color Classifier API (G-MDRB-030: Circular Hue & CIE L*a*b* Space)
+float pbio_mdrobotbase_circular_hue_distance(float h1, float h2);
+pbio_error_t pbio_mdrobotbase_rgb_to_lab(float r, float g, float b, float *l, float *a, float *b_val);
+
 #endif // _PBIO_MDROBOTBASE_H_

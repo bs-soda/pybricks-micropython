@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Master Replication & Complete Release Gate: G-MDRB-032
- * 
+ *
  * Verifies all 7 Enterprise Release Gates:
  * - Gate 1: Fail-Closed Environment & Exact-HEAD Provenance
  * - Gate 2: Touch Map SHA-256 Integrity Verification
@@ -10,7 +10,7 @@
  * - Gate 5: C Compiler Zero-Warning Clean Build Verification
  * - Gate 6: Ambiguity Margin & Confidence Scoring Oracle
  * - Gate 7: Socratic Agentic Loop & Acceptance Criteria Traceability Matrix (Score >= 9.8/10)
- * 
+ *
  * Invariants: Article I (Zero Mocks), Article II (Mandatory Verification Pass)
  */
 

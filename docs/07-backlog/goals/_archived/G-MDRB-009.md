@@ -1,12 +1,12 @@
 # G-MDRB-009: Maintainability and Duplicate Control Logic Reduction
 
-**Status:** done  
-**Kind:** chore  
-**Atomic outcome:** Deduplicate redundant control math, speed conversions, and heading normalization across the 900+ line motion iteration monolith without altering behavior  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-008  
-**Blocks:** —  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** chore
+**Atomic outcome:** Deduplicate redundant control math, speed conversions, and heading normalization across the 900+ line motion iteration monolith without altering behavior
+**Epic:** MDRB
+**Depends on:** G-MDRB-008
+**Blocks:** —
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -46,8 +46,8 @@ This massive duplication introduces high risk of divergent behavior whenever a b
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Duplicate control loops create maintenance hazards and divergence risks; extracting verified common helpers ensures uniform behavior and prevents localized bug re-emergence.  
-**Done when:** Shared control math, angle normalization, and motor speed clamping are consolidated into modular helpers, function complexity of the motion iteration monolith is significantly reduced, and all regression tests produce bit-identical behavioral outputs.  
+**Why:** Duplicate control loops create maintenance hazards and divergence risks; extracting verified common helpers ensures uniform behavior and prevents localized bug re-emergence.
+**Done when:** Shared control math, angle normalization, and motor speed clamping are consolidated into modular helpers, function complexity of the motion iteration monolith is significantly reduced, and all regression tests produce bit-identical behavioral outputs.
 **Unblocks:** — (Epic completion and scorecard promotion).
 
 ## Atomicity & Zero-Mock Contract
@@ -96,31 +96,31 @@ This massive duplication introduces high risk of divergent behavior whenever a b
 ## Work steps
 
 ### Step 1 — Static Inline Helper Definition
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Define `mdrobotbase_wrap_degrees()`, `mdrobotbase_clamp_speed()`, and `mdrobotbase_linear_to_angular_dps()`.
 2. Ensure helpers have zero runtime overhead (compiled inline).
 
-**Completion gate:** Helpers compile cleanly; standalone unit assertions pass.  
+**Completion gate:** Helpers compile cleanly; standalone unit assertions pass.
 **Stop condition:** Any compiler warning.
 
 ### Step 2 — Motion Iteration Deduplication
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Replace all 12 angle wrapping loops with `mdrobotbase_wrap_degrees()`.
 2. Replace motor dps clamping blocks with `mdrobotbase_clamp_speed()`.
 3. Unify stall tracking with `mdrobotbase_evaluate_stall()`.
 
-**Completion gate:** `pb_type_mdrobotbase_motion_iterate_once` reduced by $>200$ lines.  
+**Completion gate:** `pb_type_mdrobotbase_motion_iterate_once` reduced by $>200$ lines.
 **Stop condition:** Any behavioral discrepancy in motion output.
 
 ### Step 3 — Regression Validation Pass
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`, `tests/virtualhub/robotics/**`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`, `tests/virtualhub/robotics/**`
 **Actions:**
 1. Run all regression tests from `G-MDRB-008`.
 2. Verify all kinematic and async lifecycle tests pass 100% green.
 
-**Completion gate:** 100% regression tests pass with identical values before and after refactoring.  
+**Completion gate:** 100% regression tests pass with identical values before and after refactoring.
 **Stop condition:** Any failed test assertion.
 
 ## In

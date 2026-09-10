@@ -110,19 +110,19 @@ async def test_trajectory_waypoint_execution():
     # Route: Start (0, 0) -> (100, 0) -> (100, 100)
     waypoints = [(0.0, 0.0), (100.0, 0.0), (100.0, 100.0)]
     robot.reset_state(0.0, 0.0, 0.0)
-    
+
     # Execute trajectory
     await robot.follow_trajectory(waypoints, speed_mm_s=150.0, tolerance=2.0)
-    
+
     state = robot.get_state()
     x, y, theta = state[0], state[1], state[2]
-    
+
     # Assert Cartesian arrival within <= 2.0 mm
     err_x = abs(x - 100.0)
     err_y = abs(y - 100.0)
     assert err_x <= 2.0, f"Target X error {err_x:.2f} mm exceeds tolerance 2.0 mm"
     assert err_y <= 2.0, f"Target Y error {err_y:.2f} mm exceeds tolerance 2.0 mm"
-    
+
     # Assert robot completed and not stalled
     assert robot.done(), "Robot must report done upon trajectory arrival"
     assert not robot.stalled(), "Robot must not report stalled upon successful trajectory arrival"
@@ -190,4 +190,3 @@ class TestMDRobotBaseTrajectory(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Socratic Agentic Loop: G-MDRB-028 Color Input Contract Unification & Structured Output
- * 
+ *
  * Executes 5 Causal Branches x 5 Dialectic Levels (25 Total Nodes)
  * Strict Zero-Mock Contract: Article I Invariant (Zero Mocks, Zero Stubs, Zero String Simulations)
  * Article II: Mandatory Verification & Testing Pass
- * 
+ *
  * Branches:
  * 1. Native C Dual Ingestion Contract (classify_rgb and classify_hsv)
  * 2. VirtualHub Python Method Parity (classify_color_rgb and classify_color_hsv)

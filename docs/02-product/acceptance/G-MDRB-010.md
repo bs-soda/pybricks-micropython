@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-010
 
-**Goal ID:** `G-MDRB-010`  
-**Title:** Safe Robot-Base Instance Ownership & Duplicate Motor-Pair Rejection  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-010`
+**Title:** Safe Robot-Base Instance Ownership & Duplicate Motor-Pair Rejection
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

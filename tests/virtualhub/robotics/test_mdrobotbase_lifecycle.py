@@ -44,7 +44,7 @@ async def test_motion_preemption():
     task_straight = run_task(robot.straight(500.0, speed_mm_s=200.0))
     # Small pause to ensure motion begins
     await wait(20)
-    
+
     # Preempt with in-place turn
     await robot.turn_to_angle(90.0, speed_deg_s=200.0)
     assert abs(robot.heading - 90.0) <= 2.0, f"Expected heading ~90, got {robot.heading}"
@@ -403,5 +403,3 @@ class TestMDRobotBaseLifecycle(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

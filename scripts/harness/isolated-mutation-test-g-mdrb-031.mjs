@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Isolated Mutation Test Suite: G-MDRB-031
- * 
+ *
  * Verifies harness sensitivity by injecting synthetic mutations into
  * Welford online accumulation, circular mean vector projection,
  * Bessel variance correction, and 2.5-sigma outlier rejection.
- * 
+ *
  * Invariants: Exact-HEAD provenance, Article I (Zero False-Positives), Article II (Mandatory Failure Detection).
  */
 

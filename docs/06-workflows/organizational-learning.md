@@ -1,7 +1,7 @@
 # Organizational learning & intelligence (v5 → v6)
 
-> **Knowledge OS for autonomous delivery** — patterns + outcomes + governed reuse.  
-> Governance: [knowledge-governance.md](knowledge-governance.md)  
+> **Knowledge OS for autonomous delivery** — patterns + outcomes + governed reuse.
+> Governance: [knowledge-governance.md](knowledge-governance.md)
 > Pattern library: [org-patterns/README.md](../04-agents/org-patterns/README.md)
 
 ---

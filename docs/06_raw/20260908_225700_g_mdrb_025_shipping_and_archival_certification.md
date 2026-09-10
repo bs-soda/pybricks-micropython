@@ -1,17 +1,17 @@
 # G-MDRB-025 Shipping & Archival Certification Report
 
-**Document ID:** `DOC-06RAW-20260908-MDRB025-SHIP-CERT`  
-**Timestamp:** `2026-09-08T22:57:00+07:00`  
-**Author:** Antigravity AI Engine (on behalf of WRO Robotics Engineering Team)  
-**Corpus Name:** `bs-soda/pybricks-micropython`  
-**Active Feature Branch:** `feature/mdrobotbase-enhancement`  
-**Target Integration Branch:** `epic/MDRB`  
-**Goal ID:** `G-MDRB-025`  
-**Archived Goal Card:** [`docs/07-backlog/goals/_archived/G-MDRB-025.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-025.md)  
-**Acceptance Contract:** [`docs/02-product/acceptance/G-MDRB-025.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-025.md)  
-**Queue Registry:** [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md)  
-**Goal Status:** `done`  
-**Collaboration Phase:** `SHIP`  
+**Document ID:** `DOC-06RAW-20260908-MDRB025-SHIP-CERT`
+**Timestamp:** `2026-09-08T22:57:00+07:00`
+**Author:** Antigravity AI Engine (on behalf of WRO Robotics Engineering Team)
+**Corpus Name:** `bs-soda/pybricks-micropython`
+**Active Feature Branch:** `feature/mdrobotbase-enhancement`
+**Target Integration Branch:** `epic/MDRB`
+**Goal ID:** `G-MDRB-025`
+**Archived Goal Card:** [`docs/07-backlog/goals/_archived/G-MDRB-025.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-025.md)
+**Acceptance Contract:** [`docs/02-product/acceptance/G-MDRB-025.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-025.md)
+**Queue Registry:** [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md)
+**Goal Status:** `done`
+**Collaboration Phase:** `SHIP`
 
 ---
 
@@ -43,7 +43,7 @@ All verification suites (PBIO C driver tests, MicroPython VirtualHub tests, Socr
 - Socratic dialectic harness: [`scripts/harness/socratic-agentic-loop-g-mdrb-025-harness.mjs`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/scripts/harness/socratic-agentic-loop-g-mdrb-025-harness.mjs)
 
 ### WHY
-During Codex's comprehensive architectural review, the motion dispatcher loop was flagged as a maintainability bottleneck (scoring 7.0/10): `pb_type_mdrobotbase_motion_iterate_once()` spanned over 550 lines in a single function containing 4 large disparate branches. 
+During Codex's comprehensive architectural review, the motion dispatcher loop was flagged as a maintainability bottleneck (scoring 7.0/10): `pb_type_mdrobotbase_motion_iterate_once()` spanned over 550 lines in a single function containing 4 large disparate branches.
 
 This monolithic structure caused:
 1. Redundant duplication of linear-to-angular speed conversions and servo command invocations across all 4 movement branches.

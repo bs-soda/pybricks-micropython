@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-022
 
-**Goal ID:** `G-MDRB-022`  
-**Title:** Behavioral Motion Preemption Safety & Non-Disruptive Invalid Command Rejection  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-022`
+**Title:** Behavioral Motion Preemption Safety & Non-Disruptive Invalid Command Rejection
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

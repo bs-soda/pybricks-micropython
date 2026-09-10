@@ -1,18 +1,18 @@
 # G-MDRB-024 Master Replication & Release Gate Certification Report
 
-**ISO Timestamp:** `2026-09-08T21:15:00+07:00`  
-**Author:** AI Agentic Pair (Sodality OS / Antigravity)  
-**Goal:** [`G-MDRB-024: Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-024.md)  
-**Acceptance Contract:** [`docs/02-product/acceptance/G-MDRB-024.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-024.md)  
-**Branch:** `feature/mdrobotbase-enhancement`  
-**Status:** `review` (Ready for Human Approval)  
+**ISO Timestamp:** `2026-09-08T21:15:00+07:00`
+**Author:** AI Agentic Pair (Sodality OS / Antigravity)
+**Goal:** [`G-MDRB-024: Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-024.md)
+**Acceptance Contract:** [`docs/02-product/acceptance/G-MDRB-024.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-024.md)
+**Branch:** `feature/mdrobotbase-enhancement`
+**Status:** `review` (Ready for Human Approval)
 
 ---
 
 ## 1. Executive Summary & Defect Remediation
 
 Codex's September 2026 architectural review noted:
-> **P1 — The FSM is not the single source of truth**  
+> **P1 — The FSM is not the single source of truth**
 > The code defines and tests a motion-status transition table, but production motion paths directly assign status fields:
 > ```c
 > self->rb->motion_status = PBIO_MDROBOTBASE_STATUS_COMPLETED;

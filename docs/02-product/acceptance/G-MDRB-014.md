@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-014
 
-**Goal ID:** `G-MDRB-014`  
-**Title:** Differential-Drive Kinematic Invariants & Bidirectional Gear-Ratio Semantics  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-014`
+**Title:** Differential-Drive Kinematic Invariants & Bidirectional Gear-Ratio Semantics
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

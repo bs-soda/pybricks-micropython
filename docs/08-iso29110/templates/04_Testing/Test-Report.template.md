@@ -2,11 +2,11 @@
 
 **Test Report** — **WP20** (derived from WP19)
 
-**Document Version:** {{test_report_version}}  
-**Date:** {{date}}  
+**Document Version:** {{test_report_version}}
+**Date:** {{date}}
 **Author:** {{author}}
 
-> **Same evidence set as WP19 Test Cases.**  
+> **Same evidence set as WP19 Test Cases.**
 > This report is a **summary + status graph** over the WP19 register — do not maintain a separate disconnected case list.
 
 ### Revision History
@@ -75,9 +75,9 @@ flowchart LR
 
 ### 5. Conclusion
 
-- [ ] All P0/P1 cases Pass or waived with PO approval  
-- [ ] Failures logged in WP04 (ClickUp correction register)  
-- [ ] Ready for WP22 Validation / WP01 Acceptance  
+- [ ] All P0/P1 cases Pass or waived with PO approval
+- [ ] Failures logged in WP04 (ClickUp correction register)
+- [ ] Ready for WP22 Validation / WP01 Acceptance
 
 | Role | Name | Date | Decision |
 | ----- | ----- | ----- | ----- |

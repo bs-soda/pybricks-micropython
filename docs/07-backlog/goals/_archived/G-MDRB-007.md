@@ -1,12 +1,12 @@
 # G-MDRB-007: Trajectory and Controller Input Validation
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Enforce strict validation on trajectory coordinates, point capacity limits, tolerances, speeds, and controller enums  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-006  
-**Blocks:** G-MDRB-008  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Enforce strict validation on trajectory coordinates, point capacity limits, tolerances, speeds, and controller enums
+**Epic:** MDRB
+**Depends on:** G-MDRB-006
+**Blocks:** G-MDRB-008
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -45,8 +45,8 @@ In [`pybricks/robotics/pb_type_mdrobotbase.c:1736-1738, 1770-1775`](file:///User
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Multi-waypoint navigation paths must execute reliably or fail immediately; silent path truncation and malformed coordinates cause memory corruptions, crash the interpreter, or leave robots stranded mid-field.  
-**Done when:** Trajectories with $>64$ points are rejected with an explicit capacity error, every coordinate is verified to have $\ge 2$ finite values, speeds and tolerances must be strictly positive, and unknown controller types are rejected.  
+**Why:** Multi-waypoint navigation paths must execute reliably or fail immediately; silent path truncation and malformed coordinates cause memory corruptions, crash the interpreter, or leave robots stranded mid-field.
+**Done when:** Trajectories with $>64$ points are rejected with an explicit capacity error, every coordinate is verified to have $\ge 2$ finite values, speeds and tolerances must be strictly positive, and unknown controller types are rejected.
 **Unblocks:** G-MDRB-008 (Comprehensive MDRobotBase Regression Coverage).
 
 ## Atomicity & Zero-Mock Contract
@@ -99,26 +99,26 @@ In [`pybricks/robotics/pb_type_mdrobotbase.c:1736-1738, 1770-1775`](file:///User
 ## Work steps
 
 ### Step 1 — Trajectory Over-Capacity and Coordinate Length Validation
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Eliminate silent truncation at 64 points; raise `ValueError` for $>64$ points.
 2. Enforce minimum point count of 2.
 3. Validate tuple length $\ge 2$ and coordinate finiteness for every waypoint.
 
-**Completion gate:** Malformed points and $>64$ point arrays reject cleanly with `ValueError`.  
+**Completion gate:** Malformed points and $>64$ point arrays reject cleanly with `ValueError`.
 **Stop condition:** Any segmentation fault or out-of-bounds array access.
 
 ### Step 2 — Controller Enum and Parameter Positivity Guards
-**Allowed files:** `lib/pbio/src/mdrobotbase.c`, `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c`, `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Reject unknown controller enum values in `pbio_mdrobotbase_set_controller()`.
 2. Validate positivity of speeds, tolerances, and acceleration limits.
 
-**Completion gate:** Setting invalid controller enum returns `PBIO_ERROR_INVALID_ARG`.  
+**Completion gate:** Setting invalid controller enum returns `PBIO_ERROR_INVALID_ARG`.
 **Stop condition:** Any unhandled controller mode.
 
 ### Step 3 — Negative Input Test Suite
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py`, `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py`, `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Test 65-point trajectory (verify rejection).
 2. Test 1-coordinate points `[(100,)]` (verify rejection).
@@ -126,7 +126,7 @@ In [`pybricks/robotics/pb_type_mdrobotbase.c:1736-1738, 1770-1775`](file:///User
 4. Test controller enum 99 (verify rejection).
 5. Verify zero motor commands issued across all negative tests.
 
-**Completion gate:** All negative tests pass 100% green without side effects.  
+**Completion gate:** All negative tests pass 100% green without side effects.
 **Stop condition:** Any motor movement on invalid input.
 
 ## In

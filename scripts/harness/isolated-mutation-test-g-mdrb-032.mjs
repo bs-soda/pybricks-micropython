@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Isolated Mutation Test Suite: G-MDRB-032
- * 
+ *
  * Verifies harness sensitivity by injecting synthetic mutations into
  * second-best distance tracking, ambiguity margin calculation,
  * confidence normalization, and fail-safe Color.NONE rejection.
- * 
+ *
  * Invariants: Exact-HEAD provenance, Article I (Zero False-Positives), Article II (Mandatory Failure Detection).
  */
 

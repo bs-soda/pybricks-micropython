@@ -1,12 +1,12 @@
 # G-MDRB-021: Exhaustive Closed-Object Method Audit and Idempotent Lifecycle Attestation
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Enforce pb_type_mdrobotbase_require_open across all 49 methods in the MDRobotBase locals dictionary table, proving raising OSError(EBADF) across every public method after close() and verifying idempotent close()  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-020  
-**Blocks:** G-MDRB-022  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Enforce pb_type_mdrobotbase_require_open across all 49 methods in the MDRobotBase locals dictionary table, proving raising OSError(EBADF) across every public method after close() and verifying idempotent close()
+**Epic:** MDRB
+**Depends on:** G-MDRB-020
+**Blocks:** G-MDRB-022
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -39,8 +39,8 @@ Calling these methods on a closed robot base risks operating on a freed C struct
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** A closed object must be completely dead to all runtime interactions except idempotent finalization; invoking any operational method on a closed instance must fail deterministically rather than crashing the firmware.  
-**Done when:** Every single public method in the class table enforces the closed-object guard, invoking any method after `close()` raises `OSError(EBADF)` with zero side effects, and calling `close()` multiple times is proven safe and idempotent.  
+**Why:** A closed object must be completely dead to all runtime interactions except idempotent finalization; invoking any operational method on a closed instance must fail deterministically rather than crashing the firmware.
+**Done when:** Every single public method in the class table enforces the closed-object guard, invoking any method after `close()` raises `OSError(EBADF)` with zero side effects, and calling `close()` multiple times is proven safe and idempotent.
 **Unblocks:** G-MDRB-022
 
 ## Atomicity & Zero-Mock Contract
@@ -102,32 +102,32 @@ Calling these methods on a closed robot base risks operating on a freed C struct
 
 ### Step 1 — Specification & 49-Method Audit Matrix Formalization
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-021.md` · `docs/02-product/acceptance/G-MDRB-021.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-021.md` · `docs/02-product/acceptance/G-MDRB-021.md`
 **Actions:**
 1. Extract and catalog all 49 function pointers and method entries in `_robotics_MDRobotBase_locals_dict_table`.
 2. Formulate Given-When-Then BDD scenarios for all method categories (motion, query, tuning, color calibration).
 3. Specify `close()` idempotency contract.
-**Completion gate:** Acceptance contract exists with exhaustive method matrix.  
+**Completion gate:** Acceptance contract exists with exhaustive method matrix.
 **Stop condition:** Spec drift or omitted method entries.
 
 ### Step 2 — Enforce require_open Guard on Color Calibration & Utility Methods
 
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Add `pb_type_mdrobotbase_require_open(self)` to all color calibration and secondary utility methods.
 2. Ensure no C struct dereferences occur prior to the guard.
 3. Verify `close()` cleanly zeroes `self->rb = NULL` and remains idempotent on subsequent calls.
-**Completion gate:** Clean C compilation without warnings.  
+**Completion gate:** Clean C compilation without warnings.
 **Stop condition:** Compiler error or broken method signatures.
 
 ### Step 3 — Comprehensive Post-Close Reflection & Idempotency Test Pass
 
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`
 **Actions:**
 1. Implement `test_closed_object_exhaustive_audit()` in `test_mdrobotbase_lifecycle.py`.
 2. Reflectively inspect and invoke all public methods on a closed robot instance, verifying `OSError(EBADF)`.
 3. Verify repeated `robot.close()` calls return safely without raising errors.
-**Completion gate:** Python test suite passes 100% with all methods verified.  
+**Completion gate:** Python test suite passes 100% with all methods verified.
 **Stop condition:** Any method fails to raise `EBADF` or crashes.
 
 ## In

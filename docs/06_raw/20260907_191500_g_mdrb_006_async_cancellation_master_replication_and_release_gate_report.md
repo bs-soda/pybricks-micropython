@@ -1,13 +1,13 @@
 # G-MDRB-006: Master Replication & Complete Release Gate Certification Report
 
-**Document ID:** `docs/06_raw/20260907_191500_g_mdrb_006_async_cancellation_master_replication_and_release_gate_report.md`  
-**Timestamp:** `2026-09-07T19:15:00+07:00`  
-**Goal:** [G-MDRB-006: Async Cancellation and Repeated-Motion Lifecycle Safety](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-006.md)  
-**Epic:** [MDRB](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/epics/MDRB.md)  
-**Base Integration Target:** `epic/MDRB`  
-**Active Working Branch:** `feature/mdrobotbase-enhancement`  
-**Git Exact-HEAD SHA:** `0582aefe38928ed3fe7456775dc5784a901bd28b`  
-**Status:** `review` (Awaiting Human Review & Approval)  
+**Document ID:** `docs/06_raw/20260907_191500_g_mdrb_006_async_cancellation_master_replication_and_release_gate_report.md`
+**Timestamp:** `2026-09-07T19:15:00+07:00`
+**Goal:** [G-MDRB-006: Async Cancellation and Repeated-Motion Lifecycle Safety](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-006.md)
+**Epic:** [MDRB](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/epics/MDRB.md)
+**Base Integration Target:** `epic/MDRB`
+**Active Working Branch:** `feature/mdrobotbase-enhancement`
+**Git Exact-HEAD SHA:** `0582aefe38928ed3fe7456775dc5784a901bd28b`
+**Status:** `review` (Awaiting Human Review & Approval)
 
 ---
 

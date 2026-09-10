@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-030
 
-**Goal ID:** `G-MDRB-030`  
-**Title:** Perceptual Color Classifier with Circular Hue Distance and CIE L*a*b* Space  
-**Epic:** MDRB  
-**Kind:** feature  
+**Goal ID:** `G-MDRB-030`
+**Title:** Perceptual Color Classifier with Circular Hue Distance and CIE L*a*b* Space
+**Epic:** MDRB
+**Kind:** feature
 
 ---
 

@@ -1,7 +1,7 @@
 # EPIC: [SLUG]
 
-**Slug:** PAY  
-**Name:** [Short name]  
+**Slug:** PAY
+**Name:** [Short name]
 **Owner:** [human]
 
 ## Intent

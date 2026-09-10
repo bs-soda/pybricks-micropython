@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-016
 
-**Goal ID:** `G-MDRB-016`  
-**Title:** Numerical Robustness, Geometry Bounds, and Quantization Hardening  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-016`
+**Title:** Numerical Robustness, Geometry Bounds, and Quantization Hardening
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

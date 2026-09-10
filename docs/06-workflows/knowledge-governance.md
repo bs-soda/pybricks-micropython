@@ -1,7 +1,7 @@
 # Knowledge governance
 
-> **Layer above the knowledge loop** — who owns, who approves, what agents may change without human sign-off.  
-> **Core invariants (immutable):** [os-core-invariants.md](os-core-invariants.md)  
+> **Layer above the knowledge loop** — who owns, who approves, what agents may change without human sign-off.
+> **Core invariants (immutable):** [os-core-invariants.md](os-core-invariants.md)
 > Complements [.agents/rules/governance.md](../../.agents/rules/governance.md) (code/ship gates).
 
 When multiple agents or humans edit the same graph, this table is the **authority matrix** for `docs/02-product/` and `docs/05-decisions/`.

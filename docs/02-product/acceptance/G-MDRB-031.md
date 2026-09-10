@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-031
 
-**Goal ID:** `G-MDRB-031`  
-**Title:** Multi-Sample Prototype Statistical Calibration and Variance Modeling  
-**Epic:** MDRB  
-**Kind:** feature  
+**Goal ID:** `G-MDRB-031`
+**Title:** Multi-Sample Prototype Statistical Calibration and Variance Modeling
+**Epic:** MDRB
+**Kind:** feature
 
 ---
 

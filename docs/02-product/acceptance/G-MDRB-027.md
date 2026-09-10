@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-027
 
-**Goal ID:** `G-MDRB-027`  
-**Title:** Multi-Environment Runtime Test Execution Matrix, Compiler Warning Audit & Final Scorecard Attestation  
-**Epic:** MDRB  
-**Kind:** qa  
+**Goal ID:** `G-MDRB-027`
+**Title:** Multi-Environment Runtime Test Execution Matrix, Compiler Warning Audit & Final Scorecard Attestation
+**Epic:** MDRB
+**Kind:** qa
 
 ---
 

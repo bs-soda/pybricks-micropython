@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Master Replication & Complete Release Gate: G-MDRB-027
- * 
+ *
  * Verifies all 7 Enterprise Release Gates:
  * - Gate 1: Fail-Closed Environment & Exact-HEAD Provenance
  * - Gate 2: Touch Map SHA-256 Integrity Verification
@@ -10,7 +10,7 @@
  * - Gate 5: C Compiler Zero-Warning Clean Build Verification
  * - Gate 6: Measured Kernel Episode Oracle & Raw-Trial Statistics (10 episodes, Student-t CI)
  * - Gate 7: Socratic Agentic Loop & Acceptance Criteria Traceability Matrix (Score >= 9.4/10)
- * 
+ *
  * Invariants: Article I (Zero Mocks), Article II (Mandatory Verification Pass)
  */
 
@@ -124,7 +124,7 @@ try {
   const makeOut = execSync('make -C lib/pbio/test', { cwd: ROOT, encoding: 'utf8' });
   const zeroWarnings = !makeOut.includes('warning:') && !makeOut.includes('error:');
   assertGate(5, 'Native C compilation under -Wall -Wextra -Werror emits zero compiler warnings', zeroWarnings, makeOut);
-  
+
   const pybricksC = readFileSync(resolve(ROOT, 'pybricks/robotics/pb_type_mdrobotbase.c'), 'utf8');
   const zeroDoublePromotions = !/val\s*<=\s*0\.0[^\w.]/.test(pybricksC) && !/val\s*<\s*0\.0[^\w.]/.test(pybricksC);
   assertGate(5, 'Zero unadorned double-literal promotions in pb_type_mdrobotbase.c', zeroDoublePromotions);

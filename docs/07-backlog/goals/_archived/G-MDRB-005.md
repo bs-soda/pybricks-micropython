@@ -1,12 +1,12 @@
 # G-MDRB-005: Distinct Timeout and Stall Failure Reporting
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Eliminate silent masking of motion failures by returning distinct error codes and MicroPython exceptions for timeouts, stalls, and device faults  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-004  
-**Blocks:** G-MDRB-006  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Eliminate silent masking of motion failures by returning distinct error codes and MicroPython exceptions for timeouts, stalls, and device faults
+**Epic:** MDRB
+**Depends on:** G-MDRB-004
+**Blocks:** G-MDRB-006
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -54,8 +54,8 @@ Because `PBIO_SUCCESS` is returned, user scripts and autonomous routines believe
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** A motion failure must never masquerade as a success; silently ignoring timeouts and stalls leads to cumulative localization failure, physical mechanism damage, and broken autonomous sequencing.  
-**Done when:** Motor stalls and timeout expirations stop the actuators according to configured completion behavior, clear active motion flags, and return distinct, inspectable failure codes/exceptions to caller scripts.  
+**Why:** A motion failure must never masquerade as a success; silently ignoring timeouts and stalls leads to cumulative localization failure, physical mechanism damage, and broken autonomous sequencing.
+**Done when:** Motor stalls and timeout expirations stop the actuators according to configured completion behavior, clear active motion flags, and return distinct, inspectable failure codes/exceptions to caller scripts.
 **Unblocks:** G-MDRB-006 (Async Cancellation and Repeated-Motion Lifecycle Safety).
 
 ## Atomicity & Zero-Mock Contract
@@ -112,34 +112,34 @@ Because `PBIO_SUCCESS` is returned, user scripts and autonomous routines believe
 ## Work steps
 
 ### Step 1 — Motion Status State Definition
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`
 **Actions:**
 1. Define `pbio_mdrobotbase_motion_status_t` enum.
 2. Add `motion_status` member to `pbio_mdrobotbase_t`.
 
-**Completion gate:** Type definitions compile cleanly.  
+**Completion gate:** Type definitions compile cleanly.
 **Stop condition:** Any naming conflict with existing PBIO enums.
 
 ### Step 2 — Distinct Error Code Return in Motion Loop
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Replace `return PBIO_SUCCESS;` on timeout with `return PBIO_ERROR_TIMEDOUT;`.
 2. Replace `return PBIO_SUCCESS;` on stall with `return PBIO_ERROR_FAILED;`.
 3. Preserve configured stop behavior (`HOLD`/`BRAKE`/`COAST`).
 4. Always clear `motion_in_progress = false` and `motion_type = PBIO_MDROBOTBASE_MOTION_NONE`.
 
-**Completion gate:** Motion loop returns distinct non-success errors on abnormal termination.  
+**Completion gate:** Motion loop returns distinct non-success errors on abnormal termination.
 **Stop condition:** Motors left running or motion flag left asserted.
 
 ### Step 3 — Stall and Timeout Verification Tests
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`, `tests/virtualhub/robotics/test_mdrobotbase_errors.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`, `tests/virtualhub/robotics/test_mdrobotbase_errors.py`
 **Actions:**
 1. Simulate stalled motor where velocity is near zero while command is active; verify stall error returned.
 2. Simulate elapsed timeout; verify `PBIO_ERROR_TIMEDOUT` returned.
 3. Verify normal arrival still returns `PBIO_SUCCESS`.
 4. Verify subsequent motion starts cleanly after stall or timeout.
 
-**Completion gate:** All tests pass with 100% green; failure states strictly separated from success.  
+**Completion gate:** All tests pass with 100% green; failure states strictly separated from success.
 **Stop condition:** Any false positive stall or masked timeout.
 
 ## In

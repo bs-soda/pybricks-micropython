@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-024
 
-**Goal ID:** `G-MDRB-024`  
-**Title:** Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement  
-**Epic:** MDRB  
-**Kind:** feature  
+**Goal ID:** `G-MDRB-024`
+**Title:** Single-Source-of-Truth FSM Status Transition Engine & Terminal Helper Enforcement
+**Epic:** MDRB
+**Kind:** feature
 
 ---
 

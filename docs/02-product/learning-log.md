@@ -1,7 +1,7 @@
 # Learning log
 
-> **Closed-loop learning** — what we observed after execution and how knowledge evolved.  
-> Agent maintains via [soda-learning-loop](../../.agents/skills/soda-learning-loop/SKILL.md).  
+> **Closed-loop learning** — what we observed after execution and how knowledge evolved.
+> Agent maintains via [soda-learning-loop](../../.agents/skills/soda-learning-loop/SKILL.md).
 > Map sync: `knowledge-map.json` → `observations[]`
 
 **Principle:** Execution is not the end — deploy, metrics, support, and feedback feed back into pain, assumptions, and new goals.

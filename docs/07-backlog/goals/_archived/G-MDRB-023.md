@@ -1,12 +1,12 @@
 # G-MDRB-023: Multi-Scale Numerical Invariant Verification, Submodule Sanitization & Scorecard Elevation
 
-**Status:** done  
-**Kind:** qa  
-**Atomic outcome:** Execute and record empirical test runs across multiple gear ratios and geometry scales, sanitize the untracked lib/btstack directory, and publish the verified scorecard elevating MDRobotBase to 9.2+/10  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-022  
-**Blocks:** —  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** qa
+**Atomic outcome:** Execute and record empirical test runs across multiple gear ratios and geometry scales, sanitize the untracked lib/btstack directory, and publish the verified scorecard elevating MDRobotBase to 9.2+/10
+**Epic:** MDRB
+**Depends on:** G-MDRB-022
+**Blocks:** —
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -40,8 +40,8 @@ Executing these steps will fulfill the remaining requirements to advance the arc
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Autonomous competition platforms require verified numerical stability across diverse physical robot configurations and clean git repository hygiene.  
-**Done when:** Numerical kinematic invariants are proven across a parameter sweep of gear ratios and robot dimensions, the `lib/btstack/` submodule status is resolved, and all test suites pass with recorded empirical output elevating the scorecard to 9.2+/10.  
+**Why:** Autonomous competition platforms require verified numerical stability across diverse physical robot configurations and clean git repository hygiene.
+**Done when:** Numerical kinematic invariants are proven across a parameter sweep of gear ratios and robot dimensions, the `lib/btstack/` submodule status is resolved, and all test suites pass with recorded empirical output elevating the scorecard to 9.2+/10.
 **Unblocks:** — (Epic MDRB full closeout)
 
 ## Atomicity & Zero-Mock Contract
@@ -97,33 +97,33 @@ Executing these steps will fulfill the remaining requirements to advance the arc
 
 ### Step 1 — Multi-Scale Invariant & Submodule Review Formulation
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-023.md` · `docs/02-product/acceptance/G-MDRB-023.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-023.md` · `docs/02-product/acceptance/G-MDRB-023.md`
 **Actions:**
 1. Define the multi-scale parameter grid: 6 gear ratios $\times$ 4 diameters $\times$ 4 tracks = 96 permutations.
 2. Document acceptance contract in `docs/02-product/acceptance/G-MDRB-023.md`.
 3. Inspect `lib/btstack` status and formulate submodule hygiene plan.
-**Completion gate:** Acceptance contract exists with quantitative multi-scale criteria.  
+**Completion gate:** Acceptance contract exists with quantitative multi-scale criteria.
 **Stop condition:** Spec drift or unresolved parameter grid definitions.
 
 ### Step 2 — Execute PBIO and VirtualHub Multi-Scale Parameter Sweeps
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py`
 **Actions:**
 1. Add `test_mdrobotbase_multiscale_kinematic_invariants()` in `lib/pbio/test/src/test_mdrobotbase.c`.
 2. Register in `pbio_mdrobotbase_tests[]` and run PBIO suite.
 3. Add multi-scale trajectory tracking verification in VirtualHub.
 4. Verify all tests pass with zero numerical divergence.
-**Completion gate:** All multi-scale tests pass 100% green.  
+**Completion gate:** All multi-scale tests pass 100% green.
 **Stop condition:** Any numerical deviation exceeding floating-point tolerance ($10^{-4}$).
 
 ### Step 3 — Submodule Sanitization & Scorecard Promotion Pass
 
-**Allowed files:** `.gitmodules` · `docs/06_raw/`  
+**Allowed files:** `.gitmodules` · `docs/06_raw/`
 **Actions:**
 1. Sanitize `lib/btstack/` submodule status to achieve 100% clean git status.
 2. Compile and record complete test execution evidence into `docs/06_raw/`.
 3. Recalculate and publish final scorecard report demonstrating $\ge 9.2/10$.
-**Completion gate:** Clean git working tree and published release gate report.  
+**Completion gate:** Clean git working tree and published release gate report.
 **Stop condition:** Scorecard $< 9.2/10$ or unresolved git status.
 
 ## In

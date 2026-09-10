@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-019
 
-**Goal ID:** `G-MDRB-019`  
-**Title:** Portable Address Validation and Foreign-Pointer Memory Safety in put_robotbase  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-019`
+**Title:** Portable Address Validation and Foreign-Pointer Memory Safety in put_robotbase
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

@@ -1,10 +1,10 @@
 # ADR-0001: Example — choose PostgreSQL over MySQL
 
-> **Example reference only.** Demonstrates expected ADR format from Soda Agent OS.  
+> **Example reference only.** Demonstrates expected ADR format from Soda Agent OS.
 > **Delete or replace** when bootstrapping a real project with your first actual decision.
 
-**Status:** example  
-**Date:** 2024-05-20  
+**Status:** example
+**Date:** 2024-05-20
 **Deciders:** Tech Lead, Backend Lead
 
 ## Context

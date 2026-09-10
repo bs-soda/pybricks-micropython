@@ -1,6 +1,6 @@
 # Epics
 
-> An epic is a **namespace** for goal IDs (`G-PAY-001`). It is not a goal and has no status machine.  
+> An epic is a **namespace** for goal IDs (`G-PAY-001`). It is not a goal and has no status machine.
 > Contract: [goal-id.md](../06-workflows/goal-id.md)
 
 Register a slug here **before** `soda-os goal next <EPIC>`. Slug = 2–8 letters `A-Z`. Do not use `E-` (Evidence).

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Isolated Mutation Test Suite: G-MDRB-033
- * 
+ *
  * Verifies harness sensitivity by injecting synthetic mutations into
  * test runner pass criteria, skipped test counts, compiler warning tolerance,
  * multi-lux illumination sweeps, and aggregate scorecard attestation.
- * 
+ *
  * Invariants: Exact-HEAD provenance, Article I (Zero False-Positives), Article II (Mandatory Failure Detection).
  */
 

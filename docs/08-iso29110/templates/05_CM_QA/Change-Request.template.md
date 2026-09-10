@@ -2,11 +2,11 @@
 
 **Change Request** — **WP03** (link register)
 
-**Document Version:** 1.0  
-**Date:** {{date}}  
+**Document Version:** 1.0
+**Date:** {{date}}
 **Author:** {{author}}
 
-> This work product is the **ClickUp Change Request** board/list for the project.  
+> This work product is the **ClickUp Change Request** board/list for the project.
 > It is not a long narrative document — the system of record is ClickUp.
 
 ### Revision History

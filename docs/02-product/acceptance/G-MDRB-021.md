@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-021
 
-**Goal ID:** `G-MDRB-021`  
-**Title:** Exhaustive Closed-Object Method Audit and Idempotent Lifecycle Attestation  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-021`
+**Title:** Exhaustive Closed-Object Method Audit and Idempotent Lifecycle Attestation
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

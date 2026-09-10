@@ -1,12 +1,12 @@
 # G-MDRB-013: Motion-Status Enum Boundary Validation & Failure State Contract
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Constrain pbio_mdrobotbase_set_motion_status to valid pbio_mdrobotbase_motion_status_t enums, rejecting out-of-range integers with PBIO_ERROR_INVALID_ARG and preserving existing status  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-012  
-**Blocks:** G-MDRB-014  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Constrain pbio_mdrobotbase_set_motion_status to valid pbio_mdrobotbase_motion_status_t enums, rejecting out-of-range integers with PBIO_ERROR_INVALID_ARG and preserving existing status
+**Epic:** MDRB
+**Depends on:** G-MDRB-012
+**Blocks:** G-MDRB-014
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -38,9 +38,9 @@ In `lib/pbio/src/mdrobotbase.c:592-598`, `pbio_mdrobotbase_set_motion_status()` 
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Unvalidated status registers cause state machine corruption and lead high-level controllers to misinterpret device failure conditions.  
-**Done when:** All status modifications are validated against permitted lifecycle states, invalid integers are rejected with an argument error, and prior valid state is preserved.  
-**Unblocks:** G-MDRB-014  
+**Why:** Unvalidated status registers cause state machine corruption and lead high-level controllers to misinterpret device failure conditions.
+**Done when:** All status modifications are validated against permitted lifecycle states, invalid integers are rejected with an argument error, and prior valid state is preserved.
+**Unblocks:** G-MDRB-014
 
 ## Atomicity & Zero-Mock Contract
 
@@ -97,35 +97,35 @@ In `lib/pbio/src/mdrobotbase.c:592-598`, `pbio_mdrobotbase_set_motion_status()` 
 
 ### Step 1 — Specification & Enum Boundary Contract Alignment
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-013.md` · `docs/02-product/acceptance/G-MDRB-013.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-013.md` · `docs/02-product/acceptance/G-MDRB-013.md`
 **Actions:**
 
 1. Define test cases for all valid status enums (0 through 4).
 2. Define test cases for invalid negative and out-of-bounds integers (-1, 5, 100, 999).
 
-**Completion gate:** Acceptance contract defined with zero unresolved clarification tags.  
+**Completion gate:** Acceptance contract defined with zero unresolved clarification tags.
 **Stop condition:** Unspecified status enum codes.
 
 ### Step 2 — Enforce Strict Enum Whitelist in pbio_mdrobotbase_set_motion_status
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `lib/pbio/include/pbio/mdrobotbase.h`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `lib/pbio/include/pbio/mdrobotbase.h`
 **Actions:**
 
 1. Implement switch validation in `pbio_mdrobotbase_set_motion_status()`.
 2. Ensure invalid input leaves `rb->motion_status` unmodified.
 
-**Completion gate:** C code compiles without warnings.  
+**Completion gate:** C code compiles without warnings.
 **Stop condition:** Compiler warnings or broken valid status transitions.
 
 ### Step 3 — Verification & Out-of-Bounds Status Test Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 
 1. Add unit test `test_mdrobotbase_motion_status_bounds` in `test_mdrobotbase.c`.
 2. Assert `PBIO_ERROR_INVALID_ARG` returned for out-of-range status values.
 
-**Completion gate:** PBIO test suite passes with exit code 0.  
+**Completion gate:** PBIO test suite passes with exit code 0.
 **Stop condition:** Any test failure or status mutation on invalid input.
 
 ## In

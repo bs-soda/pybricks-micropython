@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-015
 
-**Goal ID:** `G-MDRB-015`  
-**Title:** Angle Normalization, Pivot-Turn Invariants, and Distance Conservation  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-015`
+**Title:** Angle Normalization, Pivot-Turn Invariants, and Distance Conservation
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

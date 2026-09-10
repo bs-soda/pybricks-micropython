@@ -105,7 +105,10 @@ class MDRobotBase:
         # Color calibration
         self._color_baseline = (0.0, 0.0, 0.0)
         self._color_threshold = 10.0
+        self._color_ambiguity_threshold = None
         self._color_prototypes = {}
+        self._color_classes = {}
+        self._color_sample_buffer = {}
         self._black_reference = None
         self._white_reference = None
         self._gain = (0.01, 0.01, 0.01)
@@ -592,14 +595,25 @@ class MDRobotBase:
     def reset_color_calibration(self):
         self._color_baseline = (0.0, 0.0, 0.0)
         self._color_threshold = 10.0
+        self._color_ambiguity_threshold = None
         self._color_prototypes.clear()
+        self._color_classes.clear()
+        self._color_sample_buffer.clear()
         self._black_reference = None
         self._white_reference = None
         self._gain = (0.01, 0.01, 0.01)
 
     @_require_open
-    def set_color_baseline(self, r: float, g: float, b: float):
-        self._color_baseline = (float(r), float(g), float(b))
+    def set_color_baseline(self, base_h: float, base_s: float, base_v: float):
+        base_h = float(base_h)
+        base_s = float(base_s)
+        base_v = float(base_v)
+        if not (math.isfinite(base_h) and math.isfinite(base_s) and math.isfinite(base_v)):
+            raise ValueError("Baseline HSV values must be finite numbers")
+        if base_s < 0.0 or base_s > 100.0 or base_v < 0.0 or base_v > 100.0:
+            raise ValueError("Baseline saturation and value must be between 0.0 and 100.0")
+        norm_h = base_h % 360.0
+        self._color_baseline = (norm_h, base_s, base_v)
 
     @_require_open
     def set_black_reference(self, r: float, g: float, b: float):
@@ -654,7 +668,17 @@ class MDRobotBase:
 
     @_require_open
     def set_color_threshold(self, threshold: float):
-        self._color_threshold = float(threshold)
+        threshold = float(threshold)
+        if not math.isfinite(threshold) or threshold <= 0.0:
+            raise ValueError("Color threshold must be positive finite number")
+        self._color_threshold = threshold
+
+    @_require_open
+    def set_color_ambiguity_threshold(self, threshold: float):
+        threshold = float(threshold)
+        if not math.isfinite(threshold) or threshold < 0.0:
+            raise ValueError("Ambiguity threshold must be non-negative finite number")
+        self._color_ambiguity_threshold = threshold
 
     @_require_open
     def circular_hue_distance(self, h1: float, h2: float) -> float:
@@ -678,17 +702,12 @@ class MDRobotBase:
         b = float(b)
         if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
             raise ValueError("Color coordinates must be finite numbers")
-        if r < 0.0 or g < 0.0 or b < 0.0:
-            raise ValueError("Color coordinates must be non-negative")
+        if r < 0.0 or r > 100.0 or g < 0.0 or g > 100.0 or b < 0.0 or b > 100.0:
+            raise ValueError("Color coordinates must be between 0.0 and 100.0")
 
-        r_norm, g_norm, b_norm = r, g, b
-        if r_norm > 1.0 or g_norm > 1.0 or b_norm > 1.0:
-            r_norm /= 100.0
-            g_norm /= 100.0
-            b_norm /= 100.0
-        r_norm = min(1.0, max(0.0, r_norm))
-        g_norm = min(1.0, max(0.0, g_norm))
-        b_norm = min(1.0, max(0.0, b_norm))
+        r_norm = r / 100.0
+        g_norm = g / 100.0
+        b_norm = b / 100.0
 
         def srgb_to_lin(c):
             if c <= 0.04045:
@@ -725,7 +744,312 @@ class MDRobotBase:
 
     @_require_open
     def add_color_prototype(self, color_id: int, r: float, g: float, b: float):
-        self._color_prototypes[int(color_id)] = (float(r), float(g), float(b))
+        cid = int(color_id)
+        if cid == 0:
+            raise ValueError("Color ID must be non-zero")
+        r = float(r)
+        g = float(g)
+        b = float(b)
+        if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
+            raise ValueError("Prototype coordinates must be finite numbers")
+        if r < 0.0 or r > 100.0 or g < 0.0 or g > 100.0 or b < 0.0 or b > 100.0:
+            raise ValueError("Prototype coordinates must be between 0.0 and 100.0")
+        self._color_prototypes[cid] = (r, g, b)
+
+    @_require_open
+    def add_color_sample(self, color_id: int, r: float, g: float, b: float):
+        r = float(r)
+        g = float(g)
+        b = float(b)
+        if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
+            raise ValueError("Color channel values must be finite numbers")
+        if r < 0.0 or r > 100.0 or g < 0.0 or g > 100.0 or b < 0.0 or b > 100.0:
+            raise ValueError("Color channel values must be between 0.0 and 100.0")
+        cid = int(color_id)
+        if cid == 0:
+            raise ValueError("Color ID must be non-zero")
+
+        if cid not in self._color_sample_buffer:
+            self._color_sample_buffer[cid] = []
+
+        if len(self._color_sample_buffer[cid]) >= 32:
+            raise RuntimeError("Maximum sample buffer capacity exceeded (32)")
+
+        in_r, in_g, in_b = r, g, b
+        if self._black_reference is not None or self._white_reference is not None:
+            rn, gn, bn = self.normalize_color(r, g, b)
+            in_r, in_g, in_b = rn * 100.0, gn * 100.0, bn * 100.0
+
+        h, s, v = _rgb_to_hsv_helper(in_r, in_g, in_b)
+        l, a, b_lab = self.rgb_to_lab(in_r, in_g, in_b)
+
+        self._color_sample_buffer[cid].append({
+            "r": in_r, "g": in_g, "b": in_b,
+            "h": h, "s": s, "v": v,
+            "l": l, "a": a, "b_lab": b_lab
+        })
+
+    @_require_open
+    def add_color_sample_hsv(self, color_id: int, h: float, s: float, v: float):
+        h = float(h)
+        s = float(s)
+        v = float(v)
+        if not (math.isfinite(h) and math.isfinite(s) and math.isfinite(v)):
+            raise ValueError("Color channel values must be finite numbers")
+        if h < 0.0 or h >= 360.0:
+            raise ValueError("Hue must be in range [0, 360)")
+        if s < 0.0 or s > 100.0 or v < 0.0 or v > 100.0:
+            raise ValueError("Saturation and value must be between 0.0 and 100.0")
+        cid = int(color_id)
+        if cid == 0:
+            raise ValueError("Color ID must be non-zero")
+
+        norm_h = h % 360.0
+
+        s_norm = s / 100.0
+        v_norm = v / 100.0
+
+        c = v_norm * s_norm
+        h_prime = norm_h / 60.0
+        x = c * (1.0 - abs((h_prime % 2.0) - 1.0))
+        m = v_norm - c
+
+        if 0.0 <= h_prime < 1.0:
+            r1, g1, b1 = c, x, 0.0
+        elif 1.0 <= h_prime < 2.0:
+            r1, g1, b1 = x, c, 0.0
+        elif 2.0 <= h_prime < 3.0:
+            r1, g1, b1 = 0.0, c, x
+        elif 3.0 <= h_prime < 4.0:
+            r1, g1, b1 = 0.0, x, c
+        elif 4.0 <= h_prime < 5.0:
+            r1, g1, b1 = x, 0.0, c
+        else:
+            r1, g1, b1 = c, 0.0, x
+
+        r = (r1 + m) * 100.0
+        g = (g1 + m) * 100.0
+        b = (b1 + m) * 100.0
+
+        if cid not in self._color_sample_buffer:
+            self._color_sample_buffer[cid] = []
+
+        if len(self._color_sample_buffer[cid]) >= 32:
+            raise RuntimeError("Maximum sample buffer capacity exceeded (32)")
+
+        l, a, b_lab = self.rgb_to_lab(r, g, b)
+
+        self._color_sample_buffer[cid].append({
+            "r": r, "g": g, "b": b,
+            "h": norm_h, "s": s, "v": v,
+            "l": l, "a": a, "b_lab": b_lab
+        })
+
+    @_require_open
+    def finalize_color_class(self, color_id: int):
+        cid = int(color_id)
+        if cid not in self._color_sample_buffer or len(self._color_sample_buffer[cid]) < 5:
+            raise RuntimeError("Cannot finalize color class: minimum 5 samples required")
+
+        samples = self._color_sample_buffer[cid]
+        n = len(samples)
+
+        # Pass 1: Compute initial circular mean hue and initial standard deviations
+        sum_sin = sum(math.sin(math.radians(s["h"])) for s in samples)
+        sum_cos = sum(math.cos(math.radians(s["h"])) for s in samples)
+        init_mean_h = math.degrees(math.atan2(sum_sin, sum_cos)) % 360.0
+
+        init_mean_s = sum(s["s"] for s in samples) / n
+        init_mean_v = sum(s["v"] for s in samples) / n
+        init_mean_l = sum(s["l"] for s in samples) / n
+        init_mean_a = sum(s["a"] for s in samples) / n
+        init_mean_b = sum(s["b_lab"] for s in samples) / n
+
+        sum_sq_dh = sum(self.circular_hue_distance(s["h"], init_mean_h) ** 2 for s in samples)
+        sum_sq_ds = sum((s["s"] - init_mean_s) ** 2 for s in samples)
+        sum_sq_dv = sum((s["v"] - init_mean_v) ** 2 for s in samples)
+        sum_sq_lab = sum((s["l"] - init_mean_l) ** 2 + (s["a"] - init_mean_a) ** 2 + (s["b_lab"] - init_mean_b) ** 2 for s in samples)
+
+        sigma_h = math.sqrt(sum_sq_dh / (n - 1))
+        sigma_s = math.sqrt(sum_sq_ds / (n - 1))
+        sigma_v = math.sqrt(sum_sq_dv / (n - 1))
+        sigma_lab = math.sqrt(sum_sq_lab / (n - 1))
+
+        # Pass 2: Outlier rejection if n >= 10
+        if n >= 10:
+            kept = []
+            for s in samples:
+                dh = self.circular_hue_distance(s["h"], init_mean_h)
+                ds = abs(s["s"] - init_mean_s)
+                dv = abs(s["v"] - init_mean_v)
+                d_lab = math.sqrt((s["l"] - init_mean_l) ** 2 + (s["a"] - init_mean_a) ** 2 + (s["b_lab"] - init_mean_b) ** 2)
+
+                is_outlier = False
+                if sigma_h > 0.1 and dh > 2.5 * sigma_h:
+                    is_outlier = True
+                if sigma_s > 0.1 and ds > 2.5 * sigma_s:
+                    is_outlier = True
+                if sigma_v > 0.1 and dv > 2.5 * sigma_v:
+                    is_outlier = True
+                if sigma_lab > 0.1 and d_lab > 2.5 * sigma_lab:
+                    is_outlier = True
+
+                if not is_outlier:
+                    kept.append(s)
+
+            if len(kept) < 3:
+                kept = samples
+        else:
+            kept = samples
+
+        kept_n = len(kept)
+
+        # Pass 3: Final centroid and sample variances over kept samples
+        sum_sin = sum(math.sin(math.radians(s["h"])) for s in kept)
+        sum_cos = sum(math.cos(math.radians(s["h"])) for s in kept)
+        final_mean_h = math.degrees(math.atan2(sum_sin, sum_cos)) % 360.0
+
+        final_mean_s = sum(s["s"] for s in kept) / kept_n
+        final_mean_v = sum(s["v"] for s in kept) / kept_n
+        final_mean_l = sum(s["l"] for s in kept) / kept_n
+        final_mean_a = sum(s["a"] for s in kept) / kept_n
+        final_mean_b = sum(s["b_lab"] for s in kept) / kept_n
+
+        sum_sq_dh = sum(self.circular_hue_distance(s["h"], final_mean_h) ** 2 for s in kept)
+        sum_sq_ds = sum((s["s"] - final_mean_s) ** 2 for s in kept)
+        sum_sq_dv = sum((s["v"] - final_mean_v) ** 2 for s in kept)
+        sum_sq_lab = sum((s["l"] - final_mean_l) ** 2 + (s["a"] - final_mean_a) ** 2 + (s["b_lab"] - final_mean_b) ** 2 for s in kept)
+
+        divisor = (kept_n - 1) if kept_n > 1 else 1.0
+        final_var_h = sum_sq_dh / divisor
+        final_var_s = sum_sq_ds / divisor
+        final_var_v = sum_sq_dv / divisor
+        final_var_lab = sum_sq_lab / divisor
+
+        class_model = {
+            "color_id": cid,
+            "mean_h": final_mean_h,
+            "mean_s": final_mean_s,
+            "mean_v": final_mean_v,
+            "mean_l": final_mean_l,
+            "mean_a": final_mean_a,
+            "mean_b": final_mean_b,
+            "var_h": final_var_h,
+            "var_s": final_var_s,
+            "var_v": final_var_v,
+            "var_lab": final_var_lab,
+            "sample_count": kept_n
+        }
+
+        self._color_classes[cid] = class_model
+
+        # Convert final_mean_h, s, v to rgb for prototype compatibility
+        s_norm = final_mean_s / 100.0 if final_mean_s > 1.0 else final_mean_s
+        v_norm = final_mean_v / 100.0 if final_mean_v > 1.0 else final_mean_v
+        c = v_norm * s_norm
+        h_prime = (final_mean_h % 360.0) / 60.0
+        x = c * (1.0 - abs((h_prime % 2.0) - 1.0))
+        m = v_norm - c
+        if 0.0 <= h_prime < 1.0:
+            r1, g1, b1 = c, x, 0.0
+        elif 1.0 <= h_prime < 2.0:
+            r1, g1, b1 = x, c, 0.0
+        elif 2.0 <= h_prime < 3.0:
+            r1, g1, b1 = 0.0, c, x
+        elif 3.0 <= h_prime < 4.0:
+            r1, g1, b1 = 0.0, x, c
+        elif 4.0 <= h_prime < 5.0:
+            r1, g1, b1 = x, 0.0, c
+        else:
+            r1, g1, b1 = c, 0.0, x
+        r_c = (r1 + m) * 100.0
+        g_c = (g1 + m) * 100.0
+        b_c = (b1 + m) * 100.0
+
+        self._color_prototypes[cid] = (r_c, g_c, b_c)
+        del self._color_sample_buffer[cid]
+
+    @_require_open
+    def get_color_class(self, color_id: int) -> dict:
+        cid = int(color_id)
+        if cid not in self._color_classes:
+            raise KeyError(f"Color class {cid} not calibrated")
+        return dict(self._color_classes[cid])
+
+    @_require_open
+    def export_color_calibration_profile(self) -> dict:
+        """Export persistent sensor-specific calibration profile dictionary."""
+        return {
+            "version": 1,
+            "black_reference": list(self._black_reference) if self._black_reference is not None else None,
+            "white_reference": list(self._white_reference) if self._white_reference is not None else None,
+            "color_threshold": float(self._color_threshold),
+            "ambiguity_threshold": float(self._color_ambiguity_threshold) if self._color_ambiguity_threshold is not None else None,
+            "prototypes": {int(cid): list(coords) for cid, coords in self._color_prototypes.items()},
+            "classes": {int(cid): dict(cdata) for cid, cdata in self._color_classes.items()},
+            "metadata": {
+                "sensor_type": "optical_rgb",
+                "lux_reference": 500.0,
+                "distance_nominal_mm": 10.0,
+                "format_version": 1
+            }
+        }
+
+    @_require_open
+    def load_color_calibration_profile(self, profile: dict):
+        """Restore persistent sensor-specific calibration profile from dictionary."""
+        if not isinstance(profile, dict):
+            raise TypeError("Profile must be a dictionary")
+        if profile.get("version", 1) != 1:
+            raise ValueError("Unsupported profile version")
+
+        # Snapshot current calibration state for transactional rollback
+        old_baseline = self._color_baseline
+        old_threshold = self._color_threshold
+        old_ambiguity = self._color_ambiguity_threshold
+        old_prototypes = dict(self._color_prototypes)
+        old_classes = {k: dict(v) for k, v in self._color_classes.items()}
+        old_samples = [x for x in self._color_sample_buffer] if hasattr(self._color_sample_buffer, '__iter__') else []
+        old_black_ref = tuple(self._black_reference) if self._black_reference is not None else None
+        old_white_ref = tuple(self._white_reference) if self._white_reference is not None else None
+        old_gain = self._gain
+
+        try:
+            self.reset_color_calibration()
+
+            if profile.get("black_reference") is not None:
+                r, g, b = profile["black_reference"]
+                self.set_black_reference(r, g, b)
+
+            if profile.get("white_reference") is not None:
+                r, g, b = profile["white_reference"]
+                self.set_white_reference(r, g, b)
+
+            if "color_threshold" in profile and profile["color_threshold"] is not None:
+                self.set_color_threshold(profile["color_threshold"])
+
+            if "ambiguity_threshold" in profile and profile["ambiguity_threshold"] is not None:
+                self.set_color_ambiguity_threshold(profile["ambiguity_threshold"])
+
+            if "prototypes" in profile and isinstance(profile["prototypes"], dict):
+                for cid, coords in profile["prototypes"].items():
+                    self.add_color_prototype(int(cid), coords[0], coords[1], coords[2])
+
+            if "classes" in profile and isinstance(profile["classes"], dict):
+                for cid, cdata in profile["classes"].items():
+                    self._color_classes[int(cid)] = dict(cdata)
+        except Exception:
+            # Atomic rollback: restore previous calibration state on any error
+            self._color_baseline = old_baseline
+            self._color_threshold = old_threshold
+            self._color_ambiguity_threshold = old_ambiguity
+            self._color_prototypes = old_prototypes
+            self._color_classes = old_classes
+            self._color_sample_buffer = old_samples
+            self._black_reference = old_black_ref
+            self._white_reference = old_white_ref
+            self._gain = old_gain
+            raise
 
     @_require_open
     def classify_color_rgb(self, r: float, g: float, b: float) -> Tuple[int, float, float]:
@@ -734,8 +1058,8 @@ class MDRobotBase:
         b = float(b)
         if not (math.isfinite(r) and math.isfinite(g) and math.isfinite(b)):
             raise ValueError("Color channel values must be finite numbers")
-        if r < 0.0 or g < 0.0 or b < 0.0:
-            raise ValueError("Color channel values must be non-negative")
+        if r < 0.0 or r > 100.0 or g < 0.0 or g > 100.0 or b < 0.0 or b > 100.0:
+            raise ValueError("Color channel values must be between 0.0 and 100.0")
 
         in_r, in_g, in_b = r, g, b
         if self._black_reference is not None or self._white_reference is not None:
@@ -778,13 +1102,17 @@ class MDRobotBase:
                 second_min_dist = dist
 
         threshold = self._color_threshold if self._color_threshold > 0.0 else 40.0
+        ambig_thresh = self._color_ambiguity_threshold if (self._color_ambiguity_threshold is not None and self._color_ambiguity_threshold >= 0.0) else (0.15 * threshold)
         if min_dist > threshold:
             return (0, float(min_dist), 0.0)
 
         if len(self._color_prototypes) == 1:
-            confidence = max(0.0, min(1.0, 1.0 - (min_dist / threshold)))
+            confidence = 1.0
         else:
             confidence = max(0.0, min(1.0, (second_min_dist - min_dist) / (second_min_dist + min_dist + 1e-6)))
+
+        if len(self._color_prototypes) > 1 and (second_min_dist - min_dist) < ambig_thresh:
+            return (0, float(min_dist), float(confidence))
 
         return (int(best_id), float(min_dist), float(confidence))
 
@@ -795,23 +1123,18 @@ class MDRobotBase:
         v = float(v)
         if not (math.isfinite(h) and math.isfinite(s) and math.isfinite(v)):
             raise ValueError("Color channel values must be finite numbers")
-        if h < 0.0 or s < 0.0 or v < 0.0:
-            raise ValueError("Color channel values must be non-negative")
+        if h < 0.0 or h >= 360.0:
+            raise ValueError("Hue must be in range [0, 360)")
+        if s < 0.0 or s > 100.0 or v < 0.0 or v > 100.0:
+            raise ValueError("Saturation and value must be between 0.0 and 100.0")
 
-        max_proto = 1.0
-        if self._color_prototypes:
-            max_proto = max(max(p[:3]) for p in self._color_prototypes.values())
+        if not self._color_prototypes:
+            return (0, 999999.0, 0.0)
 
-        s_norm = s / 100.0 if s > 1.0 else s
-        if max_proto > 1.0:
-            scale = 100.0 if max_proto <= 100.0 else 255.0
-            v_norm = v / scale if v > 1.0 else v
-        else:
-            scale = 1.0
-            v_norm = v if v <= 1.0 else v / 100.0
-
+        s_norm = s / 100.0
+        v_norm = v / 100.0
         c = v_norm * s_norm
-        h_prime = (h % 360.0) / 60.0
+        h_prime = h / 60.0
         x = c * (1.0 - abs((h_prime % 2.0) - 1.0))
         m = v_norm - c
 
@@ -828,11 +1151,54 @@ class MDRobotBase:
         else:
             r1, g1, b1 = c, 0.0, x
 
-        r = (r1 + m) * scale
-        g = (g1 + m) * scale
-        b = (b1 + m) * scale
+        s_r = (r1 + m) * 100.0
+        s_g = (g1 + m) * 100.0
+        s_b = (b1 + m) * 100.0
+        s_l, s_a, s_b_lab = self.rgb_to_lab(s_r, s_g, s_b)
 
-        return self.classify_color_rgb(r, g, b)
+        wh, ws, wv, wlab = 0.40, 0.20, 0.10, 0.30
+
+        best_id = 0
+        min_dist = float("inf")
+        second_min_dist = float("inf")
+
+        for cid, proto in self._color_prototypes.items():
+            pr, pg, pb = proto[:3]
+            p_h, p_s, p_v = _rgb_to_hsv_helper(pr, pg, pb)
+            p_l, p_a, p_b_lab = self.rgb_to_lab(pr, pg, pb)
+
+            dh = self.circular_hue_distance(h, p_h)
+            dh_norm = dh / 180.0
+            ds_norm = abs(s - p_s) / 100.0
+            dv_norm = abs(v - p_v) / 100.0
+
+            dE = math.sqrt((s_l - p_l) ** 2 + (s_a - p_a) ** 2 + (s_b_lab - p_b_lab) ** 2)
+            dE_norm = min(1.0, dE / 100.0)
+
+            d_norm = math.sqrt(wh * dh_norm ** 2 + ws * ds_norm ** 2 + wv * dv_norm ** 2 + wlab * dE_norm ** 2)
+            dist = d_norm * 100.0
+
+            if dist < min_dist:
+                second_min_dist = min_dist
+                min_dist = dist
+                best_id = cid
+            elif dist < second_min_dist:
+                second_min_dist = dist
+
+        threshold = self._color_threshold if self._color_threshold > 0.0 else 40.0
+        ambig_thresh = self._color_ambiguity_threshold if (self._color_ambiguity_threshold is not None and self._color_ambiguity_threshold >= 0.0) else (0.15 * threshold)
+        if min_dist > threshold:
+            return (0, float(min_dist), 0.0)
+
+        if len(self._color_prototypes) == 1:
+            confidence = 1.0
+        else:
+            confidence = max(0.0, min(1.0, (second_min_dist - min_dist) / (second_min_dist + min_dist + 1e-6)))
+
+        if len(self._color_prototypes) > 1 and (second_min_dist - min_dist) < ambig_thresh:
+            return (0, float(min_dist), float(confidence))
+
+        return (int(best_id), float(min_dist), float(confidence))
 
     @_require_open
     def classify_color(self, r: float, g: float, b: float) -> Tuple[int, float, float]:

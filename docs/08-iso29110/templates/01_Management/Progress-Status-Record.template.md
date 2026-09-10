@@ -2,8 +2,8 @@
 
 **Progress Status Record** (WP09)
 
-**Document Version:** 1.0  
-**Author:** {{author}}  
+**Document Version:** 1.0
+**Author:** {{author}}
 **Date:** {{date}}
 
 > Single-page **project scheduler** — all phases and tasks in one table. Align dates and status with **WP10 Project Plan**.

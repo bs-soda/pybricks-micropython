@@ -1,7 +1,7 @@
 # ADR-0000: [Title]
 
-**Status:** proposed | accepted | deprecated  
-**Date:** YYYY-MM-DD  
+**Status:** proposed | accepted | deprecated
+**Date:** YYYY-MM-DD
 **Deciders:** [names or roles]
 
 ## Context

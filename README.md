@@ -26,8 +26,8 @@ Humans define scope — AI produces these artifacts inside governed goals.
 
 ## Team workflow (start here)
 
-1. **[docs/06-workflows/team-workflow.md](docs/06-workflows/team-workflow.md)** — collaboration cycle, Mermaid diagrams, command-trigger cheat sheet  
-2. **[AGENTS.md](AGENTS.md)** — AI entry point (agents read first every session)  
+1. **[docs/06-workflows/team-workflow.md](docs/06-workflows/team-workflow.md)** — collaboration cycle, Mermaid diagrams, command-trigger cheat sheet
+2. **[AGENTS.md](AGENTS.md)** — AI entry point (agents read first every session)
 3. **[docs/04-agents/skills-library.md](docs/04-agents/skills-library.md)** — 10 versioned Soda skills
 
 ---
@@ -241,5 +241,5 @@ Register in [docs/04-agents/skills-library.md](docs/04-agents/skills-library.md)
 
 ---
 
-Maintained by **Sodality**.  
+Maintained by **Sodality**.
 GitHub: [Sodality-Company-Limited/soda-os](https://github.com/Sodality-Company-Limited/soda-os)

@@ -1,12 +1,12 @@
 # G-MDRB-014: Differential-Drive Kinematic Invariants & Bidirectional Gear-Ratio Semantics
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Verify and prove bidirectional round-trip conversions and differential-drive odometry distance and heading equations under gear ratio scaling R in [0.01, 100.0]  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-013  
-**Blocks:** G-MDRB-015  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Verify and prove bidirectional round-trip conversions and differential-drive odometry distance and heading equations under gear ratio scaling R in [0.01, 100.0]
+**Epic:** MDRB
+**Depends on:** G-MDRB-013
+**Blocks:** G-MDRB-015
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -39,9 +39,9 @@ In `lib/pbio/src/mdrobotbase.c:600-625`, gear-ratio conversion functions (`pbio_
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Unproven kinematic equations cause odometry drift, inaccurate turning angles, and navigation target misses on geared drivebases.  
-**Done when:** All bidirectional gear-ratio and differential-drive equations satisfy strict mathematical invertibility, unit consistency, and numerical identity tests across defined operating ratios.  
-**Unblocks:** G-MDRB-015  
+**Why:** Unproven kinematic equations cause odometry drift, inaccurate turning angles, and navigation target misses on geared drivebases.
+**Done when:** All bidirectional gear-ratio and differential-drive equations satisfy strict mathematical invertibility, unit consistency, and numerical identity tests across defined operating ratios.
+**Unblocks:** G-MDRB-015
 
 ## Atomicity & Zero-Mock Contract
 
@@ -103,35 +103,35 @@ In `lib/pbio/src/mdrobotbase.c:600-625`, gear-ratio conversion functions (`pbio_
 
 ### Step 1 — Specification & Algebraic Kinematic Proof Formulation
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-014.md` · `docs/02-product/acceptance/G-MDRB-014.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-014.md` · `docs/02-product/acceptance/G-MDRB-014.md`
 **Actions:**
 
 1. Define algebraic equations for motor ticks, wheel angle, arc distance, and robot orientation.
 2. Establish explicit floating-point error bounds for float arithmetic ($\epsilon = 10^{-4}$).
 
-**Completion gate:** Acceptance contract with quantitative proofs defined.  
+**Completion gate:** Acceptance contract with quantitative proofs defined.
 **Stop condition:** Ambiguity in gear ratio sign or definition.
 
 ### Step 2 — Enforce Unit Consistency & Invertibility in PBIO Helpers
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c`
 **Actions:**
 
 1. Review and harden `pbio_mdrobotbase_motor_to_wheel_deg` and `pbio_mdrobotbase_wheel_to_motor_deg`.
 2. Ensure symmetric behavior across positive and negative speed vectors.
 
-**Completion gate:** C code compiles without warnings.  
+**Completion gate:** C code compiles without warnings.
 **Stop condition:** Any non-invertible math or precision loss.
 
 ### Step 3 — Verification & Numerical Invariant Test Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 
 1. Add `test_mdrobotbase_kinematic_invariants` verifying round-trip identity for $R \in \{0.2, 0.5, 1.0, 2.0, 5.0\}$.
 2. Verify straight-line drive invariant: equal motor displacements produce zero angular deviation ($\Delta \theta < 10^{-5}\text{ rad}$).
 
-**Completion gate:** Test suite passes with exit code 0.  
+**Completion gate:** Test suite passes with exit code 0.
 **Stop condition:** Any assertion failure exceeding tolerance.
 
 ## In

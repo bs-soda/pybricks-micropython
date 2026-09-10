@@ -1,9 +1,9 @@
 # MDRobotBase Epic Hardening, Enhanced Goal Template & Conformance Harness Architecture
 
-**Date Timestamp:** `2026-09-07T15:30:00+07:00`  
-**Target Repository:** `pybricks-micropython`  
-**Framework:** Soda OS `1.24.0`  
-**Epic:** `MDRB` (*MDRobotBase Kinematics & Motion Engine*)  
+**Date Timestamp:** `2026-09-07T15:30:00+07:00`
+**Target Repository:** `pybricks-micropython`
+**Framework:** Soda OS `1.24.0`
+**Epic:** `MDRB` (*MDRobotBase Kinematics & Motion Engine*)
 **Scope:** Hardening and atomic goal decomposition in response to Codex review scorecard (G-002 through G-007)
 
 ---

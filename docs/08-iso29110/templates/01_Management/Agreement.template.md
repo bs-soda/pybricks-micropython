@@ -2,10 +2,10 @@
 
 **Agreement (Statement of Work)** — **WP02**
 
-**Agreement Version:** 1.0  
-**Date:** {{date}}  
-**Agreement ID:** {{agreement_id}}  
-**Project Name:** {{project_name}}  
+**Agreement Version:** 1.0
+**Date:** {{date}}
+**Agreement ID:** {{agreement_id}}
+**Project Name:** {{project_name}}
 **Project Duration:** {{project_duration_start}} — {{project_duration_end}}
 
 > **Scope policy:** This SOW lists **Feature IDs (F-xx) only**. Detailed requirements use **REQ-xxx** in **WP13 Requirement Specification** (not in this contract). RTM and test cases trace F-xx → REQ-xxx → TC-xxx.

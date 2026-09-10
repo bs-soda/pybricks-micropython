@@ -1,6 +1,6 @@
 # Design spec — Soda Human + Agent framework
 
-> **Soda Agent OS — canonical framework** for every Sodality project.  
+> **Soda Agent OS — canonical framework** for every Sodality project.
 > Maps the [Human + Agent cycle](../06-workflows/team-workflow.md) to this repository structure.
 
 Copy this Agent OS via `soda-os init`; process docs and skills stay **unchanged** across projects. Product content (`brief`, `goals`, `code/`) is filled per project.
@@ -28,8 +28,8 @@ flowchart LR
 | **IMPROVE** | Ensure quality | Test & validate | `definition-of-done.md` | `soda-testing` |
 | **SHIP** | Own the outcome | Prepare deploy, report | CI, staging env | `soda-deploy-staging` |
 
-**Human onboarding:** [team-workflow.md](../06-workflows/team-workflow.md)  
-**Agent entry:** [AGENTS.md](../../AGENTS.md)  
+**Human onboarding:** [team-workflow.md](../06-workflows/team-workflow.md)
+**Agent entry:** [AGENTS.md](../../AGENTS.md)
 **Skill catalog:** [skills-library.md](../04-agents/skills-library.md)
 
 ---
@@ -168,7 +168,7 @@ Soda Agent OS = Context + Skill + Goal + **Knowledge Governance** + Approval + A
 | **Repository** | [knowledge-store.md](knowledge-store.md) | Implementers |
 | **Storage** | JSON → SQLite → API | Phase-driven |
 
-**Three levels:** Knowledge · Execution · Coordination.  
+**Three levels:** Knowledge · Execution · Coordination.
 **Next:** Sprint A–C — real projects, extract PB/REC/capability, shared memory — **no new layers.**
 
 Storage rollout uses **roadmap phase** (Phase 1 JSON → Phase 2 SQLite) — not a collaboration phase.
@@ -177,7 +177,7 @@ Storage rollout uses **roadmap phase** (Phase 1 JSON → Phase 2 SQLite) — not
 
 ## 8. Terminology (canonical)
 
-Single source of truth for names used across rules, skills, schemas, and goals.  
+Single source of truth for names used across rules, skills, schemas, and goals.
 When docs disagree, this section wins.
 
 ### Do not overload "mode"

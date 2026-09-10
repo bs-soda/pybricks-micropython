@@ -1,7 +1,7 @@
 # OS Benchmark — per-goal execution metrics
 
-> **Measure the OS**, not the developer. Record on goal close or after compile sessions.  
-> Stored: [knowledge-map.json](knowledge-map.json) → `os_benchmark.goals[G-xxx]`  
+> **Measure the OS**, not the developer. Record on goal close or after compile sessions.
+> Stored: [knowledge-map.json](knowledge-map.json) → `os_benchmark.goals[G-xxx]`
 > Command: **`os benchmark G-xxx`** · rollup: **`os dashboard`**
 
 Reference implementation: [reference-implementation.md](../06-workflows/reference-implementation.md)

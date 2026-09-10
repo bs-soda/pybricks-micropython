@@ -44,15 +44,15 @@ Execution of `scripts/harness/socratic-agentic-loop-g-mdrb-005-harness.mjs`:
 ## 3. Socratic 5-Why Recursive Dialectic Analysis
 
 ### Branch 1: Silent Failure Masking & Error Semantics
-- **Why 1:** Why did the baseline motion loop return `PBIO_SUCCESS` on timeout and stall?  
+- **Why 1:** Why did the baseline motion loop return `PBIO_SUCCESS` on timeout and stall?
   *Finding:* The original implementation focused only on stopping the motors and clearing `motion_in_progress = false`, treating any termination of the loop as a completed routine.
-- **Why 2:** Why is treating an abortive loop exit as success dangerous for autonomous robotics?  
+- **Why 2:** Why is treating an abortive loop exit as success dangerous for autonomous robotics?
   *Finding:* In competition and industrial robotics, mission planning Sagars depend on successful waypoint arrival. Returning success on stall causes the robot to deploy actuators or score objects in the wrong place.
-- **Why 3:** Why must timeout specifically return `PBIO_ERROR_TIMEDOUT`?  
+- **Why 3:** Why must timeout specifically return `PBIO_ERROR_TIMEDOUT`?
   *Finding:* It uniquely maps to POSIX `ETIMEDOUT` (`OSError: [Errno 110] ETIMEDOUT`), allowing caller scripts to handle deadlines differently from physical motor jams.
-- **Why 4:** Why must motor stalls specifically return `PBIO_ERROR_FAILED`?  
+- **Why 4:** Why must motor stalls specifically return `PBIO_ERROR_FAILED`?
   *Finding:* `PBIO_ERROR_FAILED` maps to `RuntimeError`, signaling an unexpected physical obstruction or jammed drivetrain requiring immediate safety intervention.
-- **Why 5:** Why must `pbio_mdrobotbase_motion_status_t` be formally declared in `pbio/mdrobotbase.h`?  
+- **Why 5:** Why must `pbio_mdrobotbase_motion_status_t` be formally declared in `pbio/mdrobotbase.h`?
   *Finding:* To decouple error return codes from persistent status inspection, providing a standardized C and Python type system for robot state inspection.
 
 ---

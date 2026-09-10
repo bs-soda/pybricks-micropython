@@ -1,12 +1,12 @@
 # G-MDRB-012: Closed-Object Guarding & Idempotent Destructor Safety
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Implement centralized require_open guard across every public MicroPython method in pb_type_mdrobotbase.c to deterministically raise an exception on closed objects and guarantee idempotent close  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-011  
-**Blocks:** G-MDRB-013  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Implement centralized require_open guard across every public MicroPython method in pb_type_mdrobotbase.c to deterministically raise an exception on closed objects and guarantee idempotent close
+**Epic:** MDRB
+**Depends on:** G-MDRB-011
+**Blocks:** G-MDRB-013
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -38,9 +38,9 @@ In `pybricks/robotics/pb_type_mdrobotbase.c:2166-2172`, `pb_type_MDRobotBase_clo
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Invoking operations on closed device handles causes null-pointer crashes and corrupts runtime stability.  
-**Done when:** All public methods reject invocations on closed instances with a deterministic exception, and repeated close operations are harmless no-ops.  
-**Unblocks:** G-MDRB-013  
+**Why:** Invoking operations on closed device handles causes null-pointer crashes and corrupts runtime stability.
+**Done when:** All public methods reject invocations on closed instances with a deterministic exception, and repeated close operations are harmless no-ops.
+**Unblocks:** G-MDRB-013
 
 ## Atomicity & Zero-Mock Contract
 
@@ -96,35 +96,35 @@ In `pybricks/robotics/pb_type_mdrobotbase.c:2166-2172`, `pb_type_MDRobotBase_clo
 
 ### Step 1 — Specification & Closed-State Error Semantics Alignment
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-012.md` · `docs/02-product/acceptance/G-MDRB-012.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-012.md` · `docs/02-product/acceptance/G-MDRB-012.md`
 **Actions:**
 
 1. Define BDD test scenarios for invoking every public method after `close()`.
 2. Confirm expected exception type (`RuntimeError` or `OSError(EBADF)`).
 
-**Completion gate:** Acceptance contract defined with zero unresolved clarification tags.  
+**Completion gate:** Acceptance contract defined with zero unresolved clarification tags.
 **Stop condition:** Discrepancy on exception type across bindings.
 
 ### Step 2 — Implement require_open Guard on All Public C Methods
 
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 
 1. Define `pb_type_mdrobotbase_require_open(self)` helper in `pb_type_mdrobotbase.c`.
 2. Insert `require_open` checks into `get_state`, `get_gear_ratio`, `set_gear_ratio`, `navigate_to_goal`, `turn_angle`, `pivot_angle`, `follow_trajectory`, `set_pid`, `set_lqr`, `stalled`, `done`, and `status`.
 
-**Completion gate:** C code compiles cleanly and guards every dereference of `self->rb`.  
+**Completion gate:** C code compiles cleanly and guards every dereference of `self->rb`.
 **Stop condition:** Compiler warnings or missed method paths.
 
 ### Step 3 — Verification & Idempotent Close Regression Test Pass
 
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`
 **Actions:**
 
 1. Add unit test verifying that `close()` followed by method calls raises deterministic exception.
 2. Verify that calling `close()` twice executes cleanly without crashing.
 
-**Completion gate:** Regression suite executes and passes with exit code 0.  
+**Completion gate:** Regression suite executes and passes with exit code 0.
 **Stop condition:** Any segmentation fault or unexpected return value.
 
 ## In

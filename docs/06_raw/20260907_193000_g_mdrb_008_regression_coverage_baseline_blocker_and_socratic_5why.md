@@ -1,11 +1,11 @@
 # 🏛️ G-MDRB-008 Baseline Blocker & Socratic 5-Why Recursive Dialectic Report
 
-**Timestamp:** `2026-09-07T19:30:00+07:00`  
-**Goal:** `G-MDRB-008` (Comprehensive MDRobotBase Regression Coverage)  
-**Epic:** `MDRB` (MDRobotBase Production Hardening)  
-**Exact-HEAD Provenance:** `0582aefe38928ed3fe7456775dc5784a901bd28b`  
-**Active Branch:** `feature/mdrobotbase-enhancement`  
-**PR Target:** `epic/MDRB`  
+**Timestamp:** `2026-09-07T19:30:00+07:00`
+**Goal:** `G-MDRB-008` (Comprehensive MDRobotBase Regression Coverage)
+**Epic:** `MDRB` (MDRobotBase Production Hardening)
+**Exact-HEAD Provenance:** `0582aefe38928ed3fe7456775dc5784a901bd28b`
+**Active Branch:** `feature/mdrobotbase-enhancement`
+**PR Target:** `epic/MDRB`
 **Constitution Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass), Article III (Structured Explanation Standard)
 
 ---
@@ -52,63 +52,63 @@ Branch 5 (Multi-Tier Integration):     3 Passed, 2 Failed  [L3, L5 failed]
 ## 3. Five-Why Recursive Dialectic by Branch
 
 ### 🌿 Branch 1: Failure Domain Coverage Completeness (Domains 1-4)
-- **Why 1:** Why must all 8 defect categories be verified automatically without relying on ad-hoc manual testing?  
+- **Why 1:** Why must all 8 defect categories be verified automatically without relying on ad-hoc manual testing?
   *Finding:* Manual bench testing misses subtle edge cases in embedded memory reuse and coordinate transformation math.
-- **Why 2:** Why is multi-instance allocation isolation critical to test?  
+- **Why 2:** Why is multi-instance allocation isolation critical to test?
   *Finding:* MicroPython allows creating multiple robot instances; pool isolation guarantees distinct addresses and non-overlapping motor controls.
-- **Why 3:** Why must memory zeroing be verified against dirty 0xFF/0x55 buffers?  
+- **Why 3:** Why must memory zeroing be verified against dirty 0xFF/0x55 buffers?
   *Finding:* Uninitialized accumulators (e.g. `stall_time_ms`) cause false stall aborts on the first motion tick.
-- **Why 4:** Why must non-positive geometry and aliasing fail closed?  
+- **Why 4:** Why must non-positive geometry and aliasing fail closed?
   *Finding:* Non-positive axle track causes division by zero in heading calculation. Aliasing identical motors sends conflicting PWM setpoints.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* All Domains 1-4 must have concrete assertions in `lib/pbio/test/src/test_mdrobotbase.c`.
 
 ### 🌿 Branch 2: Kinematic & Lifecycle Failure Domain Coverage (Domains 5-8)
-- **Why 1:** Why must gear ratio scaling be tested across multiple gear ratio factors?  
+- **Why 1:** Why must gear ratio scaling be tested across multiple gear ratio factors?
   *Finding:* Proves that odometry distance divides by $R$ and motor speed multiplies by $R$ accurately across both reduction ($R=2.0$) and overdrive ($R=0.5$).
-- **Why 2:** Why must trajectory capacity (> 64) and malformed tuples be covered?  
+- **Why 2:** Why must trajectory capacity (> 64) and malformed tuples be covered?
   *Finding:* Ensures no silent truncation or segmentation faults occur on invalid user waypoints.
-- **Why 3:** Why must async cancellation and repeated-motion preemption transitions be verified?  
+- **Why 3:** Why must async cancellation and repeated-motion preemption transitions be verified?
   *Finding:* Prevents zombie awaitables from continuing to dispatch motor commands after preemption.
-- **Why 4:** Why must backlash filter hysteresis and sensor fusion integration be tested?  
+- **Why 4:** Why must backlash filter hysteresis and sensor fusion integration be tested?
   *Finding:* Validates that gear take-up degrees are properly subtracted from wheel displacement before updating pose.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* All Domains 5-8 must be validated through concrete unit and integration test vectors.
 
 ### 🌿 Branch 3: Zero Mocks and Zero Stubs (Article I Invariant Enforcement)
-- **Why 1:** Why are mock test doubles prohibited?  
+- **Why 1:** Why are mock test doubles prohibited?
   *Finding:* Mocks bypass real C structure memory layouts and cannot detect buffer overflows or race conditions.
-- **Why 2:** Why must tests use real `pbio_servo_t` allocations?  
+- **Why 2:** Why must tests use real `pbio_servo_t` allocations?
   *Finding:* Real servo state machines simulate physical controller registers and feedback loops.
-- **Why 3:** How do mock-free tests detect buffer overflows?  
+- **Why 3:** How do mock-free tests detect buffer overflows?
   *Finding:* Real static buffers trigger segmentation faults or memory corruption if array bounds are violated.
-- **Why 4:** Why must static AST audits verify zero mocks?  
+- **Why 4:** Why must static AST audits verify zero mocks?
   *Finding:* Guarantees production fidelity and eliminates test-only dummy paths.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* 0 mocks, 0 stubs across all test suites.
 
 ### 🌿 Branch 4: Negative Defect Sensitivity & Regression Detection Guard
-- **Why 1:** Why must tests fail when a defect is injected?  
+- **Why 1:** Why must tests fail when a defect is injected?
   *Finding:* Tests that pass regardless of defects provide false confidence (test rot).
-- **Why 2:** Why must unscaled gear ratios fail odometry assertions?  
+- **Why 2:** Why must unscaled gear ratios fail odometry assertions?
   *Finding:* Odometry position difference between $R=1.0$ and $R=2.0$ must trigger immediate assertion failure.
-- **Why 3:** Why must invalid arguments return `PBIO_ERROR_INVALID_ARG`?  
+- **Why 3:** Why must invalid arguments return `PBIO_ERROR_INVALID_ARG`?
   *Finding:* Ensures defective parameters fail closed at the boundary before executing hardware commands.
-- **Why 4:** Why must motion failures return distinct non-success codes?  
+- **Why 4:** Why must motion failures return distinct non-success codes?
   *Finding:* Distinguishes normal completion from motor stall or timeout aborts.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* Every failure path must have active, non-tautological negative test assertions.
 
 ### 🌿 Branch 5: Multi-Tier Test Suite Integration
-- **Why 1:** Why is multi-tier testing required?  
+- **Why 1:** Why is multi-tier testing required?
   *Finding:* Tests both the low-level C firmware core and the high-level Python user API.
-- **Why 2:** Why must native PBIO test binary run without skipped tests?  
+- **Why 2:** Why must native PBIO test binary run without skipped tests?
   *Finding:* Skipped tests conceal unverified code paths.
-- **Why 3:** Why must Python integration tests exist in `tests/virtualhub/robotics/`?  
+- **Why 3:** Why must Python integration tests exist in `tests/virtualhub/robotics/`?
   *Finding:* Exercises MicroPython argument parsing, exception raising, and async task orchestration.
-- **Why 4:** Why must total test execution remain under 10 seconds?  
+- **Why 4:** Why must total test execution remain under 10 seconds?
   *Finding:* Fast test cycles ensure high developer velocity and seamless CI validation.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* Multi-tier test suite passes 100% green within the 10-second SLA.
 
 ---

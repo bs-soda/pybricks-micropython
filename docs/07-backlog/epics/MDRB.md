@@ -1,10 +1,10 @@
 # EPIC: MDRB
 
-**Slug:** MDRB  
-**Name:** MDRobotBase Kinematics & Motion Engine Hardening  
-**Owner:** Product & Embedded Robotics Firmware Lead  
-**Base Integration Branch:** `epic/MDRB` (PR Target — NEVER `develop`)  
-**Status:** In Progress (Backlog Refined & Conformance Verified)  
+**Slug:** MDRB
+**Name:** MDRobotBase Kinematics & Motion Engine Hardening
+**Owner:** Product & Embedded Robotics Firmware Lead
+**Base Integration Branch:** `epic/MDRB` (PR Target — NEVER `develop`)
+**Status:** In Progress (Backlog Refined & Conformance Verified)
 
 ## Intent
 

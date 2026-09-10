@@ -1,6 +1,6 @@
 # Documentation index
 
-> Soda Agent OS — replace product placeholders when bootstrapping a new project.  
+> Soda Agent OS — replace product placeholders when bootstrapping a new project.
 > **Do not remove** process docs, `design-spec.md`, or `soda-*` skills.
 
 ## Project status

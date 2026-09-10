@@ -1,6 +1,6 @@
 # Bundle profiles — reusable compile presets
 
-> Compiler applies a **profile** to select imports, recipes, and exclusions.  
+> Compiler applies a **profile** to select imports, recipes, and exclusions.
 > Recipes: [execution-recipes/](../execution-recipes/README.md)
 
 ---

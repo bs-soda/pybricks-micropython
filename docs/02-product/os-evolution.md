@@ -1,6 +1,6 @@
 # OS Evolution — release notes for the OS
 
-> **Not code changelog** — how the **framework** improved between versions, measured on real projects.  
+> **Not code changelog** — how the **framework** improved between versions, measured on real projects.
 > Compare: [os-benchmark.md](os-benchmark.md) aggregates · Source: [framework-manifest.yml](../../framework-manifest.yml) `version`
 
 ---
@@ -37,8 +37,8 @@ Add a row when bumping `framework-manifest.yml` after **validated usage** eviden
 | Acceptance pass | 91% | 95% | +4pp |
 | Recipe reuse | 52% | 68% | +16pp |
 
-**Shipped:** shared-memory handoff spec, os benchmark schema  
-**Tuned:** capability matrix cursor.rest_api 0.93→0.95  
+**Shipped:** shared-memory handoff spec, os benchmark schema
+**Tuned:** capability matrix cursor.rest_api 0.93→0.95
 **Not changed:** Core invariants
 ```
 
@@ -84,7 +84,7 @@ Do not name consumer products in this file — use goal IDs and metric deltas on
 | `spec check G-xxx` | Spec checklist on the goal card |
 | `analyze G-xxx` | Before first **เริ่ม step N** |
 
-**Shipped:** spec stability as Extension (`promote_gates.spec_stability`) — not a new OS layer  
+**Shipped:** spec stability as Extension (`promote_gates.spec_stability`) — not a new OS layer
 **Not changed:** Core invariants C1–C5; MCP still not in OS
 
 ---

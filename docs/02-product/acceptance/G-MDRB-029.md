@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-029
 
-**Goal ID:** `G-MDRB-029`  
-**Title:** Two-Point Sensor Calibration Pipeline with Dark-Offset and White-Gain Normalization  
-**Epic:** MDRB  
-**Kind:** feature  
+**Goal ID:** `G-MDRB-029`
+**Title:** Two-Point Sensor Calibration Pipeline with Dark-Offset and White-Gain Normalization
+**Epic:** MDRB
+**Kind:** feature
 
 ---
 

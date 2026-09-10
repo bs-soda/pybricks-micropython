@@ -1,9 +1,9 @@
 # MDRobotBase Remediation Scorecard, Atomic Backlog & Kinematics Hardening Architecture
 
-**Date Timestamp:** `2026-09-07T17:35:00+07:00`  
-**Target Repository:** `pybricks-micropython`  
-**Framework:** Soda OS `1.24.0`  
-**Epic:** `MDRB` (*MDRobotBase Kinematics & Motion Engine*)  
+**Date Timestamp:** `2026-09-07T17:35:00+07:00`
+**Target Repository:** `pybricks-micropython`
+**Framework:** Soda OS `1.24.0`
+**Epic:** `MDRB` (*MDRobotBase Kinematics & Motion Engine*)
 **Scope:** Remediation backlog generation, 34-rule template conformance, and epic verification harness (Goals G-002 through G-010)
 
 ---

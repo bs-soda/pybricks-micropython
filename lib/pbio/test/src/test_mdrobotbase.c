@@ -2394,8 +2394,8 @@ static pbio_error_t test_mdrobotbase_perceptual_color_classifier(pbio_os_state_t
 
     // 2. Scenario 3 & 4: CIE Lab White and Black Reference Transformations
     float l = -1.0f, a = -1.0f, b = -1.0f;
-    // Pure White [1.0, 1.0, 1.0] -> L* in [99.9, 100.1], a* in [-0.5, 0.5], b* in [-0.5, 0.5]
-    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, &l, &a, &b), ==, PBIO_SUCCESS);
+    // Pure White [100.0, 100.0, 100.0] -> L* in [99.9, 100.1], a* in [-0.5, 0.5], b* in [-0.5, 0.5]
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(100.0f, 100.0f, 100.0f, &l, &a, &b), ==, PBIO_SUCCESS);
     tt_want(l >= 99.9f && l <= 100.1f);
     tt_want(fabsf(a) < 0.5f);
     tt_want(fabsf(b) < 0.5f);
@@ -2406,12 +2406,17 @@ static pbio_error_t test_mdrobotbase_perceptual_color_classifier(pbio_os_state_t
     tt_want(fabsf(a) < 1e-4f);
     tt_want(fabsf(b) < 1e-4f);
 
+    // Unambiguous scale contract: [1.0, 1.0, 1.0] is 1% dark gray, NOT 100% white!
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, &l, &a, &b), ==, PBIO_SUCCESS);
+    tt_want(l > 0.5f && l < 1.0f);
+
     // Fail-Closed Validation
-    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(-0.1f, 0.5f, 0.5f, &l, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
-    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(NAN, 0.5f, 0.5f, &l, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
-    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, NULL, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
-    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, &l, NULL, &b), ==, PBIO_ERROR_INVALID_ARG);
-    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(1.0f, 1.0f, 1.0f, &l, &a, NULL), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(-0.1f, 50.0f, 50.0f, &l, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(105.0f, 50.0f, 50.0f, &l, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(NAN, 50.0f, 50.0f, &l, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(100.0f, 100.0f, 100.0f, NULL, &a, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(100.0f, 100.0f, 100.0f, &l, NULL, &b), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_rgb_to_lab(100.0f, 100.0f, 100.0f, &l, &a, NULL), ==, PBIO_ERROR_INVALID_ARG);
 
     // 3. Scenario 5: Color Classification with Wraparound & Similar Color Discrimination
     lego_device_type_id_t dev_id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
@@ -2468,6 +2473,366 @@ end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }
 
+// Multi-Sample Prototype Statistical Calibration & Variance Modeling Test Suite (G-MDRB-031)
+static pbio_error_t test_mdrobotbase_statistical_color_calibration(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left;
+    static pbio_servo_t *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t dev_id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &dev_id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, dev_id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &dev_id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, dev_id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_assert(rb != NULL);
+
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+
+    // Scenario 4: Minimum sample count guard (AC-MDRB-031-4)
+    // Ingest only 3 samples (< 5)
+    for (int i = 0; i < 3; i++) {
+        tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 1, 0.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    }
+    // Finalization must fail closed with PBIO_ERROR_INVALID_OP
+    tt_uint_op(pbio_mdrobotbase_color_cal_finalize_class(rb, 1), ==, PBIO_ERROR_INVALID_OP);
+
+    // Scenario 1: Multi-Sample Online Accumulation (AC-MDRB-031-1)
+    // Reset and ingest 20 samples distributed around Red (mean_h ~ 0°, sigma ~ 3°)
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+    float red_samples[20] = {
+        0.0f, 1.5f, 3.0f, -1.5f, -3.0f,
+        2.0f, -2.0f, 4.0f, -4.0f, 0.5f,
+        -0.5f, 2.5f, -2.5f, 1.0f, -1.0f,
+        3.5f, -3.5f, 0.0f, 2.0f, -2.0f
+    };
+    for (int i = 0; i < 20; i++) {
+        float h = red_samples[i];
+        if (h < 0.0f) h += 360.0f;
+        tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 1, h, 95.0f, 90.0f), ==, PBIO_SUCCESS);
+    }
+    tt_uint_op(pbio_mdrobotbase_color_cal_finalize_class(rb, 1), ==, PBIO_SUCCESS);
+
+    pbio_mdrobotbase_color_class_t cclass;
+    tt_uint_op(pbio_mdrobotbase_color_cal_get_class(rb, 1, &cclass), ==, PBIO_SUCCESS);
+    tt_int_op(cclass.sample_count, ==, 20);
+    // mean_h must converge to 0° +- 0.5° (or >= 359.5°)
+    float diff_mean = pbio_mdrobotbase_circular_hue_distance(cclass.mean_h, 0.0f);
+    tt_want(diff_mean <= 0.5f);
+    // var_h must be around 5.0 - 11.0 (analytical variance for this set is ~6.5)
+    tt_want(cclass.var_h >= 5.0f && cclass.var_h <= 11.0f);
+
+    // Scenario 2: Circular Mean Hue Around Boundary (AC-MDRB-031-2)
+    // Ingest 10 samples alternating between 358° and 2°
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+    for (int i = 0; i < 10; i++) {
+        float h = (i % 2 == 0) ? 358.0f : 2.0f;
+        tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 1, h, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    }
+    tt_uint_op(pbio_mdrobotbase_color_cal_finalize_class(rb, 1), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_get_class(rb, 1, &cclass), ==, PBIO_SUCCESS);
+    diff_mean = pbio_mdrobotbase_circular_hue_distance(cclass.mean_h, 0.0f);
+    tt_want(diff_mean < 0.1f);
+    // Linear average would be 180° - assert that circular distance to 180° is nearly 180°
+    tt_want(pbio_mdrobotbase_circular_hue_distance(cclass.mean_h, 180.0f) > 170.0f);
+
+    // Scenario 3: Transient Outlier Glitch Rejection (AC-MDRB-031-3)
+    // Ingest 18 samples centered around Red (h=0°, sigma=2°) and 2 corrupted outlier samples (h=180°)
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+    float clean_red[18] = {
+        0.0f, 1.0f, -1.0f, 2.0f, -2.0f, 0.5f, -0.5f, 1.5f, -1.5f,
+        0.0f, 0.8f, -0.8f, 1.2f, -1.2f, 0.3f, -0.3f, 1.8f, -1.8f
+    };
+    for (int i = 0; i < 18; i++) {
+        float h = clean_red[i];
+        if (h < 0.0f) h += 360.0f;
+        tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 2, h, 90.0f, 85.0f), ==, PBIO_SUCCESS);
+    }
+    // Ingest 2 corrupted outlier samples at 180°
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 2, 180.0f, 90.0f, 85.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 2, 180.0f, 90.0f, 85.0f), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_color_cal_finalize_class(rb, 2), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_get_class(rb, 2, &cclass), ==, PBIO_SUCCESS);
+    // Verify that the 2 outliers were discarded: sample_count == 18
+    tt_int_op(cclass.sample_count, ==, 18);
+    // Final mean must remain centered near 0°, unaffected by the 180° glitches
+    diff_mean = pbio_mdrobotbase_circular_hue_distance(cclass.mean_h, 0.0f);
+    tt_want(diff_mean <= 0.5f);
+
+    // Clean teardown
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+// Confidence Scoring & Ambiguity Margin Rejection Test Suite (G-MDRB-032)
+static pbio_error_t test_mdrobotbase_confidence_and_ambiguity_rejection(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left;
+    static pbio_servo_t *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t dev_id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &dev_id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, dev_id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &dev_id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, dev_id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_assert(rb != NULL);
+
+    // 1. Argument validation on ambiguity threshold (AC-MDRB-032-4)
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_ambiguity_threshold(rb, -1.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_ambiguity_threshold(rb, NAN), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_ambiguity_threshold(NULL, 10.0f), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 2. Single Prototype Classification (AC-MDRB-032-1)
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_threshold(rb, 50.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, 0.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+
+    uint8_t best_id = 99;
+    float min_dist = 0.0f;
+    float conf = 0.0f;
+    // Sample near prototype 1
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 2.0f, 100.0f, 100.0f, &best_id, &min_dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(best_id, ==, 1);
+    tt_want(conf >= 0.999f); // 1.0 confidence for single prototype within threshold
+
+    // 3. Out-of-threshold rejection (AC-MDRB-032-2)
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 180.0f, 100.0f, 100.0f, &best_id, &min_dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(best_id, ==, 0);
+    tt_want(conf == 0.0f);
+
+    // 4. Ambiguity Margin Rejection (AC-MDRB-032-3)
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 2, 30.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_ambiguity_threshold(rb, 10.0f), ==, PBIO_SUCCESS);
+
+    // Ambiguous sample equidistant between prototype 1 (h=0) and prototype 2 (h=30)
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 15.0f, 100.0f, 100.0f, &best_id, &min_dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(best_id, ==, 0); // Rejection due to ambiguity margin
+
+    // Clearly closer to prototype 1 (h=2, margin ~ 26 > 10)
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 2.0f, 100.0f, 100.0f, &best_id, &min_dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(best_id, ==, 1);
+    tt_want(conf > 0.7f);
+
+    // 5. Reset restores defaults
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+
+    // Clean teardown
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+static pbio_error_t test_mdrobotbase_comprehensive_verification_matrix(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left;
+    static pbio_servo_t *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t dev_id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &dev_id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, dev_id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &dev_id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, dev_id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_assert(rb != NULL);
+
+    // 1. Two-point calibration across illumination sweep
+    // Black reference: [10, 10, 10], White reference: [900, 900, 900]
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_black_reference(rb, 10.0f, 10.0f, 10.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_white_reference(rb, 900.0f, 900.0f, 900.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_threshold(rb, 45.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_ambiguity_threshold(rb, 8.0f), ==, PBIO_SUCCESS);
+
+    // 2. Register multi-sample prototypes: Red (h=0) and Orange (h=30)
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, 0.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 2, 30.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+
+    uint8_t best_id = 99;
+    float min_dist = 0.0f;
+    float conf = 0.0f;
+
+    // 3. Circular hue wraparound check: Red at 359° and 1°
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 359.0f, 95.0f, 95.0f, &best_id, &min_dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(best_id, ==, 1);
+    tt_want(conf > 0.6f);
+    tt_want(min_dist < 15.0f);
+
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 1.0f, 95.0f, 95.0f, &best_id, &min_dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(best_id, ==, 1);
+    tt_want(conf > 0.6f);
+    tt_want(min_dist < 15.0f);
+
+    // 4. Adjacent color separation: Orange at 29°
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 29.0f, 95.0f, 95.0f, &best_id, &min_dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(best_id, ==, 2);
+    tt_want(conf > 0.6f);
+
+    // 5. Borderline ambiguity rejection: sample at 15° (equidistant between 0° and 30°)
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 15.0f, 95.0f, 95.0f, &best_id, &min_dist, &conf), ==, PBIO_SUCCESS);
+    tt_int_op(best_id, ==, 0); // Must be rejected as Color.NONE
+
+    // 6. Native Threshold, Baseline, Prototype, and Classification Input Validation Pass
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_threshold(rb, NAN), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_threshold(rb, INFINITY), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_threshold(rb, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_threshold(rb, -5.0f), ==, PBIO_ERROR_INVALID_ARG);
+
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_baseline(rb, NAN, 50.0f, 50.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_baseline(rb, 0.0f, -1.0f, 50.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_baseline(rb, 0.0f, 105.0f, 50.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_baseline(rb, 0.0f, 50.0f, -1.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_baseline(rb, 0.0f, 50.0f, 105.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_baseline(rb, 720.0f, 50.0f, 50.0f), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 0, 0.0f, 100.0f, 100.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, NAN, 100.0f, 100.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, 0.0f, -1.0f, 100.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, 0.0f, 105.0f, 100.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, 0.0f, 100.0f, -1.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, 0.0f, 100.0f, 105.0f), ==, PBIO_ERROR_INVALID_ARG);
+
+    uint8_t dummy_id = 0;
+    float dummy_d = 0.0f, dummy_c = 0.0f;
+    // HSV Classification validation: S > 100, V > 100, H >= 360, H < 0
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 0.0f, 105.0f, 50.0f, &dummy_id, &dummy_d, &dummy_c), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 0.0f, 50.0f, 105.0f, &dummy_id, &dummy_d, &dummy_c), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, 360.0f, 50.0f, 50.0f, &dummy_id, &dummy_d, &dummy_c), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, -1.0f, 50.0f, 50.0f, &dummy_id, &dummy_d, &dummy_c), ==, PBIO_ERROR_INVALID_ARG);
+
+    // HSV Sample Accumulation validation: S > 100, V > 100, H >= 360, H < 0
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 1, 0.0f, 105.0f, 50.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 1, 0.0f, 50.0f, 105.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 1, 360.0f, 50.0f, 50.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_sample_hsv(rb, 1, -1.0f, 50.0f, 50.0f), ==, PBIO_ERROR_INVALID_ARG);
+
+    // RGB Classification validation: R > 100, G > 100, B > 100
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 105.0f, 50.0f, 50.0f, &dummy_id, &dummy_d, &dummy_c), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 50.0f, 105.0f, 50.0f, &dummy_id, &dummy_d, &dummy_c), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 50.0f, 50.0f, 105.0f, &dummy_id, &dummy_d, &dummy_c), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 7. 6-class Confusion Matrix Verification (Matching VirtualHub Golden Vectors, 30 trials per class = 180 total)
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_threshold(rb, 35.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_set_ambiguity_threshold(rb, 5.0f), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 1, 0.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 2, 30.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 3, 60.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 4, 120.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 5, 180.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_color_cal_add_prototype(rb, 6, 240.0f, 100.0f, 100.0f), ==, PBIO_SUCCESS);
+
+    float class_hues[6] = {0.0f, 30.0f, 60.0f, 120.0f, 180.0f, 240.0f};
+    for (uint8_t c = 0; c < 6; c++) {
+        uint8_t expected_id = c + 1;
+        for (int trial = 0; trial < 30; trial++) {
+            float noise_h = class_hues[c] + (float)((trial % 7) - 3) * 1.0f;
+            if (noise_h < 0.0f) {
+                noise_h += 360.0f;
+            } else if (noise_h >= 360.0f) {
+                noise_h -= 360.0f;
+            }
+            float noise_s = 100.0f - (float)(trial % 4) * 1.5f;
+            float noise_v = 100.0f - (float)(trial % 4) * 1.5f;
+            uint8_t classified_id = 0;
+            float d = 0.0f, cf = 0.0f;
+            tt_uint_op(pbio_mdrobotbase_color_classify_hsv(rb, noise_h, noise_s, noise_v, &classified_id, &d, &cf), ==, PBIO_SUCCESS);
+            tt_int_op(classified_id, ==, expected_id);
+            tt_want(cf > 0.40f);
+        }
+    }
+
+    // 8. Sensor Calibration Profile Storage & Parity Verification
+    pbio_mdrobotbase_color_profile_t profile;
+    tt_uint_op(pbio_mdrobotbase_color_cal_export_profile(rb, &profile), ==, PBIO_SUCCESS);
+    tt_uint_op(profile.version, ==, 1);
+    tt_uint_op(profile.num_prototypes, ==, 6);
+    tt_want_int_op((int)profile.threshold, ==, 35);
+
+    // Reset and confirm 0 prototypes (uncalibrated return Color.NONE)
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+    uint8_t uncal_id = 0;
+    float uncal_d = 0.0f, uncal_c = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 100.0f, 0.0f, 0.0f, &uncal_id, &uncal_d, &uncal_c), ==, PBIO_SUCCESS);
+    tt_int_op(uncal_id, ==, 0);
+
+    // Reload profile and verify restoration
+    tt_uint_op(pbio_mdrobotbase_color_cal_load_profile(rb, &profile), ==, PBIO_SUCCESS);
+    uint8_t restored_id = 0;
+    float restored_d = 0.0f, restored_c = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 100.0f, 0.0f, 0.0f, &restored_id, &restored_d, &restored_c), ==, PBIO_SUCCESS);
+    tt_int_op(restored_id, ==, 1);
+
+    // 8b. Transactional Atomic Profile Loading Regression Verification (P1 Finding Remediation)
+    // Verify that attempting to load corrupted profiles preserves the exact existing calibration state.
+    pbio_mdrobotbase_color_profile_t corrupt_profile = profile;
+    corrupt_profile.prototypes[0].h = 400.0f; // Invalid hue >= 360.0f
+    tt_uint_op(pbio_mdrobotbase_color_cal_load_profile(rb, &corrupt_profile), ==, PBIO_ERROR_INVALID_ARG);
+
+    // Assert that live state is untouched: 6 prototypes, valid classification still works
+    uint8_t preserved_id = 0;
+    float preserved_d = 0.0f, preserved_c = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 100.0f, 0.0f, 0.0f, &preserved_id, &preserved_d, &preserved_c), ==, PBIO_SUCCESS);
+    tt_int_op(preserved_id, ==, 1); // Prototype 1 (Red) still matches!
+
+    // Verify invalid threshold < 0.0f preserves state
+    corrupt_profile = profile;
+    corrupt_profile.threshold = -5.0f;
+    tt_uint_op(pbio_mdrobotbase_color_cal_load_profile(rb, &corrupt_profile), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 100.0f, 0.0f, 0.0f, &preserved_id, &preserved_d, &preserved_c), ==, PBIO_SUCCESS);
+    tt_int_op(preserved_id, ==, 1);
+
+    // Verify invalid version preserves state
+    corrupt_profile = profile;
+    corrupt_profile.version = 99;
+    tt_uint_op(pbio_mdrobotbase_color_cal_load_profile(rb, &corrupt_profile), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 100.0f, 0.0f, 0.0f, &preserved_id, &preserved_d, &preserved_c), ==, PBIO_SUCCESS);
+    tt_int_op(preserved_id, ==, 1);
+
+    // Verify invalid white reference (r <= r0 + 5.0f) preserves state
+    corrupt_profile = profile;
+    corrupt_profile.has_black_ref = true;
+    corrupt_profile.black_ref[0] = 50.0f;
+    corrupt_profile.black_ref[1] = 50.0f;
+    corrupt_profile.black_ref[2] = 50.0f;
+    corrupt_profile.has_white_ref = true;
+    corrupt_profile.white_ref[0] = 51.0f; // <= black_ref + 5.0f
+    corrupt_profile.white_ref[1] = 90.0f;
+    corrupt_profile.white_ref[2] = 90.0f;
+    tt_uint_op(pbio_mdrobotbase_color_cal_load_profile(rb, &corrupt_profile), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_color_classify_rgb(rb, 100.0f, 0.0f, 0.0f, &preserved_id, &preserved_d, &preserved_c), ==, PBIO_SUCCESS);
+    tt_int_op(preserved_id, ==, 1);
+
+    // 9. Clean Reset
+    tt_uint_op(pbio_mdrobotbase_color_cal_reset(rb), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
 struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_basics),
     PBIO_THREAD_TEST(test_mdrobotbase_motion_state),
@@ -2494,8 +2859,8 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_color_classification),
     PBIO_THREAD_TEST(test_mdrobotbase_two_point_calibration),
     PBIO_THREAD_TEST(test_mdrobotbase_perceptual_color_classifier),
+    PBIO_THREAD_TEST(test_mdrobotbase_statistical_color_calibration),
+    PBIO_THREAD_TEST(test_mdrobotbase_confidence_and_ambiguity_rejection),
+    PBIO_THREAD_TEST(test_mdrobotbase_comprehensive_verification_matrix),
     END_OF_TESTCASES
 };
-
-
-

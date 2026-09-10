@@ -1,13 +1,13 @@
 # Knowledge loop — Source of evolution
 
-> **For humans and agents.** Full closed loop from conversation to organizational learning.  
-> **Stability:** [os-core-invariants.md](os-core-invariants.md) (Core vs Extension — **no new layers**)  
+> **For humans and agents.** Full closed loop from conversation to organizational learning.
+> **Stability:** [os-core-invariants.md](os-core-invariants.md) (Core vs Extension — **no new layers**)
 > **Health:** [os-health.md](../02-product/os-health.md) · command **`os health`**
 
-Discovery: [soda-discovery](../../.agents/skills/soda-discovery/SKILL.md)  
+Discovery: [soda-discovery](../../.agents/skills/soda-discovery/SKILL.md)
 Learning: [soda-learning-loop](../../.agents/skills/soda-learning-loop/SKILL.md)
 
-Runtime graph via **Knowledge Services** (Phase 1 backend: [knowledge-map.json](../02-product/knowledge-map.json)) — tune **extensions** from real project data, not new framework layers.  
+Runtime graph via **Knowledge Services** (Phase 1 backend: [knowledge-map.json](../02-product/knowledge-map.json)) — tune **extensions** from real project data, not new framework layers.
 Architecture: [knowledge-services.md](../03-architecture/knowledge-services.md) · [knowledge-store.md](../03-architecture/knowledge-store.md)
 
 ---

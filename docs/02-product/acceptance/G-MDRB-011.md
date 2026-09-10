@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-011
 
-**Goal ID:** `G-MDRB-011`  
-**Title:** Validate-Before-Cancel Motion Lifecycle & Preemption Safety  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-011`
+**Title:** Validate-Before-Cancel Motion Lifecycle & Preemption Safety
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

@@ -1,12 +1,12 @@
 # G-MDRB-006: Async Cancellation and Repeated-Motion Lifecycle Safety
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Harden asynchronous motion lifecycle to guarantee deterministic preemption, safe stop calls, and no dangling awaitables  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-005  
-**Blocks:** G-MDRB-007  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Harden asynchronous motion lifecycle to guarantee deterministic preemption, safe stop calls, and no dangling awaitables
+**Epic:** MDRB
+**Depends on:** G-MDRB-005
+**Blocks:** G-MDRB-007
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -33,8 +33,8 @@ In [`pybricks/robotics/pb_type_mdrobotbase.c:32,68`](file:///Users/batrarethsudp
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Multi-step autonomous navigation frequently interrupts or chains motions; allowing orphaned asynchronous tasks to run concurrently with newly dispatched motions creates race conditions and uncontrolled robot movements.  
-**Done when:** Dispatching a new motion while an existing motion is active cleanly terminates the previous motion, calling stop when idle is completely safe, and completion, cancellation, timeout, and stall leave no active or iterating awaitable state.  
+**Why:** Multi-step autonomous navigation frequently interrupts or chains motions; allowing orphaned asynchronous tasks to run concurrently with newly dispatched motions creates race conditions and uncontrolled robot movements.
+**Done when:** Dispatching a new motion while an existing motion is active cleanly terminates the previous motion, calling stop when idle is completely safe, and completion, cancellation, timeout, and stall leave no active or iterating awaitable state.
 **Unblocks:** G-MDRB-007 (Trajectory and Controller Input Validation).
 
 ## Atomicity & Zero-Mock Contract
@@ -87,25 +87,25 @@ In [`pybricks/robotics/pb_type_mdrobotbase.c:32,68`](file:///Users/batrarethsudp
 ## Work steps
 
 ### Step 1 — Active Motion Preemption Protocol
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Implement `pb_type_mdrobotbase_cancel_active_motion()`.
 2. Guard all motion entrypoints to cancel active motions before launching new ones.
 
-**Completion gate:** Starting motion B while motion A is running cleanly terminates motion A without interleaving.  
+**Completion gate:** Starting motion B while motion A is running cleanly terminates motion A without interleaving.
 **Stop condition:** Any concurrent motor command conflict.
 
 ### Step 2 — Safe Stop & Null Awaitable Guards
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Check `self->last_awaitable != NULL` before calling `pb_type_async_schedule_stop_iteration`.
 2. Clear `self->last_awaitable = NULL` upon completion, cancellation, or stop.
 
-**Completion gate:** Calling `robot.stop()` on an idle robot executes safely without crashes.  
+**Completion gate:** Calling `robot.stop()` on an idle robot executes safely without crashes.
 **Stop condition:** Any NULL pointer dereference.
 
 ### Step 3 — Lifecycle Sequence Verification Tests
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`, `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`, `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Test Start -> Complete.
 2. Test Start -> Cancel.
@@ -114,7 +114,7 @@ In [`pybricks/robotics/pb_type_mdrobotbase.c:32,68`](file:///Users/batrarethsudp
 5. Test Start Motion A -> immediately Start Motion B.
 6. Test Complete -> start second motion.
 
-**Completion gate:** All 6 lifecycle sequences pass 100% green without stale task leakage.  
+**Completion gate:** All 6 lifecycle sequences pass 100% green without stale task leakage.
 **Stop condition:** Any zombie awaitable continuing to poll.
 
 ## In

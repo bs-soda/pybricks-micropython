@@ -1,6 +1,6 @@
 # Compiler IR — intermediate representation
 
-> Action bundle = **IR**. Knowledge graph = **source program**. Compiler = **pass pipeline**.  
+> Action bundle = **IR**. Knowledge graph = **source program**. Compiler = **pass pipeline**.
 > Parent: [context-compiler.md](context-compiler.md) · Coordination: [coordination.md](coordination.md)
 
 ---

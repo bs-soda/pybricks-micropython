@@ -1,11 +1,11 @@
 # G-MDRB-003 Baseline Blocker & Socratic 5-Why Dialectic Report
 
-**Timestamp:** 2026-09-07T18:40:00+07:00  
-**Goal:** G-MDRB-003 — Constructor and Parameter Geometry Validation  
-**Epic:** MDRB (MDRobotBase Kinematics & Motion Engine)  
-**Git Exact HEAD:** `0582aefe38928ed3fe7456775dc5784a901bd28b`  
-**Git Branch:** `feature/mdrobotbase-enhancement`  
-**Author:** Antigravity AI (Pair Programming)  
+**Timestamp:** 2026-09-07T18:40:00+07:00
+**Goal:** G-MDRB-003 — Constructor and Parameter Geometry Validation
+**Epic:** MDRB (MDRobotBase Kinematics & Motion Engine)
+**Git Exact HEAD:** `0582aefe38928ed3fe7456775dc5784a901bd28b`
+**Git Branch:** `feature/mdrobotbase-enhancement`
+**Author:** Antigravity AI (Pair Programming)
 **Status:** BASELINE FROZEN (0/25 Checks Passed - 25 Failures)
 
 ---
@@ -112,63 +112,63 @@ In the baseline firmware state of `lib/pbio/src/mdrobotbase.c` and `pybricks/rob
 ## 3. Five-Why Dialectic Decomposition
 
 ### Branch 1: Differential Kinematics Division-by-Zero Elimination
-- **L1:** Why does non-positive axle track cause immediate IEEE 754 division-by-zero?  
+- **L1:** Why does non-positive axle track cause immediate IEEE 754 division-by-zero?
   *Root finding:* In differential odometry, $\Delta\theta = (d_{\text{right}} - d_{\text{left}}) / W_{\text{track}}$. When $W_{\text{track}} = 0$, division by zero produces `NaN` or $\pm\infty$.
-- **L2:** Why must axle track be strictly positive ($W > 0$) rather than non-negative?  
+- **L2:** Why must axle track be strictly positive ($W > 0$) rather than non-negative?
   *Root finding:* A zero or negative axle track is physically impossible for differential steering; negative track reverses angular kinematics unexpectedly.
-- **L3:** Why must validation precede pool slot acquisition?  
+- **L3:** Why must validation precede pool slot acquisition?
   *Root finding:* Committing a slot before validation can leak the pool slot if initialization is aborted.
-- **L4:** Why must upper sanity bounds ($W \le 5\text{m}$) be enforced?  
+- **L4:** Why must upper sanity bounds ($W \le 5\text{m}$) be enforced?
   *Root finding:* Disproportionately huge numbers trigger integer overflow during unit scaling ($\mu\text{m}$).
-- **L5:** Why return `PBIO_ERROR_INVALID_ARG` directly from C?  
+- **L5:** Why return `PBIO_ERROR_INVALID_ARG` directly from C?
   *Root finding:* Establishes deterministic fail-closed signaling translated directly to Python `ValueError`.
 
 ### Branch 2: Linear Velocity Conversion Singularity & Runaway
-- **L1:** Why does non-positive wheel diameter cause velocity command singularities?  
+- **L1:** Why does non-positive wheel diameter cause velocity command singularities?
   *Root finding:* Angular velocity is computed as $\omega = v / r$. When $r \le 0$, motor angular target blows up or inverts.
-- **L2:** Why must left and right diameters be validated independently?  
+- **L2:** Why must left and right diameters be validated independently?
   *Root finding:* MDRobotBase supports asymmetric differential drive with unequal left/right wheels; either invalid dimension corrupts kinematics.
-- **L3:** Why must runtime setters enforce identical bounds?  
+- **L3:** Why must runtime setters enforce identical bounds?
   *Root finding:* `set_wheel_diameters()` is a mutable runtime entrypoint that must not bypass constructor guards.
-- **L4:** Why must upper sanity bounds ($D \le 1\text{m}$) be enforced?  
+- **L4:** Why must upper sanity bounds ($D \le 1\text{m}$) be enforced?
   *Root finding:* Wheel diameters beyond 1m cause severe numerical underflow during displacement ticks.
-- **L5:** Why must PBIO C reject non-positive diameters with `PBIO_ERROR_INVALID_ARG`?  
+- **L5:** Why must PBIO C reject non-positive diameters with `PBIO_ERROR_INVALID_ARG`?
   *Root finding:* Enforces embedded runtime safety before any motor control registers are written.
 
 ### Branch 3: Motor Aliasing Conflict Prevention
-- **L1:** Why does passing the same physical motor for left and right cause actuator conflict?  
+- **L1:** Why does passing the same physical motor for left and right cause actuator conflict?
   *Root finding:* Dual drivebase PID loops write contradictory duty cycles and velocities to the exact same servo handle.
-- **L2:** Why must PBIO C enforce `left != right`?  
+- **L2:** Why must PBIO C enforce `left != right`?
   *Root finding:* Guarantees hardware independence across all platform ports.
-- **L3:** Why must MicroPython reject `left_motor == right_motor` before calling PBIO?  
+- **L3:** Why must MicroPython reject `left_motor == right_motor` before calling PBIO?
   *Root finding:* Gives explicit, user-friendly Python exception diagnostics.
-- **L4:** Why must re-entrant instance lookup never match aliased single motors?  
+- **L4:** Why must re-entrant instance lookup never match aliased single motors?
   *Root finding:* Re-entrance must only match legitimate dual-motor setups.
-- **L5:** Why return `PBIO_ERROR_INVALID_ARG` on aliasing?  
+- **L5:** Why return `PBIO_ERROR_INVALID_ARG` on aliasing?
   *Root finding:* Guarantees zero conflicting commands dispatched to hardware.
 
 ### Branch 4: Floating-Point Non-Finiteness & NaN Sanitization
-- **L1:** Why does passing NaN or Infinity to `pb_obj_get_scaled_int()` cause undefined behavior?  
+- **L1:** Why does passing NaN or Infinity to `pb_obj_get_scaled_int()` cause undefined behavior?
   *Root finding:* ISO C99 defines float-to-integer conversion of NaN/Inf as undefined behavior.
-- **L2:** Why must MicroPython explicitly test `isfinite()`?  
+- **L2:** Why must MicroPython explicitly test `isfinite()`?
   *Root finding:* MicroPython does not perform float bounds verification during standard argument parsing.
-- **L3:** Why must both constructor and setters check `isfinite()`?  
+- **L3:** Why must both constructor and setters check `isfinite()`?
   *Root finding:* Comprehensive sanitization across all input surfaces.
-- **L4:** Why must non-finite inputs raise `ValueError`?  
+- **L4:** Why must non-finite inputs raise `ValueError`?
   *Root finding:* Clear, actionable developer diagnostics.
-- **L5:** Why is IEEE 754 sanitization non-negotiable?  
+- **L5:** Why is IEEE 754 sanitization non-negotiable?
   *Root finding:* Prevents silent NaN contamination across Kalman filters and PID accumulators.
 
 ### Branch 5: Fail-Closed Allocation Rollback & Unit Test Verification
-- **L1:** Why must validation precede pool slot commitment?  
+- **L1:** Why must validation precede pool slot commitment?
   *Root finding:* Resource leak prevention in embedded systems with limited pool capacity.
-- **L2:** Why must `*rb_address` remain NULL on failure?  
+- **L2:** Why must `*rb_address` remain NULL on failure?
   *Root finding:* Prevents caller from dereferencing uninitialized or garbage memory.
-- **L3:** Why must C tests verify all boundary conditions?  
+- **L3:** Why must C tests verify all boundary conditions?
   *Root finding:* Guarantees 100% branch coverage with zero mocks and zero stubs.
-- **L4:** Why must test be registered in `pbio_mdrobotbase_tests`?  
+- **L4:** Why must test be registered in `pbio_mdrobotbase_tests`?
   *Root finding:* Ensures automated execution in CI/CD pipeline.
-- **L5:** Why must all 25 nodes converge to 100%?  
+- **L5:** Why must all 25 nodes converge to 100%?
   *Root finding:* Strict compliance with Article I and Article II.
 
 ---

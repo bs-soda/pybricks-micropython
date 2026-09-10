@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-020
 
-**Goal ID:** `G-MDRB-020`  
-**Title:** Finite State Machine Transition Table and Atomic Motion-Status Coupling  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-020`
+**Title:** Finite State Machine Transition Table and Atomic Motion-Status Coupling
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

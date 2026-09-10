@@ -1,12 +1,12 @@
 # G-MDRB-011: Validate-Before-Cancel Motion Lifecycle & Preemption Safety
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Enforce argument parsing and geometric/speed validation prior to invoking cancel_active_motion and motion_reset across all motion dispatch methods in pb_type_mdrobotbase.c  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-010  
-**Blocks:** G-MDRB-012  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Enforce argument parsing and geometric/speed validation prior to invoking cancel_active_motion and motion_reset across all motion dispatch methods in pb_type_mdrobotbase.c
+**Epic:** MDRB
+**Depends on:** G-MDRB-010
+**Blocks:** G-MDRB-012
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -38,9 +38,9 @@ In `pybricks/robotics/pb_type_mdrobotbase.c:1008-1009`, `1402`, `1556`, and `173
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Aborting active motion routines before validating replacement commands corrupts autonomous navigation state and violates transaction safety.  
-**Done when:** Any invalid, malformed, or out-of-range motion command raises an immediate exception without cancelling the active motion or issuing motor stop commands.  
-**Unblocks:** G-MDRB-012  
+**Why:** Aborting active motion routines before validating replacement commands corrupts autonomous navigation state and violates transaction safety.
+**Done when:** Any invalid, malformed, or out-of-range motion command raises an immediate exception without cancelling the active motion or issuing motor stop commands.
+**Unblocks:** G-MDRB-012
 
 ## Atomicity & Zero-Mock Contract
 
@@ -96,35 +96,35 @@ In `pybricks/robotics/pb_type_mdrobotbase.c:1008-1009`, `1402`, `1556`, and `173
 
 ### Step 1 — Specification & Validation Ordering Alignment
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-011.md` · `docs/02-product/acceptance/G-MDRB-011.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-011.md` · `docs/02-product/acceptance/G-MDRB-011.md`
 **Actions:**
 
 1. Specify Given-When-Then BDD scenarios for invalid motion dispatch during running motion.
 2. Formulate test matrix covering navigate, turn, pivot, and follow_trajectory.
 
-**Completion gate:** Acceptance criteria defined with zero unresolved clarification tags.  
+**Completion gate:** Acceptance criteria defined with zero unresolved clarification tags.
 **Stop condition:** Ambiguity regarding which validation exceptions are non-cancelling.
 
 ### Step 2 — Reorder Motion Dispatch Argument Parsing Before Cancellation
 
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 
 1. Move `cancel_active_motion` and `motion_reset` below `mp_arg_parse_all` and parameter sanity checks in `pb_type_MDRobotBase_navigate_to_goal`.
 2. Apply the same reordering in `turn_angle`, `pivot_angle`, and `follow_trajectory`.
 
-**Completion gate:** C code compiles without warnings and passes unit tests.  
+**Completion gate:** C code compiles without warnings and passes unit tests.
 **Stop condition:** Compiler warnings or regression in valid motion dispatch.
 
 ### Step 3 — Verification & Invalid Preemption Regression Test Pass
 
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`
 **Actions:**
 
 1. Add VirtualHub test starting background motion A and calling invalid motion B.
 2. Assert that exception is caught and motion A completes to expected pose.
 
-**Completion gate:** Automated test executes and passes with exit code 0.  
+**Completion gate:** Automated test executes and passes with exit code 0.
 **Stop condition:** Motion A stops early when invalid motion B is dispatched.
 
 ## In

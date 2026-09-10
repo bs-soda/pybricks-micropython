@@ -1,12 +1,12 @@
 # G-MDRB-019: Portable Address Validation and Foreign-Pointer Memory Safety in put_robotbase
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Replace undefined-behavior relational pointer comparisons in pbio_mdrobotbase_put_robotbase with portable uintptr_t address arithmetic, array byte range checks, and struct alignment validation  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-018  
-**Blocks:** G-MDRB-020  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Replace undefined-behavior relational pointer comparisons in pbio_mdrobotbase_put_robotbase with portable uintptr_t address arithmetic, array byte range checks, and struct alignment validation
+**Epic:** MDRB
+**Depends on:** G-MDRB-018
+**Blocks:** G-MDRB-020
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -44,8 +44,8 @@ Under ISO C (C99/C11 §6.5.8), relational comparisons (`<`, `<=`, `>`, `>=`) and
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Autonomous competition robotics firmware must never trigger undefined behavior when handling invalid or foreign references; pointer validation must remain strictly portable, deterministic, and safe on all embedded targets.  
-**Done when:** All pointer address validations in slot reclamation use portable unsigned integer address checks, byte-range boundaries, and struct size alignment checks, verified with unit tests passing arbitrary foreign stack, heap, and misaligned addresses without undefined behavior.  
+**Why:** Autonomous competition robotics firmware must never trigger undefined behavior when handling invalid or foreign references; pointer validation must remain strictly portable, deterministic, and safe on all embedded targets.
+**Done when:** All pointer address validations in slot reclamation use portable unsigned integer address checks, byte-range boundaries, and struct size alignment checks, verified with unit tests passing arbitrary foreign stack, heap, and misaligned addresses without undefined behavior.
 **Unblocks:** G-MDRB-020
 
 ## Atomicity & Zero-Mock Contract
@@ -107,36 +107,36 @@ Under ISO C (C99/C11 §6.5.8), relational comparisons (`<`, `<=`, `>`, `>=`) and
 
 ### Step 1 — Specification & Pointer Safety Analysis
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-019.md` · `docs/02-product/acceptance/G-MDRB-019.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-019.md` · `docs/02-product/acceptance/G-MDRB-019.md`
 **Actions:**
 1. Document the exact ISO C undefined behavior semantics of pointer relational comparisons across disjoint memory allocations.
 2. Formalize mathematical address range and alignment invariants for static pool validation.
 3. Formulate Given-When-Then BDD scenarios in acceptance contract.
-**Completion gate:** Acceptance contract exists with quantitative foreign pointer validation scenarios.  
+**Completion gate:** Acceptance contract exists with quantitative foreign pointer validation scenarios.
 **Stop condition:** Spec drift or unresolved alignment ambiguity.
 
 ### Step 2 — Implement Portable uintptr_t Bounds & Alignment Verification
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c`
 **Actions:**
 1. Refactor `pbio_mdrobotbase_put_robotbase()` to perform address validation via `uintptr_t`.
 2. Compute `base = (uintptr_t)&mdrobotbases[0]` and `total_size = sizeof(mdrobotbases)`.
 3. Check `addr < base || addr >= base + total_size`.
 4. Check `(addr - base) % sizeof(pbio_mdrobotbase_t) != 0`.
 5. Compute `slot = (int)((addr - base) / sizeof(pbio_mdrobotbase_t))` and verify `mdrobotbase_in_use[slot]`.
-**Completion gate:** Clean compilation with zero compiler warnings.  
+**Completion gate:** Clean compilation with zero compiler warnings.
 **Stop condition:** Build error or compiler warning on `uintptr_t` conversions.
 
 ### Step 3 — Foreign-Pointer Sanitizer & TinyTest Verification Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Implement `test_mdrobotbase_portable_pointer_validation()` in `lib/pbio/test/src/test_mdrobotbase.c`.
 2. Test rejection of stack-allocated foreign pointer.
 3. Test rejection of misaligned pointer into pool.
 4. Test rejection of unallocated slot within pool.
 5. Register test in `pbio_mdrobotbase_tests[]` and verify full suite passes.
-**Completion gate:** `make -C lib/pbio/test test` passes 19/19 tests ok.  
+**Completion gate:** `make -C lib/pbio/test test` passes 19/19 tests ok.
 **Stop condition:** Any test failure or sanitizer fault.
 
 ## In

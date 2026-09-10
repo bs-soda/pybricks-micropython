@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Socratic Agentic Loop: G-MDRB-030 Perceptual Color Classifier (Circular Hue & CIE Lab)
- * 
+ *
  * Executes 5 Causal Branches x 5 Dialectic Levels (25 Total Nodes)
  * Strict Zero-Mock Contract: Article I Invariant (Zero Mocks, Zero Stubs, Zero String Simulations)
  * Article II: Mandatory Verification & Testing Pass
- * 
+ *
  * Branches:
  * 1. Circular Hue Shortest-Arc Metric (dh <= 180° and 359° <-> 1° Continuity)
  * 2. CIE L*a*b* Perceptual Transformation & D65 Illuminant Projection

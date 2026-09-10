@@ -1,12 +1,12 @@
 # G-MDRB-015: Angle Normalization, Pivot-Turn Invariants, and Distance Conservation
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Implement and prove mathematical invariants for pure spin (dx, dy approx 0), pivot turns (locked wheel distance approx 0), [-180, +180] angle wrapping, and backlash filtering distance conservation  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-014  
-**Blocks:** G-MDRB-016  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Implement and prove mathematical invariants for pure spin (dx, dy approx 0), pivot turns (locked wheel distance approx 0), [-180, +180] angle wrapping, and backlash filtering distance conservation
+**Epic:** MDRB
+**Depends on:** G-MDRB-014
+**Blocks:** G-MDRB-016
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -39,9 +39,9 @@ In `pybricks/robotics/pb_type_mdrobotbase.c` and `lib/pbio/src/mdrobotbase.c`, d
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Violation of turning and backlash invariants leads to insidious cumulative position errors, off-target arrivals, and corrupted field coordinate tracking.  
-**Done when:** Spin turns conserve position ($\Delta x \approx 0, \Delta y \approx 0$), pivot turns conserve the stationary pivot point, angles remain strictly normalized in $[-180.0^\circ, +180.0^\circ]$, and backlash filters conserve distance over oscillating cycles.  
-**Unblocks:** G-MDRB-016  
+**Why:** Violation of turning and backlash invariants leads to insidious cumulative position errors, off-target arrivals, and corrupted field coordinate tracking.
+**Done when:** Spin turns conserve position ($\Delta x \approx 0, \Delta y \approx 0$), pivot turns conserve the stationary pivot point, angles remain strictly normalized in $[-180.0^\circ, +180.0^\circ]$, and backlash filters conserve distance over oscillating cycles.
+**Unblocks:** G-MDRB-016
 
 ## Atomicity & Zero-Mock Contract
 
@@ -100,36 +100,36 @@ In `pybricks/robotics/pb_type_mdrobotbase.c` and `lib/pbio/src/mdrobotbase.c`, d
 
 ### Step 1 — Specification & Turning Kinematics Invariant Formulation
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-015.md` · `docs/02-product/acceptance/G-MDRB-015.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-015.md` · `docs/02-product/acceptance/G-MDRB-015.md`
 **Actions:**
 
 1. Define quantitative bounds for spin turn center-point drift ($\Delta x, \Delta y \le 0.05\text{ mm}$).
 2. Formulate pivot turn equations: $s_R = W \cdot \Delta \theta_{rad}$ for left pivot.
 3. Formulate backlash filter distance conservation test protocol.
 
-**Completion gate:** Acceptance criteria with explicit tolerances defined.  
+**Completion gate:** Acceptance criteria with explicit tolerances defined.
 **Stop condition:** Ambiguity in axle track geometry or pivot center definition.
 
 ### Step 2 — Enforce Spin, Pivot, and Backlash Invariant Mechanics
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c`
 **Actions:**
 
 1. Validate angle wrapping boundary conditions at exactly $+180.0^\circ$ and $-180.0^\circ$.
 2. Review backlash filter deadband accumulator to ensure zero net drift during symmetric vibration.
 
-**Completion gate:** C code compiles without warnings.  
+**Completion gate:** C code compiles without warnings.
 **Stop condition:** Compiler warnings or odometry drift.
 
 ### Step 3 — Verification & Odometry Conservation Test Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 
 1. Implement `test_mdrobotbase_spin_and_pivot_invariants`.
 2. Implement `test_mdrobotbase_backlash_distance_conservation`.
 
-**Completion gate:** All test cases pass with exit code 0.  
+**Completion gate:** All test cases pass with exit code 0.
 **Stop condition:** Center drift $> 0.05\text{ mm}$ or backlash cumulative leak.
 
 ## In

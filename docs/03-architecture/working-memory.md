@@ -1,6 +1,6 @@
 # Working memory — runtime + shared coordination
 
-> **Bundle** = IR (compile once). **Working memory** = runtime. **Shared memory** = multi-agent handoff.  
+> **Bundle** = IR (compile once). **Working memory** = runtime. **Shared memory** = multi-agent handoff.
 > Parent: [context-compiler.md](context-compiler.md) · Coordination: [coordination.md](coordination.md)
 
 ---

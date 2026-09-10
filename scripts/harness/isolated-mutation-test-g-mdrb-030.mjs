@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Isolated Mutation Test Suite: G-MDRB-030
- * 
+ *
  * Verifies harness sensitivity by injecting synthetic mutations into
  * circular hue arithmetic, CIE Lab color transformations, composite weighting,
  * and metric symmetry invariants.
- * 
+ *
  * Invariants: Exact-HEAD provenance, Article I (Zero False-Positives), Article II (Mandatory Failure Detection).
  */
 

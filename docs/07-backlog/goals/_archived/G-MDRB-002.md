@@ -1,12 +1,12 @@
 # G-MDRB-002: Complete State Initialization and Lifecycle Reset
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Enforce deterministic zero-initialization of all MDRobotBase struct fields and provide dedicated motion reset helpers  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-001  
-**Blocks:** G-MDRB-003  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Enforce deterministic zero-initialization of all MDRobotBase struct fields and provide dedicated motion reset helpers
+**Epic:** MDRB
+**Depends on:** G-MDRB-001
+**Blocks:** G-MDRB-003
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -37,8 +37,8 @@ When a robot instance is reconstructed or reused, dirty accumulators (such as `s
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Embedded control structures must start from a strictly known, deterministic zero state; uninitialized fields cause undefined behavior, floating-point NaN propagation, and spurious motion failures across consecutive runs.  
-**Done when:** Allocating or initializing a robot base produces identical, zero-leakage defaults across both fresh and previously dirty struct slots, all internal accumulators and trajectory buffers are cleared, and a dedicated motion reset helper resets transient motion variables before each motion.  
+**Why:** Embedded control structures must start from a strictly known, deterministic zero state; uninitialized fields cause undefined behavior, floating-point NaN propagation, and spurious motion failures across consecutive runs.
+**Done when:** Allocating or initializing a robot base produces identical, zero-leakage defaults across both fresh and previously dirty struct slots, all internal accumulators and trajectory buffers are cleared, and a dedicated motion reset helper resets transient motion variables before each motion.
 **Unblocks:** G-MDRB-003 (Constructor and Parameter Geometry Validation).
 
 ## Atomicity & Zero-Mock Contract
@@ -93,32 +93,32 @@ When a robot instance is reconstructed or reused, dirty accumulators (such as `s
 ## Work steps
 
 ### Step 1 — Centralized Initialization Implementation
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`, `lib/pbio/src/mdrobotbase.c`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`, `lib/pbio/src/mdrobotbase.c`
 **Actions:**
 1. Declare and implement `pbio_mdrobotbase_init()`.
 2. Apply `memset` zeroing followed by explicit defaults for all struct members (including pivot gains).
 3. Update `pbio_mdrobotbase_get_robotbase()` to invoke `pbio_mdrobotbase_init()`.
 
-**Completion gate:** All struct fields have deterministic initial values; no uninitialized memory remains.  
+**Completion gate:** All struct fields have deterministic initial values; no uninitialized memory remains.
 **Stop condition:** Any compiler warning or memory layout mismatch.
 
 ### Step 2 — Transient Motion Reset Helper
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`, `lib/pbio/src/mdrobotbase.c`, `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`, `lib/pbio/src/mdrobotbase.c`, `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Implement `pbio_mdrobotbase_motion_reset()`.
 2. Integrate helper at the entry of every motion command dispatch.
 
-**Completion gate:** Consecutive motion commands execute without residual integral or stall accumulators.  
+**Completion gate:** Consecutive motion commands execute without residual integral or stall accumulators.
 **Stop condition:** Any unhandled motion state transition.
 
 ### Step 3 — Initialization & Reuse Conformance Tests
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Test default field values on freshly allocated instance.
 2. Fill struct memory with 0xFF pattern, call `pbio_mdrobotbase_init()`, and verify 100% field hygiene.
 3. Test dirty motion accumulators are wiped clean by `pbio_mdrobotbase_motion_reset()`.
 
-**Completion gate:** Test suite passes 100% green with exit code 0.  
+**Completion gate:** Test suite passes 100% green with exit code 0.
 **Stop condition:** Any dirty field detected after initialization.
 
 ## In

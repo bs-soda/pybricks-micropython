@@ -2,8 +2,8 @@
 
 **Requirements Specification**
 
-**Document Version:** 1.0  
-**Author:** {{author}}  
+**Document Version:** 1.0
+**Author:** {{author}}
 **Approval Date:** {{date}}
 
 ### Revision History
@@ -33,21 +33,21 @@ Copy the **Feature IDs (F-xx)** from the signed **WP02 Agreement**. This documen
 
 For this agile project, the requirements specification will be a dynamic collection of artifacts.
 
-* **Format:** Requirements are specified as User Stories. Each User Story will follow the format:  
-  * **As a** [type of user],  
-  * **I want** [to perform some task],  
-  * **so that** [I can achieve some goal].  
-* **Acceptance Criteria:** Each story will include a list of testable conditions in the "Given/When/Then" format:  
-  * **Given** [a context]  
-  * **When** [an action is performed]  
-  * **Then** [an observable outcome occurs].  
+* **Format:** Requirements are specified as User Stories. Each User Story will follow the format:
+  * **As a** [type of user],
+  * **I want** [to perform some task],
+  * **so that** [I can achieve some goal].
+* **Acceptance Criteria:** Each story will include a list of testable conditions in the "Given/When/Then" format:
+  * **Given** [a context]
+  * **When** [an action is performed]
+  * **Then** [an observable outcome occurs].
 
 ### **4. Traceability**
 
 Requirements traceability is managed to ensure all agreed-upon features are implemented and tested.
 
-* **F-xx** (WP02 Agreement) → **REQ-xxx** (this document) → design / **TC-xxx** (WP19) per **WP21 RTM**.  
-* Do not put REQ-xxx in the SOW; keep contract language at feature level only.  
+* **F-xx** (WP02 Agreement) → **REQ-xxx** (this document) → design / **TC-xxx** (WP19) per **WP21 RTM**.
+* Do not put REQ-xxx in the SOW; keep contract language at feature level only.
 
 ---
 

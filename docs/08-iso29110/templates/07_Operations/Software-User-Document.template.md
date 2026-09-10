@@ -4,12 +4,12 @@
 
 **{{project_name}}**
 
-**Software**   
+**Software**
 **User Document**
 
-**Document Version: 1.0**  
-**Author:** [{{role_name}}]({{contact_email}})  
-**Approval Date:** 15 September 2025  
+**Document Version: 1.0**
+**Author:** [{{role_name}}]({{contact_email}})
+**Approval Date:** 15 September 2025
 **Revision History**
 
 | Version | Date | Description | Author | Status |
@@ -35,11 +35,11 @@
 
 [6\. Contact & Support	9](#6.-contact-&-support)
 
-### 
+###
 
-### 
+###
 
-### 
+###
 
 ### **1\. Introduction** {#1.-introduction}
 
@@ -61,16 +61,16 @@ Welcome to **{{project_name}}*\*\! This guide is designed to help you get the mo
 
 **For Android user (Play store)**
 
-* Go to Play store & search "{{project_name}}"  
-* Click install  
+* Go to Play store & search "{{project_name}}"
+* Click install
 * Follow the on-screen instructions to complete the installation.
 
 ### **4\.  Getting Started** {#4.-getting-started}
 
 This section describes how to start using the “{{project_name}} after installation.
 
-* Launch the application by clicking on the icon.  
-* Login or Register via Google(in case).  
+* Launch the application by clicking on the icon.
+* Login or Register via Google(in case).
 * Follow the guided setup to configure initial preferences.
 
 ### **5\.  Feature Overview** {#5.-feature-overview}
@@ -89,7 +89,7 @@ The below table highlights all key features of {{project_name}} application.
 
 1) **Authentication to the application**
 
-    
+
 **Step 1:**
 
 ***[Insert diagram or screenshot here]***
@@ -98,7 +98,7 @@ The below table highlights all key features of {{project_name}} application.
 
 ***[Insert diagram or screenshot here]***
 
-  **Step 3:** 
+  **Step 3:**
 
 ***[Insert diagram or screenshot here]***
 
@@ -124,21 +124,21 @@ The below table highlights all key features of {{project_name}} application.
 
 ***[Insert diagram or screenshot here]**[Insert diagram or screenshot here]***
 
-### 
+###
 
 ### **5\. Troubleshooting & FAQs** {#5.-troubleshooting-&-faqs}
 
-* **Q: I can't log in. What should I do?**  
-  - A: Make sure you are using the correct email and password. If you have forgotten your password, use the "Forgot Password?" link on the login screen to reset it.  
-* **Q: The application is running slowly. How can I fix this?**  
-  - A: First, ensure you have a stable internet connection. Try restarting the application. If the problem persists, check that your computer meets the minimum system requirements outlined in Section 2\.  
-* **Q: How do I invite a team member to my project?**  
+* **Q: I can't log in. What should I do?**
+  - A: Make sure you are using the correct email and password. If you have forgotten your password, use the "Forgot Password?" link on the login screen to reset it.
+* **Q: The application is running slowly. How can I fix this?**
+  - A: First, ensure you have a stable internet connection. Try restarting the application. If the problem persists, check that your computer meets the minimum system requirements outlined in Section 2\.
+* **Q: How do I invite a team member to my project?**
   - A: Inside your project, click the "Share" button in the top right corner. You can then enter the email address of the person you wish to invite.
 
 ### **6\. Contact & Support** {#6.-contact-&-support}
 
 For further assistance, please use one of the following resources:
 
-* **Help Center:** Visit our comprehensive online knowledge base at [https://the-path.app/en/faq]({{production_url}})  
-* **Email Support:** Contact our support team directly at **contact@sodalityco.th**  
+* **Help Center:** Visit our comprehensive online knowledge base at [https://the-path.app/en/faq]({{production_url}})
+* **Email Support:** Contact our support team directly at **contact@sodalityco.th**
 * **Website:** Join the website to know more about the product [https://the-path.app]({{production_url}})

@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-013
 
-**Goal ID:** `G-MDRB-013`  
-**Title:** Motion-Status Enum Boundary Validation & Failure State Contract  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-013`
+**Title:** Motion-Status Enum Boundary Validation & Failure State Contract
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

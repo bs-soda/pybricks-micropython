@@ -1,6 +1,6 @@
 # Knowledge digest
 
-> **Distilled signal from discovery — not a transcript.**  
+> **Distilled signal from discovery — not a transcript.**
 > Agent updates via [soda-discovery](../../.agents/skills/soda-discovery/SKILL.md) — **IDs must match** [knowledge-map.json](knowledge-map.json).
 
 **Rule:** If this file grows like meeting minutes, re-distill. Target ~20% of conversation volume.

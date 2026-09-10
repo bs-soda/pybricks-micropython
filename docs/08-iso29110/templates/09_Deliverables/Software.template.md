@@ -2,11 +2,11 @@
 
 **Software** — **WP14** (artifact register)
 
-**Document Version:** 1.0  
-**Date:** {{date}}  
+**Document Version:** 1.0
+**Date:** {{date}}
 **Author:** {{author}}
 
-> Register of **built software artifacts** (repo, build, release).  
+> Register of **built software artifacts** (repo, build, release).
 > Not a long narrative — point at real locations.
 
 ### Revision History

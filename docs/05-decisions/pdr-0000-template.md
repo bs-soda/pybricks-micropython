@@ -1,10 +1,10 @@
 # PDR-0000: [Product decision title]
 
-**Status:** proposed | accepted | superseded  
-**Date:** YYYY-MM-DD  
+**Status:** proposed | accepted | superseded
+**Date:** YYYY-MM-DD
 **Deciders:** [names or roles — PO, lead, stakeholder]
 
-> **PDR** = Product Decision Record — scope, persona, timeline, feature tradeoffs.  
+> **PDR** = Product Decision Record — scope, persona, timeline, feature tradeoffs.
 > **ADR** = Architecture Decision Record — stack, auth, data model. Use [0000-template.md](0000-template.md) for technical choices.
 
 ## Context

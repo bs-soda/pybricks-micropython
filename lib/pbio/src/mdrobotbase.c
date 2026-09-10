@@ -304,7 +304,7 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
     if (!rb || !isfinite(x) || !isfinite(y) || !isfinite(theta) || !isfinite(gyro_heading)) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    
+
     pbio_control_state_t state_l, state_r;
     pbio_error_t err = pbio_servo_get_state_control(rb->left, &state_l);
     if (err != PBIO_SUCCESS) {
@@ -317,16 +317,16 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
 
     float left_deg = pbio_control_settings_ctl_to_app_long_float(&rb->left->control.settings, &state_l.position);
     float right_deg = pbio_control_settings_ctl_to_app_long_float(&rb->right->control.settings, &state_r.position);
-    
+
     rb->x = x;
     rb->y = y;
     rb->theta = theta;
-    
+
     rb->last_left_deg = left_deg;
     rb->last_right_deg = right_deg;
     rb->last_gyro_heading = gyro_heading;
     rb->last_accel_x = 0.0f;
-    
+
     return PBIO_SUCCESS;
 }
 
@@ -334,7 +334,7 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     if (!rb) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    
+
     pbio_control_state_t state_l, state_r;
     pbio_error_t err = pbio_servo_get_state_control(rb->left, &state_l);
     if (err != PBIO_SUCCESS) {
@@ -347,17 +347,17 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
 
     float left_deg = pbio_control_settings_ctl_to_app_long_float(&rb->left->control.settings, &state_l.position);
     float right_deg = pbio_control_settings_ctl_to_app_long_float(&rb->right->control.settings, &state_r.position);
-    
+
     float d_left_ticks = left_deg - rb->last_left_deg;
     float d_right_ticks = right_deg - rb->last_right_deg;
-    
+
     rb->last_left_deg = left_deg;
     rb->last_right_deg = right_deg;
 
     // Scale motor degree deltas to output wheel degrees using gear ratio
     d_left_ticks = pbio_mdrobotbase_motor_to_wheel_deg(rb, d_left_ticks);
     d_right_ticks = pbio_mdrobotbase_motor_to_wheel_deg(rb, d_right_ticks);
-    
+
     if (rb->backlash_filter_enabled) {
         // Evaluate left wheel backlash hysteresis
         float left_cand = rb->backlash_left_accum + d_left_ticks;
@@ -372,7 +372,7 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
             left_excess = 0.0f;
             rb->backlash_left_accum = left_cand;
         }
-        
+
         // Evaluate right wheel backlash hysteresis
         float right_cand = rb->backlash_right_accum + d_right_ticks;
         float right_excess = 0.0f;
@@ -394,23 +394,23 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     float diam_left_mm = (float)rb->wheel_diameter_left / 1000.0f;
     float diam_right_mm = (float)rb->wheel_diameter_right / 1000.0f;
     float track_mm = (float)rb->axle_track / 1000.0f;
-    
+
     // Convert ticks (degrees) to linear distance (mm)
     float d_left = (d_left_ticks / 360.0f) * 3.14159265f * diam_left_mm;
     float d_right = (d_right_ticks / 360.0f) * 3.14159265f * diam_right_mm;
     float d_center = (d_left + d_right) / 2.0f;
-    
+
     float delta_theta_gyro = -(gyro_heading - rb->last_gyro_heading);
     while (delta_theta_gyro > 180.0f) delta_theta_gyro -= 360.0f;
     while (delta_theta_gyro < -180.0f) delta_theta_gyro += 360.0f;
-    
+
     rb->last_gyro_heading = gyro_heading;
-    
+
     float delta_theta_enc_rad = (d_right - d_left) / track_mm;
     float delta_theta_enc_deg = delta_theta_enc_rad * (180.0f / 3.14159265f);
-    
+
     float delta_theta = rb->fusion_alpha * delta_theta_gyro + (1.0f - rb->fusion_alpha) * delta_theta_enc_deg;
-    
+
     if (rb->motion_type == PBIO_MDROBOTBASE_MOTION_TURN) {
         // Pure spin turn: center point does not translate linearly
         d_center = 0.0f;
@@ -422,7 +422,7 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
         float old_theta_rad = rb->theta * (3.14159265f / 180.0f);
         float new_theta_rad = (rb->theta + delta_theta) * (3.14159265f / 180.0f);
         float r_offset = rb->pivot_left ? (track_mm / 2.0f) : -(track_mm / 2.0f);
-        
+
         rb->x += r_offset * (sinf(new_theta_rad) - sinf(old_theta_rad));
         rb->y += -r_offset * (cosf(new_theta_rad) - cosf(old_theta_rad));
     } else {
@@ -430,9 +430,9 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
         rb->x += d_center * cosf(avg_angle_rad);
         rb->y += d_center * sinf(avg_angle_rad);
     }
-    
+
     rb->theta = pbio_mdrobotbase_wrap_degrees(rb->theta + delta_theta);
-    
+
     return PBIO_SUCCESS;
 }
 
@@ -830,6 +830,10 @@ pbio_error_t pbio_mdrobotbase_color_cal_reset(pbio_mdrobotbase_t *rb) {
     rb->color_cal.gain[2] = 0.01f;
     rb->color_cal.has_black_ref = false;
     rb->color_cal.has_white_ref = false;
+    rb->color_cal.num_classes = 0;
+    rb->color_cal.sample_acc.count = 0;
+    rb->color_cal.sample_acc.color_id = 0;
+    rb->color_cal.ambiguity_threshold = 6.0f;
     return PBIO_SUCCESS;
 }
 
@@ -837,7 +841,17 @@ pbio_error_t pbio_mdrobotbase_color_cal_set_baseline(pbio_mdrobotbase_t *rb, flo
     if (!rb) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    rb->color_cal.base_h = base_h;
+    if (!isfinite(base_h) || !isfinite(base_s) || !isfinite(base_v)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (base_s < 0.0f || base_s > 100.0f || base_v < 0.0f || base_v > 100.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    float norm_h = fmodf(base_h, 360.0f);
+    if (norm_h < 0.0f) {
+        norm_h += 360.0f;
+    }
+    rb->color_cal.base_h = norm_h;
     rb->color_cal.base_s = base_s;
     rb->color_cal.base_v = base_v;
     rb->color_cal.v_scale = (base_v > 5.0f) ? 3.0f : 35.0f;
@@ -845,35 +859,54 @@ pbio_error_t pbio_mdrobotbase_color_cal_set_baseline(pbio_mdrobotbase_t *rb, flo
 }
 
 pbio_error_t pbio_mdrobotbase_color_cal_set_threshold(pbio_mdrobotbase_t *rb, float max_distance_threshold) {
-    if (!rb || max_distance_threshold <= 0.0f) {
+    if (!rb || !isfinite(max_distance_threshold) || max_distance_threshold <= 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->color_cal.max_distance_threshold = max_distance_threshold;
     return PBIO_SUCCESS;
 }
 
-pbio_error_t pbio_mdrobotbase_color_cal_add_prototype(pbio_mdrobotbase_t *rb, uint8_t color_id, float h, float s, float v) {
-    if (!rb || rb->color_cal.num_prototypes >= 32) {
+pbio_error_t pbio_mdrobotbase_color_cal_set_ambiguity_threshold(pbio_mdrobotbase_t *rb, float threshold) {
+    if (!rb || !isfinite(threshold) || threshold < 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
+    rb->color_cal.ambiguity_threshold = threshold;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_color_cal_add_prototype(pbio_mdrobotbase_t *rb, uint8_t color_id, float h, float s, float v) {
+    if (!rb || color_id == 0 || rb->color_cal.num_prototypes >= 32) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(h) || !isfinite(s) || !isfinite(v)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (h < 0.0f || h >= 360.0f || s < 0.0f || s > 100.0f || v < 0.0f || v > 100.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    float norm_h = h;
     size_t idx = rb->color_cal.num_prototypes;
-    float h_rad = h * 3.141592653589793f / 180.0f;
+    float h_rad = norm_h * 3.141592653589793f / 180.0f;
     float v_scale = (rb->color_cal.base_v > 5.0f) ? 3.0f : 35.0f;
-    
-    rb->color_cal.prototypes[idx].h = h;
+
+    rb->color_cal.prototypes[idx].h = norm_h;
     rb->color_cal.prototypes[idx].s = s;
     rb->color_cal.prototypes[idx].v = v;
     rb->color_cal.prototypes[idx].x = s * cosf(h_rad);
     rb->color_cal.prototypes[idx].y = s * sinf(h_rad);
     rb->color_cal.prototypes[idx].z = v * v_scale;
     rb->color_cal.prototypes[idx].color_id = color_id;
-    
+
     rb->color_cal.num_prototypes++;
     rb->color_cal.is_calibrated = true;
     return PBIO_SUCCESS;
 }
 
 static void mdrobotbase_hsv_to_rgb(float h, float s, float v, float *r, float *g, float *b) {
+    if (s < 0.0f) s = 0.0f;
+    if (s > 100.0f) s = 100.0f;
+    if (v < 0.0f) v = 0.0f;
+    if (v > 100.0f) v = 100.0f;
     if (s <= 1e-6f) {
         *r = v;
         *g = v;
@@ -888,7 +921,6 @@ static void mdrobotbase_hsv_to_rgb(float h, float s, float v, float *r, float *g
     int i = (int)floorf(h_sector);
     float f = h_sector - (float)i;
     float s_norm = s / 100.0f;
-    if (s_norm > 1.0f) s_norm = 1.0f;
     float p = v * (1.0f - s_norm);
     float q = v * (1.0f - s_norm * f);
     float t = v * (1.0f - s_norm * (1.0f - f));
@@ -937,20 +969,16 @@ pbio_error_t pbio_mdrobotbase_rgb_to_lab(float r, float g, float b, float *l, fl
     if (!l || !a || !b_val) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    if (!isfinite(r) || !isfinite(g) || !isfinite(b) || r < 0.0f || g < 0.0f || b < 0.0f) {
+    if (!isfinite(r) || !isfinite(g) || !isfinite(b) ||
+        r < 0.0f || r > 100.0f ||
+        g < 0.0f || g > 100.0f ||
+        b < 0.0f || b > 100.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    float r_norm = r;
-    float g_norm = g;
-    float b_norm = b;
-    if (r_norm > 1.0f || g_norm > 1.0f || b_norm > 1.0f) {
-        r_norm /= 100.0f;
-        g_norm /= 100.0f;
-        b_norm /= 100.0f;
-    }
-    if (r_norm > 1.0f) r_norm = 1.0f;
-    if (g_norm > 1.0f) g_norm = 1.0f;
-    if (b_norm > 1.0f) b_norm = 1.0f;
+    // Single unambiguous contract: [0.0, 100.0] percentage scale mapped to [0.0, 1.0] for D65
+    float r_norm = r / 100.0f;
+    float g_norm = g / 100.0f;
+    float b_norm = b / 100.0f;
 
     float r_lin = mdrobotbase_srgb_to_linear(r_norm);
     float g_lin = mdrobotbase_srgb_to_linear(g_norm);
@@ -1004,17 +1032,17 @@ pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h
     if (!rb || !color_id || !distance || !confidence) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    if (!isfinite(h) || !isfinite(s) || !isfinite(v) || h < 0.0f || s < 0.0f || v < 0.0f) {
+    if (!isfinite(h) || !isfinite(s) || !isfinite(v) || h < 0.0f || h >= 360.0f || s < 0.0f || s > 100.0f || v < 0.0f || v > 100.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    
+
     if (rb->color_cal.num_prototypes == 0) {
         *color_id = 0; // Color.NONE
         *distance = 999999.0f;
         *confidence = 0.0f;
         return PBIO_SUCCESS;
     }
-    
+
     float s_r = 0.0f, s_g = 0.0f, s_b = 0.0f;
     mdrobotbase_hsv_to_rgb(h, s, v, &s_r, &s_g, &s_b);
     float s_l = 0.0f, s_a = 0.0f, s_b_val = 0.0f;
@@ -1028,7 +1056,7 @@ pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h
     float min_d = 999999.0f;
     float second_min_d = 999999.0f;
     uint8_t best_id = 0;
-    
+
     for (size_t i = 0; i < rb->color_cal.num_prototypes; i++) {
         float dh = pbio_mdrobotbase_circular_hue_distance(h, rb->color_cal.prototypes[i].h);
         float dh_norm = dh / 180.0f;
@@ -1054,7 +1082,7 @@ pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h
                              wv * dv_norm * dv_norm +
                              wlab * dE_norm * dE_norm);
         float dist = d_norm * 100.0f;
-        
+
         if (dist < min_d) {
             second_min_d = min_d;
             min_d = dist;
@@ -1063,32 +1091,41 @@ pbio_error_t pbio_mdrobotbase_color_classify_hsv(pbio_mdrobotbase_t *rb, float h
             second_min_d = dist;
         }
     }
-    
+
     float max_thresh = (rb->color_cal.max_distance_threshold > 0.0f) ? rb->color_cal.max_distance_threshold : 40.0f;
+    float ambig_thresh = (rb->color_cal.ambiguity_threshold >= 0.0f) ? rb->color_cal.ambiguity_threshold : (0.15f * max_thresh);
+
     if (min_d > max_thresh) {
         *color_id = 0; // Color.NONE
         *distance = min_d;
         *confidence = 0.0f;
         return PBIO_SUCCESS;
     }
-    
-    *color_id = best_id;
-    *distance = min_d;
-    
+
     float conf = 0.0f;
     if (rb->color_cal.num_prototypes == 1) {
-        conf = 1.0f - (min_d / max_thresh);
+        conf = 1.0f;
     } else {
         float margin = second_min_d - min_d;
-        conf = margin / (second_min_d + min_d + 1e-4f);
+        conf = margin / (second_min_d + min_d + 1e-6f);
     }
     if (conf < 0.0f) {
         conf = 0.0f;
     } else if (conf > 1.0f) {
         conf = 1.0f;
     }
+
+    if (rb->color_cal.num_prototypes > 1 && (second_min_d - min_d) < ambig_thresh) {
+        *color_id = 0; // Color.NONE
+        *distance = min_d;
+        *confidence = conf;
+        return PBIO_SUCCESS;
+    }
+
+    *color_id = best_id;
+    *distance = min_d;
     *confidence = conf;
-    
+
     return PBIO_SUCCESS;
 }
 
@@ -1175,10 +1212,13 @@ pbio_error_t pbio_mdrobotbase_color_classify_rgb(pbio_mdrobotbase_t *rb, float r
     if (!rb || !color_id || !distance || !confidence) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    if (!isfinite(r) || !isfinite(g) || !isfinite(b) || r < 0.0f || g < 0.0f || b < 0.0f) {
+    if (!isfinite(r) || !isfinite(g) || !isfinite(b) ||
+        r < 0.0f || r > 100.0f ||
+        g < 0.0f || g > 100.0f ||
+        b < 0.0f || b > 100.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    
+
     float in_r = r;
     float in_g = g;
     float in_b = b;
@@ -1208,4 +1248,413 @@ pbio_error_t pbio_mdrobotbase_color_cal_classify(pbio_mdrobotbase_t *rb, float h
     return pbio_mdrobotbase_color_classify_hsv(rb, h, s, v, matched_color_id, min_distance, &confidence);
 }
 
+// Multi-Sample Statistical Prototype Calibration Implementation (G-MDRB-031)
+pbio_error_t pbio_mdrobotbase_color_cal_add_sample(pbio_mdrobotbase_t *rb, uint8_t color_id, float r, float g, float b) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(r) || !isfinite(g) || !isfinite(b) ||
+        r < 0.0f || r > 100.0f ||
+        g < 0.0f || g > 100.0f ||
+        b < 0.0f || b > 100.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (color_id == 0) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (rb->color_cal.sample_acc.color_id != color_id) {
+        rb->color_cal.sample_acc.color_id = color_id;
+        rb->color_cal.sample_acc.count = 0;
+    }
+    if (rb->color_cal.sample_acc.count >= 32) {
+        return PBIO_ERROR_INVALID_OP;
+    }
 
+    float in_r = r, in_g = g, in_b = b;
+    if (rb->color_cal.has_black_ref || rb->color_cal.has_white_ref) {
+        float rn = 0.0f, gn = 0.0f, bn = 0.0f;
+        pbio_error_t err = pbio_mdrobotbase_color_normalize(rb, r, g, b, &rn, &gn, &bn);
+        if (err != PBIO_SUCCESS) {
+            return err;
+        }
+        in_r = rn * 100.0f;
+        in_g = gn * 100.0f;
+        in_b = bn * 100.0f;
+    }
+
+    uint16_t idx = rb->color_cal.sample_acc.count;
+    rb->color_cal.sample_acc.r[idx] = in_r;
+    rb->color_cal.sample_acc.g[idx] = in_g;
+    rb->color_cal.sample_acc.b[idx] = in_b;
+
+    float h = 0.0f, s = 0.0f, v = 0.0f;
+    mdrobotbase_rgb_to_hsv(in_r, in_g, in_b, &h, &s, &v);
+    rb->color_cal.sample_acc.h[idx] = h;
+    rb->color_cal.sample_acc.s[idx] = s;
+    rb->color_cal.sample_acc.v[idx] = v;
+
+    float l = 0.0f, a = 0.0f, b_lab = 0.0f;
+    pbio_mdrobotbase_rgb_to_lab(in_r, in_g, in_b, &l, &a, &b_lab);
+    rb->color_cal.sample_acc.l[idx] = l;
+    rb->color_cal.sample_acc.a[idx] = a;
+    rb->color_cal.sample_acc.b_lab[idx] = b_lab;
+
+    rb->color_cal.sample_acc.count++;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_color_cal_add_sample_hsv(pbio_mdrobotbase_t *rb, uint8_t color_id, float h, float s, float v) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!isfinite(h) || !isfinite(s) || !isfinite(v) ||
+        h < 0.0f || h >= 360.0f ||
+        s < 0.0f || s > 100.0f ||
+        v < 0.0f || v > 100.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (color_id == 0) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (rb->color_cal.sample_acc.color_id != color_id) {
+        rb->color_cal.sample_acc.color_id = color_id;
+        rb->color_cal.sample_acc.count = 0;
+    }
+    if (rb->color_cal.sample_acc.count >= 32) {
+        return PBIO_ERROR_INVALID_OP;
+    }
+
+    uint16_t idx = rb->color_cal.sample_acc.count;
+    float norm_h = fmodf(h, 360.0f);
+    if (norm_h < 0.0f) {
+        norm_h += 360.0f;
+    }
+    rb->color_cal.sample_acc.h[idx] = norm_h;
+    rb->color_cal.sample_acc.s[idx] = s;
+    rb->color_cal.sample_acc.v[idx] = v;
+
+    float r = 0.0f, g = 0.0f, b = 0.0f;
+    mdrobotbase_hsv_to_rgb(norm_h, s, v, &r, &g, &b);
+    rb->color_cal.sample_acc.r[idx] = r;
+    rb->color_cal.sample_acc.g[idx] = g;
+    rb->color_cal.sample_acc.b[idx] = b;
+
+    float l = 0.0f, a = 0.0f, b_lab = 0.0f;
+    pbio_mdrobotbase_rgb_to_lab(r, g, b, &l, &a, &b_lab);
+    rb->color_cal.sample_acc.l[idx] = l;
+    rb->color_cal.sample_acc.a[idx] = a;
+    rb->color_cal.sample_acc.b_lab[idx] = b_lab;
+
+    rb->color_cal.sample_acc.count++;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_color_cal_finalize_class(pbio_mdrobotbase_t *rb, uint8_t color_id) {
+    if (!rb || color_id == 0) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (rb->color_cal.sample_acc.color_id != color_id || rb->color_cal.sample_acc.count < 5) {
+        return PBIO_ERROR_INVALID_OP;
+    }
+
+    uint16_t n = rb->color_cal.sample_acc.count;
+    const float deg_to_rad = 3.14159265358979323846f / 180.0f;
+    const float rad_to_deg = 180.0f / 3.14159265358979323846f;
+
+    // Pass 1: Compute initial circular mean hue and initial standard deviations
+    float sum_sin = 0.0f;
+    float sum_cos = 0.0f;
+    float sum_s = 0.0f, sum_v = 0.0f;
+    float sum_l = 0.0f, sum_a = 0.0f, sum_b = 0.0f;
+
+    for (uint16_t i = 0; i < n; i++) {
+        float rad = rb->color_cal.sample_acc.h[i] * deg_to_rad;
+        sum_sin += sinf(rad);
+        sum_cos += cosf(rad);
+        sum_s += rb->color_cal.sample_acc.s[i];
+        sum_v += rb->color_cal.sample_acc.v[i];
+        sum_l += rb->color_cal.sample_acc.l[i];
+        sum_a += rb->color_cal.sample_acc.a[i];
+        sum_b += rb->color_cal.sample_acc.b_lab[i];
+    }
+
+    float init_mean_h = atan2f(sum_sin, sum_cos) * rad_to_deg;
+    if (init_mean_h < 0.0f) init_mean_h += 360.0f;
+    if (init_mean_h >= 360.0f) init_mean_h = 0.0f;
+
+    float init_mean_s = sum_s / (float)n;
+    float init_mean_v = sum_v / (float)n;
+    float init_mean_l = sum_l / (float)n;
+    float init_mean_a = sum_a / (float)n;
+    float init_mean_b = sum_b / (float)n;
+
+    float sum_sq_dh = 0.0f;
+    float sum_sq_ds = 0.0f;
+    float sum_sq_dv = 0.0f;
+    float sum_sq_lab = 0.0f;
+
+    for (uint16_t i = 0; i < n; i++) {
+        float dh = pbio_mdrobotbase_circular_hue_distance(rb->color_cal.sample_acc.h[i], init_mean_h);
+        sum_sq_dh += dh * dh;
+        float ds = rb->color_cal.sample_acc.s[i] - init_mean_s;
+        sum_sq_ds += ds * ds;
+        float dv = rb->color_cal.sample_acc.v[i] - init_mean_v;
+        sum_sq_dv += dv * dv;
+        float dl = rb->color_cal.sample_acc.l[i] - init_mean_l;
+        float da = rb->color_cal.sample_acc.a[i] - init_mean_a;
+        float db = rb->color_cal.sample_acc.b_lab[i] - init_mean_b;
+        sum_sq_lab += dl * dl + da * da + db * db;
+    }
+
+    float sigma_h = sqrtf(sum_sq_dh / (float)(n - 1));
+    float sigma_s = sqrtf(sum_sq_ds / (float)(n - 1));
+    float sigma_v = sqrtf(sum_sq_dv / (float)(n - 1));
+    float sigma_lab = sqrtf(sum_sq_lab / (float)(n - 1));
+
+    // Pass 2: Outlier rejection if n >= 10
+    bool keep[32];
+    uint16_t kept_count = 0;
+    if (n >= 10) {
+        for (uint16_t i = 0; i < n; i++) {
+            float dh = pbio_mdrobotbase_circular_hue_distance(rb->color_cal.sample_acc.h[i], init_mean_h);
+            float ds = fabsf(rb->color_cal.sample_acc.s[i] - init_mean_s);
+            float dv = fabsf(rb->color_cal.sample_acc.v[i] - init_mean_v);
+            float dl = rb->color_cal.sample_acc.l[i] - init_mean_l;
+            float da = rb->color_cal.sample_acc.a[i] - init_mean_a;
+            float db = rb->color_cal.sample_acc.b_lab[i] - init_mean_b;
+            float d_lab = sqrtf(dl * dl + da * da + db * db);
+
+            bool is_outlier = false;
+            if (sigma_h > 0.1f && dh > 2.5f * sigma_h) is_outlier = true;
+            if (sigma_s > 0.1f && ds > 2.5f * sigma_s) is_outlier = true;
+            if (sigma_v > 0.1f && dv > 2.5f * sigma_v) is_outlier = true;
+            if (sigma_lab > 0.1f && d_lab > 2.5f * sigma_lab) is_outlier = true;
+
+            keep[i] = !is_outlier;
+            if (keep[i]) kept_count++;
+        }
+    } else {
+        for (uint16_t i = 0; i < n; i++) {
+            keep[i] = true;
+        }
+        kept_count = n;
+    }
+
+    // Guard: ensure at least 3 samples remain after filtering
+    if (kept_count < 3) {
+        for (uint16_t i = 0; i < n; i++) {
+            keep[i] = true;
+        }
+        kept_count = n;
+    }
+
+    // Pass 3: Recompute final centroid and sample variances over kept samples
+    sum_sin = 0.0f; sum_cos = 0.0f;
+    sum_s = 0.0f; sum_v = 0.0f;
+    sum_l = 0.0f; sum_a = 0.0f; sum_b = 0.0f;
+
+    for (uint16_t i = 0; i < n; i++) {
+        if (!keep[i]) continue;
+        float rad = rb->color_cal.sample_acc.h[i] * deg_to_rad;
+        sum_sin += sinf(rad);
+        sum_cos += cosf(rad);
+        sum_s += rb->color_cal.sample_acc.s[i];
+        sum_v += rb->color_cal.sample_acc.v[i];
+        sum_l += rb->color_cal.sample_acc.l[i];
+        sum_a += rb->color_cal.sample_acc.a[i];
+        sum_b += rb->color_cal.sample_acc.b_lab[i];
+    }
+
+    float final_mean_h = atan2f(sum_sin, sum_cos) * rad_to_deg;
+    if (final_mean_h < 0.0f) final_mean_h += 360.0f;
+    if (final_mean_h >= 360.0f) final_mean_h = 0.0f;
+
+    float final_mean_s = sum_s / (float)kept_count;
+    float final_mean_v = sum_v / (float)kept_count;
+    float final_mean_l = sum_l / (float)kept_count;
+    float final_mean_a = sum_a / (float)kept_count;
+    float final_mean_b = sum_b / (float)kept_count;
+
+    sum_sq_dh = 0.0f;
+    sum_sq_ds = 0.0f;
+    sum_sq_dv = 0.0f;
+    sum_sq_lab = 0.0f;
+
+    for (uint16_t i = 0; i < n; i++) {
+        if (!keep[i]) continue;
+        float dh = pbio_mdrobotbase_circular_hue_distance(rb->color_cal.sample_acc.h[i], final_mean_h);
+        sum_sq_dh += dh * dh;
+        float ds = rb->color_cal.sample_acc.s[i] - final_mean_s;
+        sum_sq_ds += ds * ds;
+        float dv = rb->color_cal.sample_acc.v[i] - final_mean_v;
+        sum_sq_dv += dv * dv;
+        float dl = rb->color_cal.sample_acc.l[i] - final_mean_l;
+        float da = rb->color_cal.sample_acc.a[i] - final_mean_a;
+        float db = rb->color_cal.sample_acc.b_lab[i] - final_mean_b;
+        sum_sq_lab += dl * dl + da * da + db * db;
+    }
+
+    float divisor = (kept_count > 1) ? (float)(kept_count - 1) : 1.0f;
+    float final_var_h = sum_sq_dh / divisor;
+    float final_var_s = sum_sq_ds / divisor;
+    float final_var_v = sum_sq_dv / divisor;
+    float final_var_lab = sum_sq_lab / divisor;
+
+    // Save into classes table
+    size_t target_idx = rb->color_cal.num_classes;
+    for (size_t i = 0; i < rb->color_cal.num_classes; i++) {
+        if (rb->color_cal.classes[i].color_id == color_id) {
+            target_idx = i;
+            break;
+        }
+    }
+    if (target_idx == rb->color_cal.num_classes && rb->color_cal.num_classes < 32) {
+        rb->color_cal.num_classes++;
+    }
+
+    if (target_idx < 32) {
+        rb->color_cal.classes[target_idx].color_id = color_id;
+        rb->color_cal.classes[target_idx].mean_h = final_mean_h;
+        rb->color_cal.classes[target_idx].mean_s = final_mean_s;
+        rb->color_cal.classes[target_idx].mean_v = final_mean_v;
+        rb->color_cal.classes[target_idx].mean_l = final_mean_l;
+        rb->color_cal.classes[target_idx].mean_a = final_mean_a;
+        rb->color_cal.classes[target_idx].mean_b = final_mean_b;
+        rb->color_cal.classes[target_idx].var_h = final_var_h;
+        rb->color_cal.classes[target_idx].var_s = final_var_s;
+        rb->color_cal.classes[target_idx].var_v = final_var_v;
+        rb->color_cal.classes[target_idx].var_lab = final_var_lab;
+        rb->color_cal.classes[target_idx].sample_count = kept_count;
+    }
+
+    // Also update prototypes table with clean centroid
+    size_t proto_idx = rb->color_cal.num_prototypes;
+    for (size_t i = 0; i < rb->color_cal.num_prototypes; i++) {
+        if (rb->color_cal.prototypes[i].color_id == color_id) {
+            proto_idx = i;
+            break;
+        }
+    }
+    if (proto_idx == rb->color_cal.num_prototypes && rb->color_cal.num_prototypes < 32) {
+        rb->color_cal.num_prototypes++;
+    }
+    if (proto_idx < 32) {
+        rb->color_cal.prototypes[proto_idx].color_id = color_id;
+        rb->color_cal.prototypes[proto_idx].h = final_mean_h;
+        rb->color_cal.prototypes[proto_idx].s = final_mean_s;
+        rb->color_cal.prototypes[proto_idx].v = final_mean_v;
+    }
+
+    // Reset sample accumulator
+    rb->color_cal.sample_acc.count = 0;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_color_cal_get_class(pbio_mdrobotbase_t *rb, uint8_t color_id, pbio_mdrobotbase_color_class_t *out_class) {
+    if (!rb || !out_class || color_id == 0) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    for (size_t i = 0; i < rb->color_cal.num_classes; i++) {
+        if (rb->color_cal.classes[i].color_id == color_id) {
+            *out_class = rb->color_cal.classes[i];
+            return PBIO_SUCCESS;
+        }
+    }
+    return PBIO_ERROR_INVALID_OP;
+}
+
+pbio_error_t pbio_mdrobotbase_color_cal_export_profile(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_color_profile_t *profile) {
+    if (!rb || !profile) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    memset(profile, 0, sizeof(*profile));
+    profile->version = 1;
+    profile->has_black_ref = rb->color_cal.has_black_ref;
+    profile->has_white_ref = rb->color_cal.has_white_ref;
+    profile->black_ref[0] = rb->color_cal.black_ref[0];
+    profile->black_ref[1] = rb->color_cal.black_ref[1];
+    profile->black_ref[2] = rb->color_cal.black_ref[2];
+    profile->white_ref[0] = rb->color_cal.white_ref[0];
+    profile->white_ref[1] = rb->color_cal.white_ref[1];
+    profile->white_ref[2] = rb->color_cal.white_ref[2];
+    profile->threshold = rb->color_cal.max_distance_threshold;
+    profile->ambiguity_threshold = rb->color_cal.ambiguity_threshold;
+
+    profile->num_prototypes = (uint8_t)rb->color_cal.num_prototypes;
+    for (size_t i = 0; i < rb->color_cal.num_prototypes && i < 32; i++) {
+        profile->prototypes[i].color_id = rb->color_cal.prototypes[i].color_id;
+        profile->prototypes[i].h = rb->color_cal.prototypes[i].h;
+        profile->prototypes[i].s = rb->color_cal.prototypes[i].s;
+        profile->prototypes[i].v = rb->color_cal.prototypes[i].v;
+    }
+
+    profile->num_classes = (uint8_t)rb->color_cal.num_classes;
+    for (size_t i = 0; i < rb->color_cal.num_classes && i < 32; i++) {
+        profile->classes[i] = rb->color_cal.classes[i];
+    }
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_color_cal_load_profile(pbio_mdrobotbase_t *rb, const pbio_mdrobotbase_color_profile_t *profile) {
+    if (!rb || !profile) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (profile->version != 1) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (profile->num_prototypes > 32 || profile->num_classes > 32) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    // Step 1: Copy robot base context into temporary structure to guarantee transactional atomicity
+    pbio_mdrobotbase_t temp_rb = *rb;
+
+    // Step 2: Validate and load the entire profile into the temporary state
+    pbio_error_t err = pbio_mdrobotbase_color_cal_reset(&temp_rb);
+    if (err != PBIO_SUCCESS) {
+        return err;
+    }
+
+    if (profile->has_black_ref) {
+        err = pbio_mdrobotbase_color_cal_set_black_reference(&temp_rb, profile->black_ref[0], profile->black_ref[1], profile->black_ref[2]);
+        if (err != PBIO_SUCCESS) {
+            return err;
+        }
+    }
+    if (profile->has_white_ref) {
+        err = pbio_mdrobotbase_color_cal_set_white_reference(&temp_rb, profile->white_ref[0], profile->white_ref[1], profile->white_ref[2]);
+        if (err != PBIO_SUCCESS) {
+            return err;
+        }
+    }
+
+    if (profile->threshold > 0.0f) {
+        err = pbio_mdrobotbase_color_cal_set_threshold(&temp_rb, profile->threshold);
+        if (err != PBIO_SUCCESS) {
+            return err;
+        }
+    } else if (profile->threshold < 0.0f || !isfinite(profile->threshold)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    err = pbio_mdrobotbase_color_cal_set_ambiguity_threshold(&temp_rb, profile->ambiguity_threshold);
+    if (err != PBIO_SUCCESS) {
+        return err;
+    }
+
+    for (uint8_t i = 0; i < profile->num_prototypes; i++) {
+        err = pbio_mdrobotbase_color_cal_add_prototype(&temp_rb, profile->prototypes[i].color_id, profile->prototypes[i].h, profile->prototypes[i].s, profile->prototypes[i].v);
+        if (err != PBIO_SUCCESS) {
+            return err;
+        }
+    }
+
+    temp_rb.color_cal.num_classes = profile->num_classes;
+    for (size_t i = 0; i < temp_rb.color_cal.num_classes; i++) {
+        temp_rb.color_cal.classes[i] = profile->classes[i];
+    }
+
+    // Step 3: All operations succeeded: atomically commit temporary state to live robotbase
+    rb->color_cal = temp_rb.color_cal;
+    return PBIO_SUCCESS;
+}

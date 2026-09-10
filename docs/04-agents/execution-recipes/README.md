@@ -1,9 +1,9 @@
 # Execution recipes — how to execute
 
-> **Patterns** = what worked across projects (ORG-xxx). **Recipes** = ordered steps for *how* to execute a task type.  
+> **Patterns** = what worked across projects (ORG-xxx). **Recipes** = ordered steps for *how* to execute a task type.
 > Compiler selects recipe → agent follows checklist — **minimal cognitive load**.
 
-Index: [recipe-index.json](recipe-index.json) · Profiles: [bundle-profiles/](../bundle-profiles/README.md)  
+Index: [recipe-index.json](recipe-index.json) · Profiles: [bundle-profiles/](../bundle-profiles/README.md)
 Compiler: [context-compiler.md](../../03-architecture/context-compiler.md)
 
 ---

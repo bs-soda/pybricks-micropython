@@ -41,6 +41,75 @@ typedef enum {
     PBIO_MDROBOTBASE_STATUS_TIMED_OUT = 4
 } pbio_mdrobotbase_motion_status_t;
 
+typedef struct {
+    uint8_t color_id;
+    float mean_h, mean_s, mean_v;
+    float mean_l, mean_a, mean_b;
+    float var_h, var_s, var_v, var_lab;
+    uint16_t sample_count;
+} pbio_mdrobotbase_color_class_t;
+
+typedef struct {
+    uint32_t version;
+    float black_ref[3];
+    float white_ref[3];
+    bool has_black_ref;
+    bool has_white_ref;
+    float threshold;
+    float ambiguity_threshold;
+    uint8_t num_prototypes;
+    struct {
+        uint8_t color_id;
+        float h;
+        float s;
+        float v;
+    } prototypes[32];
+    uint8_t num_classes;
+    pbio_mdrobotbase_color_class_t classes[32];
+} pbio_mdrobotbase_color_profile_t;
+
+typedef struct {
+    struct {
+        float h;
+        float s;
+        float v;
+        float x;
+        float y;
+        float z;
+        uint8_t color_id;
+    } prototypes[32];
+    size_t num_prototypes;
+    float base_h;
+    float base_s;
+    float base_v;
+    float v_scale;
+    float max_distance_threshold;
+    float ambiguity_threshold;
+    bool is_calibrated;
+    // Two-Point Calibration Reference Vectors (G-MDRB-029)
+    float black_ref[3];
+    float white_ref[3];
+    float gain[3];
+    bool has_black_ref;
+    bool has_white_ref;
+    // Multi-Sample Statistical Prototype Calibration (G-MDRB-031)
+    pbio_mdrobotbase_color_class_t classes[32];
+    size_t num_classes;
+    struct {
+        uint8_t color_id;
+        uint16_t count;
+        float r[32];
+        float g[32];
+        float b[32];
+        float h[32];
+        float s[32];
+        float v[32];
+        float l[32];
+        float a[32];
+        float b_lab[32];
+    } sample_acc;
+} pbio_mdrobotbase_color_cal_state_t;
+
 typedef struct _pbio_mdrobotbase_t {
     pbio_servo_t *left;
     pbio_servo_t *right;
@@ -150,30 +219,7 @@ typedef struct _pbio_mdrobotbase_t {
     float trajectory_final_segment_start_y;
 
     // Native C Color Calibration state
-    struct {
-        struct {
-            float h;
-            float s;
-            float v;
-            float x;
-            float y;
-            float z;
-            uint8_t color_id;
-        } prototypes[32];
-        size_t num_prototypes;
-        float base_h;
-        float base_s;
-        float base_v;
-        float v_scale;
-        float max_distance_threshold;
-        bool is_calibrated;
-        // Two-Point Calibration Reference Vectors (G-MDRB-029)
-        float black_ref[3];
-        float white_ref[3];
-        float gain[3];
-        bool has_black_ref;
-        bool has_white_ref;
-    } color_cal;
+    pbio_mdrobotbase_color_cal_state_t color_cal;
 } pbio_mdrobotbase_t;
 
 
@@ -266,5 +312,18 @@ pbio_error_t pbio_mdrobotbase_color_normalize(pbio_mdrobotbase_t *rb, float r, f
 // Native C Perceptual Color Classifier API (G-MDRB-030: Circular Hue & CIE L*a*b* Space)
 float pbio_mdrobotbase_circular_hue_distance(float h1, float h2);
 pbio_error_t pbio_mdrobotbase_rgb_to_lab(float r, float g, float b, float *l, float *a, float *b_val);
+
+// Native C Multi-Sample Statistical Prototype Calibration API (G-MDRB-031: Welford Accumulation & Outlier Rejection)
+pbio_error_t pbio_mdrobotbase_color_cal_add_sample(pbio_mdrobotbase_t *rb, uint8_t color_id, float r, float g, float b);
+pbio_error_t pbio_mdrobotbase_color_cal_add_sample_hsv(pbio_mdrobotbase_t *rb, uint8_t color_id, float h, float s, float v);
+pbio_error_t pbio_mdrobotbase_color_cal_finalize_class(pbio_mdrobotbase_t *rb, uint8_t color_id);
+pbio_error_t pbio_mdrobotbase_color_cal_get_class(pbio_mdrobotbase_t *rb, uint8_t color_id, pbio_mdrobotbase_color_class_t *out_class);
+
+// Native C Confidence Scoring & Ambiguity Margin Engine API (G-MDRB-032: Second-Best Margin & Color.NONE Rejection)
+pbio_error_t pbio_mdrobotbase_color_cal_set_ambiguity_threshold(pbio_mdrobotbase_t *rb, float threshold);
+
+// Native C Sensor-Specific Calibration Profile Storage API (G-MDRB-033)
+pbio_error_t pbio_mdrobotbase_color_cal_export_profile(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_color_profile_t *profile);
+pbio_error_t pbio_mdrobotbase_color_cal_load_profile(pbio_mdrobotbase_t *rb, const pbio_mdrobotbase_color_profile_t *profile);
 
 #endif // _PBIO_MDROBOTBASE_H_

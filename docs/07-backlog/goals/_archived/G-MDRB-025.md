@@ -39,8 +39,8 @@ Decomposing this monolithic dispatcher into clean sub-controllers improves testa
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Monolithic dispatch functions obscure error paths, encourage copy-paste logic duplication, and make independent sub-controller unit testing impractical.  
-**Done when:** Each motion primitive is encapsulated in an independent sub-controller function, common wheel speed conversions and terminal stops are unified, and all differential motion regression tests execute with zero behavioural deviation.  
+**Why:** Monolithic dispatch functions obscure error paths, encourage copy-paste logic duplication, and make independent sub-controller unit testing impractical.
+**Done when:** Each motion primitive is encapsulated in an independent sub-controller function, common wheel speed conversions and terminal stops are unified, and all differential motion regression tests execute with zero behavioural deviation.
 **Unblocks:** G-MDRB-026
 
 ## Atomicity & Zero-Mock Contract
@@ -98,34 +98,34 @@ Decomposing this monolithic dispatcher into clean sub-controllers improves testa
 
 ### Step 1 — Sub-Controller Architecture & Interface Formulation
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-025.md` · `docs/02-product/acceptance/G-MDRB-025.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-025.md` · `docs/02-product/acceptance/G-MDRB-025.md`
 **Actions:**
 1. Define unified sub-controller signatures: `(robot_obj, dt_sec, elapsed_ms, battery_comp) -> pbio_error_t`.
 2. Define common actuation helper: `mdrobotbase_drive_wheels(self, left_vel_mms, right_vel_mms)`.
 3. Formulate Given-When-Then BDD scenarios in `docs/02-product/acceptance/G-MDRB-025.md`.
-**Completion gate:** Acceptance contract exists defining sub-controller modularity requirements.  
+**Completion gate:** Acceptance contract exists defining sub-controller modularity requirements.
 **Stop condition:** Ambiguity in sub-controller return codes or parameter passing.
 
 ### Step 2 — Extract Modular Step Controllers & Shared Wheel Actuation
 
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Extract `mdrobotbase_step_navigate()` for pure pursuit and final heading alignment.
 2. Extract `mdrobotbase_step_turn()` for in-place differential spin rotations.
 3. Extract `mdrobotbase_step_pivot()` for single-wheel locked pivot turns.
 4. Extract `mdrobotbase_step_trajectory()` for multi-waypoint path following.
 5. Simplify `pb_type_mdrobotbase_motion_iterate_once()` to a concise 40-line routing dispatcher.
-**Completion gate:** Clean C compilation with zero compiler warnings under `-Wall -Wextra`.  
+**Completion gate:** Clean C compilation with zero compiler warnings under `-Wall -Wextra`.
 **Stop condition:** Compiler warning or regression in motor velocity calculations.
 
 ### Step 3 — Motion Equivalence & Behavioral Regression Verification
 
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_turn.py` · `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_turn.py` · `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py`
 **Actions:**
 1. Run complete VirtualHub test battery across turn, pivot, navigate, and trajectory suites.
 2. Verify that motion paths, completion times, and final poses match pre-refactoring baselines identically.
 3. Verify that code complexity of the main dispatcher function is under 50 lines.
-**Completion gate:** All VirtualHub test suites pass 100% green.  
+**Completion gate:** All VirtualHub test suites pass 100% green.
 **Stop condition:** Any test failure or trajectory deviation exceeding 0.1 mm.
 
 ## In

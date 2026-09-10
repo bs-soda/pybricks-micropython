@@ -16,8 +16,8 @@
 
 ## Scenario 1: Non-Positive Wheel Diameters Rejection (Failure Case)
 
-**Given** an unallocated or dirty robot base slot  
-**When** `pbio_mdrobotbase_get_robotbase()` or `pbio_mdrobotbase_init()` is called with `wheel_diameter_left <= 0` or `wheel_diameter_right <= 0`  
+**Given** an unallocated or dirty robot base slot
+**When** `pbio_mdrobotbase_get_robotbase()` or `pbio_mdrobotbase_init()` is called with `wheel_diameter_left <= 0` or `wheel_diameter_right <= 0`
 **Then** the call fails closed immediately returning `PBIO_ERROR_INVALID_ARG`, without allocating any pool slot or issuing actuator commands.
 
 | Field | Value |
@@ -30,8 +30,8 @@
 
 ## Scenario 2: Non-Positive Axle Track Rejection (Failure Case)
 
-**Given** valid servo pointers and positive wheel diameters  
-**When** `pbio_mdrobotbase_get_robotbase()` or `pbio_mdrobotbase_init()` is called with `axle_track <= 0`  
+**Given** valid servo pointers and positive wheel diameters
+**When** `pbio_mdrobotbase_get_robotbase()` or `pbio_mdrobotbase_init()` is called with `axle_track <= 0`
 **Then** the call fails closed returning `PBIO_ERROR_INVALID_ARG`, preventing division by zero in differential kinematics ($\Delta\theta = (d_R - d_L)/W$).
 
 | Field | Value |
@@ -44,8 +44,8 @@
 
 ## Scenario 3: Motor Aliasing Rejection (Failure Case)
 
-**Given** valid positive dimensions  
-**When** `pbio_mdrobotbase_get_robotbase()` or Python constructor is called with identical left and right servos (`left == right`)  
+**Given** valid positive dimensions
+**When** `pbio_mdrobotbase_get_robotbase()` or Python constructor is called with identical left and right servos (`left == right`)
 **Then** the call fails closed returning `PBIO_ERROR_INVALID_ARG` (raising `ValueError("left and right motors must be distinct")`), preventing simultaneous conflicting commands to a single actuator.
 
 | Field | Value |
@@ -58,8 +58,8 @@
 
 ## Scenario 4: Non-Finite Floats & Sanity Upper Bounds Rejection (Failure Case)
 
-**Given** valid distinct servos  
-**When** float parameters containing `NaN`, `+Inf`, `-Inf` or extreme values exceeding sanity bounds (`wheel_diameter > 1000000`, `axle_track > 5000000`) are provided  
+**Given** valid distinct servos
+**When** float parameters containing `NaN`, `+Inf`, `-Inf` or extreme values exceeding sanity bounds (`wheel_diameter > 1000000`, `axle_track > 5000000`) are provided
 **Then** the call rejects with `ValueError` in Python and `PBIO_ERROR_INVALID_ARG` in PBIO C.
 
 | Field | Value |
@@ -72,8 +72,8 @@
 
 ## Scenario 5: Dynamic Wheel Diameter Setter Validation (Happy Path & Guard)
 
-**Given** an active initialized `pbio_mdrobotbase_t` instance  
-**When** `pbio_mdrobotbase_set_wheel_diameters()` is called  
+**Given** an active initialized `pbio_mdrobotbase_t` instance
+**When** `pbio_mdrobotbase_set_wheel_diameters()` is called
 **Then** strictly positive and bounded values update `wheel_diameter_left` and `wheel_diameter_right`, whereas non-positive or extreme values return `PBIO_ERROR_INVALID_ARG` without altering existing dimensions.
 
 | Case | Input | Expected |

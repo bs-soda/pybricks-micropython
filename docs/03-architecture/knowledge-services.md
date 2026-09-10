@@ -1,6 +1,6 @@
 # Knowledge services — business capability layer
 
-> **Skills read this doc.** Storage/repository details: [knowledge-store.md](knowledge-store.md) (implementers only).  
+> **Skills read this doc.** Storage/repository details: [knowledge-store.md](knowledge-store.md) (implementers only).
 > **Status:** Phase 1 — capabilities implemented **in skill procedure**; no separate runtime yet.
 
 ---
@@ -42,7 +42,7 @@ soda-goal-workflow┘              │
                          knowledge-map.json · .os/knowledge.db · API
 ```
 
-**Rule:** Skills **never** call `load()`, `save()`, `query()`, or name a file/DB path.  
+**Rule:** Skills **never** call `load()`, `save()`, `query()`, or name a file/DB path.
 They call **business capabilities** on named services.
 
 ---

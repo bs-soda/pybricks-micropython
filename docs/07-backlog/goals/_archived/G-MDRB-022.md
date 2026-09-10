@@ -1,12 +1,12 @@
 # G-MDRB-022: Behavioral Motion Preemption Safety & Non-Disruptive Invalid Command Rejection
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Implement behavioral proofs and guards verifying that attempting replacement motions with invalid arguments raises ValueError without interrupting ongoing motions or issuing premature stops  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-021  
-**Blocks:** G-MDRB-023  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Implement behavioral proofs and guards verifying that attempting replacement motions with invalid arguments raises ValueError without interrupting ongoing motions or issuing premature stops
+**Epic:** MDRB
+**Depends on:** G-MDRB-021
+**Blocks:** G-MDRB-023
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -42,8 +42,8 @@ While G-MDRB-011 reordered cancellation after argument parsing for navigation, t
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** An invalid command must never accidentally disarm an active robot in tournament conditions; parameter errors should be caught at the gate without disrupting physical machine momentum.  
-**Done when:** Comprehensive behavioral test suites prove that invalid turn, pivot, navigation, and trajectory replacement commands raise `ValueError` while the active underlying motion continues executing safely to its target.  
+**Why:** An invalid command must never accidentally disarm an active robot in tournament conditions; parameter errors should be caught at the gate without disrupting physical machine momentum.
+**Done when:** Comprehensive behavioral test suites prove that invalid turn, pivot, navigation, and trajectory replacement commands raise `ValueError` while the active underlying motion continues executing safely to its target.
 **Unblocks:** G-MDRB-023
 
 ## Atomicity & Zero-Mock Contract
@@ -108,32 +108,32 @@ While G-MDRB-011 reordered cancellation after argument parsing for navigation, t
 
 ### Step 1 — Specification & Preemption Invariant Test Formulation
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-022.md` · `docs/02-product/acceptance/G-MDRB-022.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-022.md` · `docs/02-product/acceptance/G-MDRB-022.md`
 **Actions:**
 1. Define test pattern: Start Motion A -> Attempt Invalid Motion B -> Catch ValueError -> Assert Motion A Running.
 2. Formalize behavioral invariants for each motion type (navigate, turn, pivot, trajectory).
 3. Formulate Given-When-Then BDD scenarios in `docs/02-product/acceptance/G-MDRB-022.md`.
-**Completion gate:** Acceptance contract exists defining exact preemption test protocol.  
+**Completion gate:** Acceptance contract exists defining exact preemption test protocol.
 **Stop condition:** Ambiguity in motor state assertion semantics.
 
 ### Step 2 — Enforce Atomic Validation Across Turn, Pivot, Nav, and Trajectory Dispatch
 
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Review speed, angle, coordinate, and waypoint validation across all motion methods.
 2. Ensure fail-closed rejection happens strictly prior to `cancel_active_motion()` and `motion_reset()`.
 3. Verify zero mutation of `self->rb` occurs when validation fails.
-**Completion gate:** Clean C compilation with zero warnings.  
+**Completion gate:** Clean C compilation with zero warnings.
 **Stop condition:** Build error or compiler warning.
 
 ### Step 3 — Behavioral Active-Motion Immunity Test Pass
 
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` · `tests/virtualhub/robotics/test_mdrobotbase_turn.py`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` · `tests/virtualhub/robotics/test_mdrobotbase_turn.py`
 **Actions:**
 1. Add behavioral preemption test functions exercising invalid turn, pivot, nav, and trajectory replacements.
 2. Run VirtualHub test runners and verify all assertions pass.
 3. Verify active motion completes to target destination without premature stopping.
-**Completion gate:** All preemption tests pass 100% green.  
+**Completion gate:** All preemption tests pass 100% green.
 **Stop condition:** Any test where active motion stops or state resets on invalid command.
 
 ## In

@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-028
 
-**Goal ID:** `G-MDRB-028`  
-**Title:** Color Input Contract Unification & Structured Classification Output  
-**Epic:** MDRB  
-**Kind:** api  
+**Goal ID:** `G-MDRB-028`
+**Title:** Color Input Contract Unification & Structured Classification Output
+**Epic:** MDRB
+**Kind:** api
 
 ---
 

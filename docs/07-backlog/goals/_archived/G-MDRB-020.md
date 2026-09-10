@@ -1,12 +1,12 @@
 # G-MDRB-020: Finite State Machine Transition Table and Atomic Motion-Status Coupling
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Implement an explicit state transition table in pbio_mdrobotbase_set_motion_status to atomically couple motion_status and motion_in_progress, eliminating invalid status and busy state combinations  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-019  
-**Blocks:** G-MDRB-021  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Implement an explicit state transition table in pbio_mdrobotbase_set_motion_status to atomically couple motion_status and motion_in_progress, eliminating invalid status and busy state combinations
+**Epic:** MDRB
+**Depends on:** G-MDRB-019
+**Blocks:** G-MDRB-021
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -40,8 +40,8 @@ This state divergence violates the finite state machine contract between the low
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Contradictory motion lifecycle states lead to asynchronous coroutine deadlocks, missed event notifications, and physical motor runaway during competitive robot tasks.  
-**Done when:** All status transitions follow an explicit state transition matrix, and `motion_in_progress` is updated atomically and consistently with `motion_status` such that `busy` and `done` never produce mutually contradictory states.  
+**Why:** Contradictory motion lifecycle states lead to asynchronous coroutine deadlocks, missed event notifications, and physical motor runaway during competitive robot tasks.
+**Done when:** All status transitions follow an explicit state transition matrix, and `motion_in_progress` is updated atomically and consistently with `motion_status` such that `busy` and `done` never produce mutually contradictory states.
 **Unblocks:** G-MDRB-021
 
 ## Atomicity & Zero-Mock Contract
@@ -101,33 +101,33 @@ This state divergence violates the finite state machine contract between the low
 
 ### Step 1 — Specification & Transition Matrix Formalization
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-020.md` · `docs/02-product/acceptance/G-MDRB-020.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-020.md` · `docs/02-product/acceptance/G-MDRB-020.md`
 **Actions:**
 1. Formalize the 5x5 state transition matrix for `pbio_mdrobotbase_motion_status_t`.
 2. Define invariant: `motion_in_progress == (motion_status == STATUS_RUNNING)`.
 3. Create acceptance contract in `docs/02-product/acceptance/G-MDRB-020.md`.
-**Completion gate:** Acceptance contract exists defining valid vs invalid state transitions.  
+**Completion gate:** Acceptance contract exists defining valid vs invalid state transitions.
 **Stop condition:** Spec drift or contradictory transition requirements.
 
 ### Step 2 — Implement State Transition Table in pbio_mdrobotbase_set_motion_status
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `lib/pbio/include/pbio/mdrobotbase.h`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `lib/pbio/include/pbio/mdrobotbase.h`
 **Actions:**
 1. Update `pbio_mdrobotbase_set_motion_status()` to evaluate current `rb->motion_status` against requested status.
 2. If transition is invalid, return `PBIO_ERROR_INVALID_OP` and keep previous status.
 3. If transition is valid, update `rb->motion_status` and update `rb->motion_in_progress = (status == PBIO_MDROBOTBASE_STATUS_RUNNING)`.
-**Completion gate:** Driver compiles cleanly with zero warnings.  
+**Completion gate:** Driver compiles cleanly with zero warnings.
 **Stop condition:** Build error or compiler warning.
 
 ### Step 3 — State Matrix Fuzzing & Invariant Test Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Implement `test_mdrobotbase_fsm_state_transitions()` in `lib/pbio/test/src/test_mdrobotbase.c`.
 2. Test all 25 possible state transition combinations (valid vs invalid).
 3. Assert that `is_busy()` and `is_done()` are strictly synchronized with `status()`.
 4. Register test in `pbio_mdrobotbase_tests[]`.
-**Completion gate:** `make -C lib/pbio/test test` passes 20/20 tests ok.  
+**Completion gate:** `make -C lib/pbio/test test` passes 20/20 tests ok.
 **Stop condition:** Any failed assertion or regression.
 
 ## In

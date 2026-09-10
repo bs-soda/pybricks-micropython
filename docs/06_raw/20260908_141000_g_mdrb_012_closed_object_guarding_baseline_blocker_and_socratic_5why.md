@@ -1,10 +1,10 @@
 # Baseline Blocker & Socratic 5-Why Recursive Dialectic Report: G-MDRB-012
 
-**Timestamp:** `2026-09-08T14:10:00+07:00`  
-**Goal:** `G-MDRB-012` (Closed-Object Guarding & Idempotent Destructor Safety)  
-**Epic:** `MDRB`  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariant:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Timestamp:** `2026-09-08T14:10:00+07:00`
+**Goal:** `G-MDRB-012` (Closed-Object Guarding & Idempotent Destructor Safety)
+**Epic:** `MDRB`
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariant:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 
@@ -26,63 +26,63 @@ In `pybricks/robotics/pb_type_mdrobotbase.c`:
 ## 2. Five-Why Recursive Dialectic (5 Distinct Branches x 5 Levels)
 
 ### 🌿 Branch 1: Centralized Guard Architecture (`require_open`)
-- **Level 1 (Direct Symptom):** Why does calling `get_state()` on a closed instance crash?  
+- **Level 1 (Direct Symptom):** Why does calling `get_state()` on a closed instance crash?
   *Finding:* Line 945 accesses `self->rb->x` unconditionally when `self->rb` is `NULL`.
-- **Level 2 (Omission Cause):** Why was null checking missing across methods?  
+- **Level 2 (Omission Cause):** Why was null checking missing across methods?
   *Finding:* The original authors wrote methods assuming `self->rb` is perpetually valid while the Python object exists.
-- **Level 3 (Architecture Flaw):** Why are ad-hoc null checks insufficient?  
+- **Level 3 (Architecture Flaw):** Why are ad-hoc null checks insufficient?
   *Finding:* Ad-hoc checks lead to inconsistency in error messaging and missed method paths; a centralized helper is required.
-- **Level 4 (Centralized Design):** How does `require_open` resolve this?  
+- **Level 4 (Centralized Design):** How does `require_open` resolve this?
   *Finding:* Defining `pb_type_mdrobotbase_require_open(self)` that checks `self->rb` and immediately calls `mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase is closed"))`.
-- **Level 5 (Root Resolution & Concrete Verification):** How is this verified without mocks?  
+- **Level 5 (Root Resolution & Concrete Verification):** How is this verified without mocks?
   *Root Resolution:* Implement `require_open` and call it at the preamble of every public method, verified by static AST and runtime tests.
 
 ### 🌿 Branch 2: Status & Inspection Queries on Closed Objects
-- **Level 1 (Direct Symptom):** Why do `stalled()`, `done()`, and `status()` return values when closed?  
+- **Level 1 (Direct Symptom):** Why do `stalled()`, `done()`, and `status()` return values when closed?
   *Finding:* Lines 2215, 2223, and 2231 contain ternary checks `self->rb ? ... : fallback`.
-- **Level 2 (Silent Failure Danger):** Why is returning fallback values dangerous?  
+- **Level 2 (Silent Failure Danger):** Why is returning fallback values dangerous?
   *Finding:* Returning `done() == True` or `stalled() == False` tricks autonomous state machines into believing the robot is healthy and ready.
-- **Level 3 (Contract Invariant):** What is the required behavior for closed handles?  
+- **Level 3 (Contract Invariant):** What is the required behavior for closed handles?
   *Finding:* All interactions with a closed handle except `close()` must raise `RuntimeError`.
-- **Level 4 (Refactoring Plan):** How should queries be refactored?  
+- **Level 4 (Refactoring Plan):** How should queries be refactored?
   *Finding:* Replace ternary fallback logic with `require_open(self)` followed by direct struct field access.
-- **Level 5 (Root Resolution & Concrete Verification):** How is this tested without test doubles?  
+- **Level 5 (Root Resolution & Concrete Verification):** How is this tested without test doubles?
   *Root Resolution:* Invoke `stalled()`, `done()`, and `status()` on closed instances in tests and assert `RuntimeError`.
 
 ### 🌿 Branch 3: Destructor & Close Idempotence Invariant
-- **Level 1 (Direct Symptom):** Why must `close()` be idempotent?  
+- **Level 1 (Direct Symptom):** Why must `close()` be idempotent?
   *Finding:* Python resource cleanup occurs via explicit `.close()`, context managers, and finalizer `__del__`.
-- **Level 2 (Re-entrant Risk):** What happens if `close()` is called twice?  
+- **Level 2 (Re-entrant Risk):** What happens if `close()` is called twice?
   *Finding:* If `self->rb` is already `NULL`, calling `pbio_mdrobotbase_put_robotbase(NULL)` would cause an assertion failure or crash in the driver.
-- **Level 3 (Guard Check):** How does `close()` handle an already-closed instance?  
+- **Level 3 (Guard Check):** How does `close()` handle an already-closed instance?
   *Finding:* Guarding with `if (self->rb)` ensures subsequent calls exit cleanly and return `mp_const_none`.
-- **Level 4 (Return Value):** Why does `close()` return `None`?  
+- **Level 4 (Return Value):** Why does `close()` return `None`?
   *Finding:* Python standards dictate that `.close()` is idempotent and returns `None`.
-- **Level 5 (Root Resolution & Concrete Verification):** How is this verified?  
+- **Level 5 (Root Resolution & Concrete Verification):** How is this verified?
   *Root Resolution:* Add double `close()` test asserting exit code 0 and `None` return.
 
 ### 🌿 Branch 4: Active Motion Cancellation upon Close
-- **Level 1 (Direct Symptom):** What happens if `close()` is called while a motion is running?  
+- **Level 1 (Direct Symptom):** What happens if `close()` is called while a motion is running?
   *Finding:* Without motion cancellation, physical motors remain driving after driver slot release.
-- **Level 2 (Driver Separation):** Why is slot release without motor stop hazardous?  
+- **Level 2 (Driver Separation):** Why is slot release without motor stop hazardous?
   *Finding:* The motor slot in `mdrobotbase_pool` is marked free, allowing another drivebase to claim it while motors are still moving.
-- **Level 3 (Lifecycle Sequencing):** What is the correct teardown order in `close()`?  
+- **Level 3 (Lifecycle Sequencing):** What is the correct teardown order in `close()`?
   *Finding:* First call `cancel_active_motion(self)` (which halts motors and cancels awaitable), then `pbio_mdrobotbase_put_robotbase(self->rb)`, then set `self->rb = NULL`.
-- **Level 4 (Stop Behavior Contract):** What stop behavior is applied?  
+- **Level 4 (Stop Behavior Contract):** What stop behavior is applied?
   *Finding:* `cancel_active_motion` honors `self->rb->stop_behavior` (`HOLD`/`BRAKE`/`COAST`).
-- **Level 5 (Root Resolution & Concrete Verification):** How is this verified?  
+- **Level 5 (Root Resolution & Concrete Verification):** How is this verified?
   *Root Resolution:* Call `close()` during active straight motion and assert motor controllers stop cleanly.
 
 ### 🌿 Branch 5: Regression Coverage & Exact-HEAD Provenance
-- **Level 1 (Direct Symptom):** Why must automated regression tests verify closed handle safety?  
+- **Level 1 (Direct Symptom):** Why must automated regression tests verify closed handle safety?
   *Finding:* Static analysis alone does not exercise MicroPython exception dispatch or virtualhub motor state.
-- **Level 2 (Article I Invariant):** Why are mocks forbidden?  
+- **Level 2 (Article I Invariant):** Why are mocks forbidden?
   *Finding:* Mocks cannot catch C segmentation faults or verify real pointer nullability.
-- **Level 3 (Test Realism):** How do tests verify the full lifecycle?  
+- **Level 3 (Test Realism):** How do tests verify the full lifecycle?
   *Finding:* Tests instantiate a real `MDRobotBase`, close it, and exercise all method categories.
-- **Level 4 (Harness Construction):** What harnesses gate the release?  
+- **Level 4 (Harness Construction):** What harnesses gate the release?
   *Finding:* Socratic agentic loop harness (25 nodes) and master replication harness (24 gates).
-- **Level 5 (Root Resolution & Concrete Verification):** What is the convergence proof?  
+- **Level 5 (Root Resolution & Concrete Verification):** What is the convergence proof?
   *Root Resolution:* 100% dialectic resolution and 100% release gate attestation.
 
 ---

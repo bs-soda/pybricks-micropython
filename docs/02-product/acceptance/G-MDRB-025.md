@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-025
 
-**Goal ID:** `G-MDRB-025`  
-**Title:** Motion Dispatcher Modularization & Sub-Controller Decomposition  
-**Epic:** MDRB  
-**Kind:** feature  
+**Goal ID:** `G-MDRB-025`
+**Title:** Motion Dispatcher Modularization & Sub-Controller Decomposition
+**Epic:** MDRB
+**Kind:** feature
 
 ---
 

@@ -1,12 +1,12 @@
 # G-MDRB-004: Consistent Gear-Ratio Command and Odometry Semantics
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Symmetrically scale wheel encoder odometry and motor commands by the gear ratio and eliminate kinematic scaling drift  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-003  
-**Blocks:** G-MDRB-005  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Symmetrically scale wheel encoder odometry and motor commands by the gear ratio and eliminate kinematic scaling drift
+**Epic:** MDRB
+**Depends on:** G-MDRB-003
+**Blocks:** G-MDRB-005
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -42,8 +42,8 @@ This introduces a severe mathematical asymmetry:
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Actuator commands and sensor feedback must share identical kinematic conversion equations; an unscaled gear ratio in odometry causes massive pose drift and guarantees navigation failure on geared drivetrains.  
-**Done when:** Motor encoder ticks are scaled by the gear ratio in state updates, straight-line distance and in-place turns yield mathematically exact expected values for arbitrary positive gear ratios, and command-odometry math cannot diverge.  
+**Why:** Actuator commands and sensor feedback must share identical kinematic conversion equations; an unscaled gear ratio in odometry causes massive pose drift and guarantees navigation failure on geared drivetrains.
+**Done when:** Motor encoder ticks are scaled by the gear ratio in state updates, straight-line distance and in-place turns yield mathematically exact expected values for arbitrary positive gear ratios, and command-odometry math cannot diverge.
 **Unblocks:** G-MDRB-005 (Distinct Timeout and Stall Failure Reporting).
 
 ## Atomicity & Zero-Mock Contract
@@ -97,34 +97,34 @@ This introduces a severe mathematical asymmetry:
 ## Work steps
 
 ### Step 1 — Kinematic Conversion Helper Definition
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`, `lib/pbio/src/mdrobotbase.c`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`, `lib/pbio/src/mdrobotbase.c`
 **Actions:**
 1. Document gear ratio semantics ($R = \text{motor} / \text{wheel}$).
 2. Implement bidirectional conversion helpers in PBIO.
 3. Enforce $R > 0$ validation in `pbio_mdrobotbase_set_gear_ratio()`.
 
-**Completion gate:** Helpers compile cleanly and pass unit tests with mathematical precision.  
+**Completion gate:** Helpers compile cleanly and pass unit tests with mathematical precision.
 **Stop condition:** Any negative or zero ratio accepted.
 
 ### Step 2 — Odometry Integration Scaling
-**Allowed files:** `lib/pbio/src/mdrobotbase.c`, `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c`, `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Update `pbio_mdrobotbase_update_state()` to divide motor tick delta by `rb->gear_ratio`.
 2. Apply identical scaling to backlash threshold conversion.
 3. Replace ad-hoc dps equations in MicroPython with the shared conversion helper.
 
-**Completion gate:** Odometry distance equals commanded wheel distance for any ratio.  
+**Completion gate:** Odometry distance equals commanded wheel distance for any ratio.
 **Stop condition:** Divergence between command speed and odometry integration.
 
 ### Step 3 — Multi-Ratio Kinematic Test Suite
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Test ratio $1.0$: rotate motor $360^\circ$ ($D=56\text{mm}$), verify $d \approx 175.93\text{mm}$.
 2. Test ratio $2.0$: rotate motor $720^\circ$, verify $d \approx 175.93\text{mm}$.
 3. Test ratio $0.5$: rotate motor $180^\circ$, verify $d \approx 175.93\text{mm}$.
 4. Test in-place turn odometry for all three ratios.
 
-**Completion gate:** All kinematic tests pass within $0.1\text{mm}$ tolerance.  
+**Completion gate:** All kinematic tests pass within $0.1\text{mm}$ tolerance.
 **Stop condition:** Error exceeds $0.1\%$ under any tested ratio.
 
 ## In

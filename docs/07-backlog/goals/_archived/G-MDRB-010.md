@@ -1,12 +1,12 @@
 # G-MDRB-010: Safe Robot-Base Instance Ownership & Duplicate Motor-Pair Rejection
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Reject duplicate motor-pair allocations in pbio_mdrobotbase_get_robotbase with PBIO_ERROR_BUSY to prevent dual Python wrappers from sharing and prematurely freeing native memory slots  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-009  
-**Blocks:** G-MDRB-011  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Reject duplicate motor-pair allocations in pbio_mdrobotbase_get_robotbase with PBIO_ERROR_BUSY to prevent dual Python wrappers from sharing and prematurely freeing native memory slots
+**Epic:** MDRB
+**Depends on:** G-MDRB-009
+**Blocks:** G-MDRB-011
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -38,9 +38,9 @@ In `lib/pbio/src/mdrobotbase.c:145-152`, `pbio_mdrobotbase_get_robotbase()` scan
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Sharing native hardware driver memory across independent high-level object wrappers without reference counting causes use-after-free corruption, silent state aliasing, and hard-to-debug device faults.  
-**Done when:** Attempting to construct a new drive base instance using a motor pair that is already owned by an active instance deterministically fails closed with an explicit busy error, ensuring strict 1:1 ownership.  
-**Unblocks:** G-MDRB-011  
+**Why:** Sharing native hardware driver memory across independent high-level object wrappers without reference counting causes use-after-free corruption, silent state aliasing, and hard-to-debug device faults.
+**Done when:** Attempting to construct a new drive base instance using a motor pair that is already owned by an active instance deterministically fails closed with an explicit busy error, ensuring strict 1:1 ownership.
+**Unblocks:** G-MDRB-011
 
 ## Atomicity & Zero-Mock Contract
 
@@ -96,35 +96,35 @@ In `lib/pbio/src/mdrobotbase.c:145-152`, `pbio_mdrobotbase_get_robotbase()` scan
 
 ### Step 1 — Specification & Duplicate Allocation Clarification
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-010.md` · `docs/02-product/acceptance/G-MDRB-010.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-010.md` · `docs/02-product/acceptance/G-MDRB-010.md`
 **Actions:**
 
 1. Formulate Given-When-Then BDD scenarios for duplicate motor-pair rejection.
 2. Confirm error semantics for exact motor-pair re-use vs partial motor overlap.
 
-**Completion gate:** Acceptance contract defined with zero unresolved clarification tags.  
+**Completion gate:** Acceptance contract defined with zero unresolved clarification tags.
 **Stop condition:** Unaligned error return code between PBIO and MicroPython.
 
 ### Step 2 — Enforce PBIO_ERROR_BUSY on Matching Motor Pairs
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `lib/pbio/include/pbio/mdrobotbase.h`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `lib/pbio/include/pbio/mdrobotbase.h`
 **Actions:**
 
 1. Remove lines 145-152 in `lib/pbio/src/mdrobotbase.c` returning existing pointers.
 2. Replace with explicit scan: if any active robot base references `left` or `right`, return `PBIO_ERROR_BUSY`.
 
-**Completion gate:** C code compiles without warnings and rejects duplicate motor pairs.  
+**Completion gate:** C code compiles without warnings and rejects duplicate motor pairs.
 **Stop condition:** Any compiler warning or broken existing instance tests.
 
 ### Step 3 — Verification & Dual-Object Collision Test Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 
 1. Add unit test `test_mdrobotbase_duplicate_motor_rejection` in `test_mdrobotbase.c`.
 2. Verify allocating instance A succeeds, allocating instance B with same servos returns `PBIO_ERROR_BUSY`, closing A allows reallocating B.
 
-**Completion gate:** PBIO test suite passes with exit code 0.  
+**Completion gate:** PBIO test suite passes with exit code 0.
 **Stop condition:** Allocation succeeds when it should fail.
 
 ## In

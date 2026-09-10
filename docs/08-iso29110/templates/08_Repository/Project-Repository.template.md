@@ -2,11 +2,11 @@
 
 **Project Repository** — **WP11** (link register)
 
-**Document Version:** 1.0  
-**Date:** {{date}}  
+**Document Version:** 1.0
+**Date:** {{date}}
 **Author:** {{author}}
 
-> Canonical **source repository** location (GitHub or equivalent).  
+> Canonical **source repository** location (GitHub or equivalent).
 > Thin register — not a full CM procedure document.
 
 ### Revision History

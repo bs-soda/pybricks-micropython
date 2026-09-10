@@ -1,10 +1,10 @@
 # ORG-001: Authentication — B2B SaaS session + JWT API
 
-**Status:** example *(bootstrap sample — replace on bootstrap)*  
-**Category:** authentication  
-**Reusable score:** — *(not validated — format sample only)*  
-**Source projects:** 0 *(bootstrap sample)*  
-**Last validated:** —  
+**Status:** example *(bootstrap sample — replace on bootstrap)*
+**Category:** authentication
+**Reusable score:** — *(not validated — format sample only)*
+**Source projects:** 0 *(bootstrap sample)*
+**Last validated:** —
 **Publish approver:** —
 
 > Example pattern. Delete or replace when bootstrapping a real studio library.

@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-009
 
-**Goal ID:** `G-MDRB-009`  
-**Title:** Maintainability and Duplicate Control Logic Reduction  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-009`
+**Title:** Maintainability and Duplicate Control Logic Reduction
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

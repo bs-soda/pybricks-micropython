@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-026
 
-**Goal ID:** `G-MDRB-026`  
-**Title:** Submodule Provenance, License Attestation & CI Reproducibility Certification  
-**Epic:** MDRB  
-**Kind:** chore  
+**Goal ID:** `G-MDRB-026`
+**Title:** Submodule Provenance, License Attestation & CI Reproducibility Certification
+**Epic:** MDRB
+**Kind:** chore
 
 ---
 

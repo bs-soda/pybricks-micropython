@@ -1,12 +1,12 @@
 # G-MDRB-001: Safe MDRobotBase Instance Ownership and Allocation
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Eliminate static singleton aliasing by introducing bounded pool allocation and slot lifecycle recovery for MDRobotBase instances  
-**Epic:** MDRB  
-**Depends on:** —  
-**Blocks:** G-MDRB-002  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Eliminate static singleton aliasing by introducing bounded pool allocation and slot lifecycle recovery for MDRobotBase instances
+**Epic:** MDRB
+**Depends on:** —
+**Blocks:** G-MDRB-002
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -33,8 +33,8 @@ Regardless of whether a user instantiates multiple robot bases or sequentially r
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Multi-actuator robotics runtimes must guarantee strict memory and hardware isolation between distinct robot entities; sharing a single static instance without ownership tracking causes uncontrolled actuator cross-talk and physical accidents.  
-**Done when:** Two independent robot instances can be instantiated with disjoint motors, command execution on instance A does not alter the motor states or odometry of instance B, slot capacity exhaustion returns an explicit busy error, and destroying an instance frees its allocated slot for reuse.  
+**Why:** Multi-actuator robotics runtimes must guarantee strict memory and hardware isolation between distinct robot entities; sharing a single static instance without ownership tracking causes uncontrolled actuator cross-talk and physical accidents.
+**Done when:** Two independent robot instances can be instantiated with disjoint motors, command execution on instance A does not alter the motor states or odometry of instance B, slot capacity exhaustion returns an explicit busy error, and destroying an instance frees its allocated slot for reuse.
 **Unblocks:** G-MDRB-002 (Complete State Initialization and Lifecycle Reset).
 
 ## Atomicity & Zero-Mock Contract
@@ -86,32 +86,32 @@ Regardless of whether a user instantiates multiple robot bases or sequentially r
 ## Work steps
 
 ### Step 1 — Pool Allocation and Slot Tracking
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`, `lib/pbio/src/mdrobotbase.c`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h`, `lib/pbio/src/mdrobotbase.c`
 **Actions:**
 1. Declare `pbio_mdrobotbase_put_robotbase()` in public header.
 2. Implement pool indexing and `mdrobotbase_in_use` tracking in `mdrobotbase.c`.
 3. Return `PBIO_ERROR_BUSY` when `PBIO_CONFIG_NUM_MDROBOTBASES` is exceeded.
 
-**Completion gate:** Firmware compiles cleanly; `pbio_mdrobotbase_get_robotbase()` returns independent pointers for distinct calls.  
+**Completion gate:** Firmware compiles cleanly; `pbio_mdrobotbase_get_robotbase()` returns independent pointers for distinct calls.
 **Stop condition:** Any compiler warning or memory leak.
 
 ### Step 2 — Finalizer and Slot Recovery Binding
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Attach finalizer callback `pb_type_MDRobotBase_del` to `pb_type_MDRobotBase`.
 2. Ensure slot deallocation calls `pbio_mdrobotbase_put_robotbase()` when object is reclaimed.
 
-**Completion gate:** Python runtime frees robot base slot upon `del robot` or out-of-scope garbage collection.  
+**Completion gate:** Python runtime frees robot base slot upon `del robot` or out-of-scope garbage collection.
 **Stop condition:** Segmentation fault or double-free vulnerability.
 
 ### Step 3 — Multi-Instance Verification Suite
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Write PBIO test allocating two separate robot base instances on ports A/B and C/D.
 2. Assert both instances have distinct memory addresses and independent state.
 3. Attempt allocating a 3rd instance when pool is 2 and assert `PBIO_ERROR_BUSY`.
 
-**Completion gate:** Test suite passes 100% green with exit code 0.  
+**Completion gate:** Test suite passes 100% green with exit code 0.
 **Stop condition:** Any cross-talk between instances or failure to reject over-capacity allocation.
 
 ## In

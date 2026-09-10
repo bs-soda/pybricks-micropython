@@ -2,11 +2,11 @@
 
 **Project Repository Backup** — **WP12** (link register)
 
-**Document Version:** 1.0  
-**Date:** {{date}}  
+**Document Version:** 1.0
+**Date:** {{date}}
 **Author:** {{author}}
 
-> Backup location for repository / critical project data.  
+> Backup location for repository / critical project data.
 > Typically a **server host or IP** plus path — not a long document.
 
 ### Revision History

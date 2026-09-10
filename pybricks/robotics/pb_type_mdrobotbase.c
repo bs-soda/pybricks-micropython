@@ -2223,6 +2223,19 @@ static mp_obj_t pb_type_MDRobotBase_set_color_threshold(size_t n_args, const mp_
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_color_threshold_obj, 1,
                                   pb_type_MDRobotBase_set_color_threshold);
 
+static mp_obj_t pb_type_MDRobotBase_set_color_ambiguity_threshold(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+  PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
+                      self,
+                      PB_ARG_REQUIRED(threshold));
+  pb_type_mdrobotbase_require_open(self);
+  pb_assert(pbio_mdrobotbase_color_cal_set_ambiguity_threshold(
+      self->rb,
+      mp_obj_get_float(threshold_in)));
+  return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_color_ambiguity_threshold_obj, 1,
+                                  pb_type_MDRobotBase_set_color_ambiguity_threshold);
+
 static mp_obj_t pb_type_MDRobotBase_add_color_prototype(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
                       self,
@@ -2471,6 +2484,8 @@ static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
      MP_ROM_PTR(&pb_type_MDRobotBase_set_color_baseline_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_color_threshold),
      MP_ROM_PTR(&pb_type_MDRobotBase_set_color_threshold_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_color_ambiguity_threshold),
+     MP_ROM_PTR(&pb_type_MDRobotBase_set_color_ambiguity_threshold_obj)},
     {MP_ROM_QSTR(MP_QSTR_add_color_prototype),
      MP_ROM_PTR(&pb_type_MDRobotBase_add_color_prototype_obj)},
     {MP_ROM_QSTR(MP_QSTR_classify_color),

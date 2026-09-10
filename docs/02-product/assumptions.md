@@ -1,6 +1,6 @@
 # Assumptions register
 
-> Agent maintains via [soda-discovery](../../.agents/skills/soda-discovery/SKILL.md) — sync with `knowledge-map.json` → `assumptions[]`.  
+> Agent maintains via [soda-discovery](../../.agents/skills/soda-discovery/SKILL.md) — sync with `knowledge-map.json` → `assumptions[]`.
 > **Rule:** Open + **low** confidence assumptions block goals → `ready`.
 
 ## How to use

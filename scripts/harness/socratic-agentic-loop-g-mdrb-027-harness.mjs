@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Socratic Agentic Loop: G-MDRB-027 Multi-Environment Runtime Test Execution Matrix, Compiler Warning Audit & Final Scorecard Attestation
- * 
+ *
  * Executes 5 Causal Branches x 5 Dialectic Levels (25 Total Nodes)
  * Strict Zero-Mock Contract: Article I Invariant (Zero Mocks, Zero Stubs, Zero String Simulations)
  * Article II: Mandatory Verification & Testing Pass
- * 
+ *
  * Branches:
  * 1. Native PBIO TinyTest Execution & Multi-Scale Verification
  * 2. VirtualHub Python Test Suite Execution & Unittest Discovery

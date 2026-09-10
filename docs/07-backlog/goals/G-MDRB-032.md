@@ -1,26 +1,26 @@
 # G-MDRB-032: Confidence Scoring and Ambiguity Margin Rejection Engine
 
-**Status:** ready  
-**Kind:** feature  
-**Atomic outcome:** Implement second-best distance margin evaluation ($\text{confidence} = D_2 - D_1$) with absolute and relative cutoff thresholds, rejecting ambiguous classifications as `Color.NONE`  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-031  
-**Blocks:** G-MDRB-033  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** review
+**Kind:** feature
+**Atomic outcome:** Implement second-best distance margin evaluation ($\text{confidence} = D_2 - D_1$) with absolute and relative cutoff thresholds, rejecting ambiguous classifications as `Color.NONE`
+**Epic:** MDRB
+**Depends on:** G-MDRB-031
+**Blocks:** G-MDRB-033
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
-**Collaboration phase:** PLAN
+**Collaboration phase:** REVIEW
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | **●** | ○ | ○ | ○ |
+| ○ | ○ | ○ | **●** | ○ |
 
 | # | Step | Status |
 |---|------|--------|
-| 1 | Ambiguity Margin & Confidence Formulation Specification | pending |
-| 2 | Implement Second-Best Distance & Fail-Safe Rejection in C & Python | pending |
-| 3 | Empirical Verification on Borderline Ambiguities & Distance Cutoffs | pending |
+| 1 | Ambiguity Margin & Confidence Formulation Specification | done |
+| 2 | Implement Second-Best Distance & Fail-Safe Rejection in C & Python | done |
+| 3 | Empirical Verification on Borderline Ambiguities & Distance Cutoffs | done |
 
 ## Context
 
@@ -38,8 +38,8 @@ This goal implements confidence evaluation based on the margin between the best 
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Borderline optical samples between two colors must not trigger false positive mission decisions; autonomous navigation must be alerted when a classification is ambiguous.  
-**Done when:** The classifier evaluates the statistical separation between the best and second-best candidates, outputting a calibrated confidence metric and returning an unclassified indicator when confidence is insufficient.  
+**Why:** Borderline optical samples between two colors must not trigger false positive mission decisions; autonomous navigation must be alerted when a classification is ambiguous.
+**Done when:** The classifier evaluates the statistical separation between the best and second-best candidates, outputting a calibrated confidence metric and returning an unclassified indicator when confidence is insufficient.
 **Unblocks:** G-MDRB-033 (Multi-condition color detector verification matrix)
 
 ## Atomicity & Zero-Mock Contract
@@ -101,33 +101,33 @@ This goal implements confidence evaluation based on the margin between the best 
 
 ### Step 1 — Ambiguity Margin & Confidence Formulation Specification
 
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `docs/02-product/acceptance/G-MDRB-032.md`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `docs/02-product/acceptance/G-MDRB-032.md`
 **Actions:**
 1. Declare `pbio_mdrobotbase_color_cal_set_ambiguity_threshold` in `lib/pbio/include/pbio/mdrobotbase.h`.
 2. Document confidence and margin mathematical contracts.
 3. Formulate Given-When-Then BDD scenarios in `docs/02-product/acceptance/G-MDRB-032.md`.
-**Completion gate:** Header compiles cleanly and BDD contracts are formalized.  
+**Completion gate:** Header compiles cleanly and BDD contracts are formalized.
 **Stop condition:** Ambiguity in threshold units or single-class behavior.
 
 ### Step 2 — Implement Second-Best Distance & Fail-Safe Rejection in C & Python
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `pybricks/robotics/pb_type_mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `pybricks/robotics/pb_type_mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`
 **Actions:**
 1. Update prototype scanning loop in `lib/pbio/src/mdrobotbase.c` to maintain $D_1$ and $D_2$.
 2. Implement ambiguity rejection setting `matched_id = 0` if $D_2 - D_1 < \text{ambiguity\_thresh}$.
 3. Calculate normalized confidence score $\in [0.0, 1.0]$.
 4. Implement matching ambiguity rejection in VirtualHub `robotics.py`.
-**Completion gate:** Equidistant samples reliably return `color_id = 0` with confidence $< 0.1$.  
+**Completion gate:** Equidistant samples reliably return `color_id = 0` with confidence $< 0.1$.
 **Stop condition:** Incorrect classification of borderline samples.
 
 ### Step 3 — Empirical Verification on Borderline Ambiguities & Distance Cutoffs
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`
 **Actions:**
 1. Write unit tests testing equidistant vectors between Red and Orange.
 2. Verify unambiguous vectors return confidence $> 0.8$.
 3. Verify zero compiler warnings under `-Wall -Wextra -Werror`.
-**Completion gate:** 100% green tests in PBIO TinyTest and VirtualHub.  
+**Completion gate:** 100% green tests in PBIO TinyTest and VirtualHub.
 **Stop condition:** Any false positive on borderline inputs.
 
 ## In

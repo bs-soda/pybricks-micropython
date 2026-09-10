@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-006
 
-**Goal ID:** `G-MDRB-006`  
-**Title:** Async Cancellation and Repeated-Motion Lifecycle Safety  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-006`
+**Title:** Async Cancellation and Repeated-Motion Lifecycle Safety
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

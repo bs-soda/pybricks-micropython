@@ -1,9 +1,9 @@
 # Queue: CORE
 
-> Unscoped / legacy stream. Legacy `G-001` lives here. New unscoped work: `soda-os goal next CORE`.  
+> Unscoped / legacy stream. Legacy `G-001` lives here. New unscoped work: `soda-os goal next CORE`.
 > Edit **only this file** when the goal's epic is `CORE`. Contract: [goal-id.md](../../06-workflows/goal-id.md)
 
-**Epic:** CORE  
+**Epic:** CORE
 **Slug:** CORE
 
 ## Active

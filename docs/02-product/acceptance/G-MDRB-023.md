@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-023
 
-**Goal ID:** `G-MDRB-023`  
-**Title:** Multi-Scale Numerical Invariant Verification, Submodule Sanitization & Scorecard Elevation  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-023`
+**Title:** Multi-Scale Numerical Invariant Verification, Submodule Sanitization & Scorecard Elevation
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

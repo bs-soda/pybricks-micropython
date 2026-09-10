@@ -1,6 +1,6 @@
 # ISO/IEC 29110 — templates (Soda OS)
 
-Framework-owned templates for **all 23** SoftWare Basic Profile work products.  
+Framework-owned templates for **all 23** SoftWare Basic Profile work products.
 Shipped with **soda-os**; landed by `soda-os init` / `upgrade`.
 
 | Path | Purpose |
@@ -8,7 +8,7 @@ Shipped with **soda-os**; landed by `soda-os init` / `upgrade`.
 | [template-manifest.yaml](template-manifest.yaml) | WP registry, waves, `output_type`, generation order |
 | [templates/](templates/) | `*.template.md` (docs, link registers, WP14 register, WP20 derived) |
 
-**Output:** [`work-products/`](../../work-products/README.md)  
+**Output:** [`work-products/`](../../work-products/README.md)
 **Skill:** [soda-iso29110](../../.agents/skills/soda-iso29110/SKILL.md) (v1.0 — full 23)
 
 ## Output types

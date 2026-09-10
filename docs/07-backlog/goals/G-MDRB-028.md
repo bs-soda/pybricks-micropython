@@ -1,12 +1,12 @@
 # G-MDRB-028: Color Input Contract Unification & Structured Classification Output
 
-**Status:** review  
-**Kind:** api  
-**Atomic outcome:** Standardize public color classification contracts across native PBIO C and VirtualHub Python to accept both raw RGB and HSV inputs, returning structured classification `(color_id, distance, confidence)`  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-027  
-**Blocks:** G-MDRB-029  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** review
+**Kind:** api
+**Atomic outcome:** Standardize public color classification contracts across native PBIO C and VirtualHub Python to accept both raw RGB and HSV inputs, returning structured classification `(color_id, distance, confidence)`
+**Epic:** MDRB
+**Depends on:** G-MDRB-027
+**Blocks:** G-MDRB-029
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -38,8 +38,8 @@ This goal unifies both environments to accept dual inputs (raw RGB and HSV) and 
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Downstream autonomous mission routines require identical optical classification behavior and certainty margins in both simulation and physical robot runs.  
-**Done when:** Public interfaces in both environments accept explicit RGB and HSV inputs and return matching structured results containing color identity, distance metric, and confidence score.  
+**Why:** Downstream autonomous mission routines require identical optical classification behavior and certainty margins in both simulation and physical robot runs.
+**Done when:** Public interfaces in both environments accept explicit RGB and HSV inputs and return matching structured results containing color identity, distance metric, and confidence score.
 **Unblocks:** G-MDRB-029 (Two-point sensor calibration pipeline)
 
 ## Atomicity & Zero-Mock Contract
@@ -95,33 +95,33 @@ This goal unifies both environments to accept dual inputs (raw RGB and HSV) and 
 
 ### Step 1 — Standardize C Native ABI & Python Contract Signatures
 
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `tests/virtualhub/robotics/pybricks/robotics.py` · `docs/02-product/acceptance/G-MDRB-028.md`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `tests/virtualhub/robotics/pybricks/robotics.py` · `docs/02-product/acceptance/G-MDRB-028.md`
 **Actions:**
 1. Declare `pbio_mdrobotbase_color_classify_rgb` and `pbio_mdrobotbase_color_classify_hsv` in `lib/pbio/include/pbio/mdrobotbase.h`.
 2. Define structured return parameters `uint8_t *color_id, float *distance, float *confidence`.
 3. Declare matching `classify_color_rgb` and `classify_color_hsv` in VirtualHub `robotics.py`.
-**Completion gate:** Header compiles cleanly and Python signatures mirror the C ABI.  
+**Completion gate:** Header compiles cleanly and Python signatures mirror the C ABI.
 **Stop condition:** ABI syntax error or signature mismatch between environments.
 
 ### Step 2 — Implement Dual RGB & HSV Ingestion in Native C & VirtualHub
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `pybricks/robotics/pb_type_mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `pybricks/robotics/pb_type_mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`
 **Actions:**
 1. Implement RGB ingestion with standard RGB-to-HSV conversion in `lib/pbio/src/mdrobotbase.c`.
 2. Implement HSV ingestion computing distance and placeholder confidence in `lib/pbio/src/mdrobotbase.c`.
 3. Implement matching dual methods in `tests/virtualhub/robotics/pybricks/robotics.py`.
 4. Update MicroPython C wrapper `pybricks/robotics/pb_type_mdrobotbase.c` to return 3-element tuple `(color_id, distance, confidence)`.
-**Completion gate:** Both native C and VirtualHub accept RGB/HSV inputs and return 3-element results.  
+**Completion gate:** Both native C and VirtualHub accept RGB/HSV inputs and return 3-element results.
 **Stop condition:** Memory leak, pointer fault, or type mismatch in MicroPython tuple creation.
 
 ### Step 3 — Verify Structured Return Invariants & Contract Parity
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`
 **Actions:**
 1. Write native C tests verifying `pbio_mdrobotbase_color_classify_rgb` and `_hsv` report identical IDs for equivalent inputs.
 2. Write Python VirtualHub tests verifying `classify_color_rgb` and `classify_color_hsv` parity.
 3. Verify zero compiler warnings under `-Wall -Wextra -Werror`.
-**Completion gate:** 100% green test execution across native C and VirtualHub test suites.  
+**Completion gate:** 100% green test execution across native C and VirtualHub test suites.
 **Stop condition:** Any test failure or assertion discrepancy between C and Python.
 
 ## In

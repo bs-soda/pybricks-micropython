@@ -1,26 +1,26 @@
 # G-MDRB-031: Multi-Sample Prototype Statistical Calibration and Variance Modeling
 
-**Status:** ready  
-**Kind:** feature  
-**Atomic outcome:** Implement `color_class_t` capturing multi-sample prototype distributions, calculating mean vector, intra-class variance, and outlier filtering  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-030  
-**Blocks:** G-MDRB-032  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** review
+**Kind:** feature
+**Atomic outcome:** Implement `color_class_t` capturing multi-sample prototype distributions, calculating mean vector, intra-class variance, and outlier filtering
+**Epic:** MDRB
+**Depends on:** G-MDRB-030
+**Blocks:** G-MDRB-032
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
-**Collaboration phase:** PLAN
+**Collaboration phase:** REVIEW
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | **●** | ○ | ○ | ○ |
+| ○ | ○ | ○ | **●** | ○ |
 
 | # | Step | Status |
 |---|------|--------|
-| 1 | Statistical Color Class Model & Welford Accumulator Specification | pending |
-| 2 | Implement Multi-Sample Registration & Outlier Filtering in C & Python | pending |
-| 3 | Verify Variance Convergence & Outlier Rejection Across Noisy Samples | pending |
+| 1 | Statistical Color Class Model & Welford Accumulator Specification | done |
+| 2 | Implement Multi-Sample Registration & Outlier Filtering in C & Python | done |
+| 3 | Verify Variance Convergence & Outlier Rejection Across Noisy Samples | done |
 
 ## Context
 
@@ -38,8 +38,8 @@ This goal implements `pbio_mdrobotbase_color_class_t` in the kernel and VirtualH
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Real-world robotics mat surfaces possess micro-texture, grain, and print variations; a single sample point cannot capture the natural statistical spread of a color class.  
-**Done when:** Color prototypes accumulate multiple optical readings, automatically compute class centroid and variance, and filter out transient optical glitches.  
+**Why:** Real-world robotics mat surfaces possess micro-texture, grain, and print variations; a single sample point cannot capture the natural statistical spread of a color class.
+**Done when:** Color prototypes accumulate multiple optical readings, automatically compute class centroid and variance, and filter out transient optical glitches.
 **Unblocks:** G-MDRB-032 (Confidence scoring and ambiguity margin rejection)
 
 ## Atomicity & Zero-Mock Contract
@@ -106,33 +106,33 @@ This goal implements `pbio_mdrobotbase_color_class_t` in the kernel and VirtualH
 
 ### Step 1 — Statistical Color Class Model & Welford Accumulator Specification
 
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `docs/02-product/acceptance/G-MDRB-031.md`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `docs/02-product/acceptance/G-MDRB-031.md`
 **Actions:**
 1. Define `pbio_mdrobotbase_color_class_t` in `lib/pbio/include/pbio/mdrobotbase.h`.
 2. Declare multi-sample ingestion functions: `pbio_mdrobotbase_color_cal_add_sample` and `pbio_mdrobotbase_color_cal_finalize_class`.
 3. Formulate Given-When-Then BDD scenarios in `docs/02-product/acceptance/G-MDRB-031.md`.
-**Completion gate:** Header compiles cleanly and BDD contracts are defined.  
+**Completion gate:** Header compiles cleanly and BDD contracts are defined.
 **Stop condition:** ABI incompatibility or missing variance fields.
 
 ### Step 2 — Implement Multi-Sample Registration & Outlier Filtering in C & Python
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`
 **Actions:**
 1. Implement Welford's online accumulation in `lib/pbio/src/mdrobotbase.c`.
 2. Implement circular mean calculation for hue using $\text{atan2}(\sum \sin h, \sum \cos h)$.
 3. Implement outlier rejection discarding readings $> 2.5\sigma$ from running mean.
 4. Implement identical statistical tracking in VirtualHub `robotics.py`.
-**Completion gate:** Mean and variance calculations match analytical statistics within $0.1\%$.  
+**Completion gate:** Mean and variance calculations match analytical statistics within $0.1\%$.
 **Stop condition:** Numerical underflow, negative variance, or division by zero.
 
 ### Step 3 — Verify Variance Convergence & Outlier Rejection Across Noisy Samples
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`
 **Actions:**
 1. Write unit test feeding 20 noisy samples with 2 synthetic outliers.
 2. Verify outliers are rejected and final mean converges to the true distribution center.
 3. Verify zero compiler warnings under `-Wall -Wextra -Werror`.
-**Completion gate:** 100% green test execution in PBIO and VirtualHub.  
+**Completion gate:** 100% green test execution in PBIO and VirtualHub.
 **Stop condition:** Failure to reject outliers or variance divergence.
 
 ## In

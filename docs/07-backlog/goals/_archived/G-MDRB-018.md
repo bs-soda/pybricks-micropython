@@ -1,12 +1,12 @@
 # G-MDRB-018: Architectural Maintainability & Hardware Abstraction Layer Consolidation
 
-**Status:** done  
-**Kind:** chore  
-**Atomic outcome:** Refactor shared lifecycle, coordinate transformation, and error translation boundaries between PBIO C driver and MicroPython wrapper to eliminate redundant state coupling  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-017  
-**Blocks:** —  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** chore
+**Atomic outcome:** Refactor shared lifecycle, coordinate transformation, and error translation boundaries between PBIO C driver and MicroPython wrapper to eliminate redundant state coupling
+**Epic:** MDRB
+**Depends on:** G-MDRB-017
+**Blocks:** —
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -37,9 +37,9 @@ In `pybricks/robotics/pb_type_mdrobotbase.c` and `lib/pbio/src/mdrobotbase.c`, l
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Tight coupling between language bindings and driver internals creates maintenance overhead and increases the risk of introducing subtle bugs during future refactoring.  
-**Done when:** All driver state is encapsulated behind opaque accessor functions in PBIO, and the language wrapper interacts exclusively through stable C ABI interfaces.  
-**Unblocks:** —  
+**Why:** Tight coupling between language bindings and driver internals creates maintenance overhead and increases the risk of introducing subtle bugs during future refactoring.
+**Done when:** All driver state is encapsulated behind opaque accessor functions in PBIO, and the language wrapper interacts exclusively through stable C ABI interfaces.
+**Unblocks:** —
 
 ## Atomicity & Zero-Mock Contract
 
@@ -101,35 +101,35 @@ In `pybricks/robotics/pb_type_mdrobotbase.c` and `lib/pbio/src/mdrobotbase.c`, l
 
 ### Step 1 — Specification & Layer Boundary Definition
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-018.md` · `docs/02-product/acceptance/G-MDRB-018.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-018.md` · `docs/02-product/acceptance/G-MDRB-018.md`
 **Actions:**
 
 1. Map all direct struct access sites in `pb_type_mdrobotbase.c`.
 2. Design clean C accessor functions for pose, status, and configuration.
 
-**Completion gate:** Interface contract defined with zero unresolved clarification tags.  
+**Completion gate:** Interface contract defined with zero unresolved clarification tags.
 **Stop condition:** Any performance-sensitive inner loop access that cannot be inlined.
 
 ### Step 2 — Decouple MicroPython Wrapper from Internal PBIO Struct Mechanics
 
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `lib/pbio/src/mdrobotbase.c` · `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `lib/pbio/src/mdrobotbase.c` · `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 
 1. Implement `pbio_mdrobotbase_get_pose()` and related accessors.
 2. Update `pb_type_mdrobotbase.c` to use accessor functions.
 
-**Completion gate:** C codebase compiles without warnings.  
+**Completion gate:** C codebase compiles without warnings.
 **Stop condition:** Compiler warnings or broken method returns.
 
 ### Step 3 — Verification & End-to-End Regression Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/`
 **Actions:**
 
 1. Run full PBIO test suite.
 2. Run full VirtualHub test suite.
 
-**Completion gate:** 100% test pass with identical benchmark timings.  
+**Completion gate:** 100% test pass with identical benchmark timings.
 **Stop condition:** Any test failure or execution slowdown.
 
 ## In

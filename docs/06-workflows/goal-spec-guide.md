@@ -1,6 +1,6 @@
 # Writing executable goals
 
-> **Goal:** Anyone opening `goals/G-PAY-001.md` (legacy `G-001.md`) — developer or agent — knows **why**, **what to deliver**, and **what to do in this card** without guessing.  
+> **Goal:** Anyone opening `goals/G-PAY-001.md` (legacy `G-001.md`) — developer or agent — knows **why**, **what to deliver**, and **what to do in this card** without guessing.
 > **ID:** allocate with `soda-os goal next PAY` first. Filename equals the ID. Contract: [goal-id.md](goal-id.md).
 
 Copy [_template.md](../07-backlog/goals/_template.md) when creating a goal. This guide explains each section.
@@ -55,7 +55,7 @@ When drafting or before promote:
 2. Ask the human **one open question at a time**.
 3. Never fill How, auth, stack, or API shape from a plausible default.
 
-**Wrong:** "Login" → assume email/password + JWT.  
+**Wrong:** "Login" → assume email/password + JWT.
 **Right:** `[NEEDS CLARIFICATION: auth method — email/password, SSO, or OAuth?]`
 
 ### Analyze — before first execute

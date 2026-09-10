@@ -2,11 +2,11 @@
 
 **Meeting Record** — **WP07**
 
-**Document Version:** 1.0  
-**Date:** {{date}}  
+**Document Version:** 1.0
+**Date:** {{date}}
 **Author:** {{author}}
 
-> Event-driven work product. Add **one row per meeting** (or one file per meeting if your QMS requires it).  
+> Event-driven work product. Add **one row per meeting** (or one file per meeting if your QMS requires it).
 > Do **not** leave example rows from other projects. Link real minutes (Drive / ClickUp / PDF).
 
 ### Revision History

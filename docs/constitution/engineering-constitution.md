@@ -1,6 +1,6 @@
 # Soda Agent OS — Engineering Constitution
 
-> Technology-independent · project-independent · product-independent.  
+> Technology-independent · project-independent · product-independent.
 > Engineering DNA of Sodality — ships with Agent OS; customize per project at bootstrap if needed.
 
 ## Purpose

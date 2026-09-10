@@ -2,8 +2,8 @@
 
 **Test Cases and Test Procedure** (WP19)
 
-**Document Version:** 1.0  
-**Author:** {{author}}  
+**Document Version:** 1.0
+**Author:** {{author}}
 **Date:** {{date}}
 
 > **Single-page register** — all test cases in one table. Use **Release / round** column instead of separate Excel tabs (V1.1, V2.0, V3.0, V4.0 in the Sodality reference).

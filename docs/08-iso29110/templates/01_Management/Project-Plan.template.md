@@ -2,8 +2,8 @@
 
 **Project Plan**
 
-**Document Version:** 1.0  
-**Author:** {{author}}  
+**Document Version:** 1.0
+**Author:** {{author}}
 **Approval Date:** {{date}}
 
 > **Agent guidance:** Fill every section from approved `intake/context/` and `project-context.yaml`. Do not invent scope, dates, budget, or team members not present in context. Use Agreement/SOW feature IDs (F-01, F-02, …) consistently with WP13.
@@ -302,5 +302,5 @@ flowchart LR
 
 ---
 
-**Document ID:** `{{company_code}}_{{project_code}}_PP_v1.0`  
+**Document ID:** `{{company_code}}_{{project_code}}_PP_v1.0`
 **Status:** Draft | For Review | Approved / Baseline

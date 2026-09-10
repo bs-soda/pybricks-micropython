@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-005
 
-**Goal ID:** `G-MDRB-005`  
-**Title:** Distinct Timeout and Stall Failure Reporting  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-005`
+**Title:** Distinct Timeout and Stall Failure Reporting
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

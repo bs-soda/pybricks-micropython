@@ -39,8 +39,8 @@ This goal formalizes submodule tracking, licensing, and automated CI reproducibi
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Unverified submodules risk repository contamination, licensing ambiguity, and unreproducible CI build environments.  
-**Done when:** Submodule commit provenance and licensing are formally audited, an automated verification script checks submodule consistency, and CI verifies a zero-drift clean working tree.  
+**Why:** Unverified submodules risk repository contamination, licensing ambiguity, and unreproducible CI build environments.
+**Done when:** Submodule commit provenance and licensing are formally audited, an automated verification script checks submodule consistency, and CI verifies a zero-drift clean working tree.
 **Unblocks:** G-MDRB-027
 
 ## Atomicity & Zero-Mock Contract
@@ -94,33 +94,33 @@ This goal formalizes submodule tracking, licensing, and automated CI reproducibi
 
 ### Step 1 — Submodule Provenance, License Audit & CI Specification
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-026.md` · `docs/02-product/acceptance/G-MDRB-026.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-026.md` · `docs/02-product/acceptance/G-MDRB-026.md`
 **Actions:**
 1. Document btstack licensing (BlueKitchen dual-license model, BSD-like for non-commercial) and exact pinned commit SHA.
 2. Define automated submodule audit requirements in `scripts/ci/submodule-check.sh`.
 3. Formulate Given-When-Then BDD scenarios in `docs/02-product/acceptance/G-MDRB-026.md`.
-**Completion gate:** Acceptance contract exists defining exact submodule verification rules.  
+**Completion gate:** Acceptance contract exists defining exact submodule verification rules.
 **Stop condition:** Ambiguity in submodule licensing or required commit references.
 
 ### Step 2 — Implement Automated Submodule Integrity Verification Script
 
-**Allowed files:** `scripts/ci/submodule-check.sh`  
+**Allowed files:** `scripts/ci/submodule-check.sh`
 **Actions:**
 1. Create `scripts/ci/submodule-check.sh` to verify:
    - All submodules in `.gitmodules` exist and match exact registered commit SHAs.
    - `git status --porcelain` reports zero dirty or untracked submodule entries.
 2. Make script executable and verify local pass.
-**Completion gate:** Script exits with code 0 on clean repository.  
+**Completion gate:** Script exits with code 0 on clean repository.
 **Stop condition:** Script failure or detected submodule drift.
 
 ### Step 3 — CI Workflow Integration & Clean Working Tree Attestation
 
-**Allowed files:** `.github/workflows/ci.yml` · `docs/06_raw/`  
+**Allowed files:** `.github/workflows/ci.yml` · `docs/06_raw/`
 **Actions:**
 1. Add submodule verification step to `.github/workflows/ci.yml`.
 2. Document license and provenance attestation in `docs/06_raw/`.
 3. Verify that fresh clone produces 100% clean status.
-**Completion gate:** CI workflow definition valid and clean working tree confirmed.  
+**Completion gate:** CI workflow definition valid and clean working tree confirmed.
 **Stop condition:** Any untracked files or git index errors.
 
 ## In

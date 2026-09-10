@@ -1,11 +1,11 @@
 # 🏛️ G-MDRB-007 Baseline Blocker & Socratic 5-Why Recursive Dialectic Report
 
-**Timestamp:** `2026-09-07T19:20:00+07:00`  
-**Goal:** `G-MDRB-007` (Trajectory and Controller Input Validation)  
-**Epic:** `MDRB` (MDRobotBase Production Hardening)  
-**Exact-HEAD Provenance:** `0582aefe38928ed3fe7456775dc5784a901bd28b`  
-**Active Branch:** `feature/mdrobotbase-enhancement`  
-**PR Target:** `epic/MDRB`  
+**Timestamp:** `2026-09-07T19:20:00+07:00`
+**Goal:** `G-MDRB-007` (Trajectory and Controller Input Validation)
+**Epic:** `MDRB` (MDRobotBase Production Hardening)
+**Exact-HEAD Provenance:** `0582aefe38928ed3fe7456775dc5784a901bd28b`
+**Active Branch:** `feature/mdrobotbase-enhancement`
+**PR Target:** `epic/MDRB`
 **Constitution Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass), Article III (Structured Explanation Standard)
 
 ---
@@ -114,63 +114,63 @@ Branch 5 (Negative Test Suite):     3 Passed, 2 Failed  [L4, L5 failed]
 ## 3. Five-Why Recursive Dialectic by Branch
 
 ### 🌿 Branch 1: Trajectory Capacity Limits & Fail-Closed Array Sizing
-- **Why 1:** Why does passing > 64 points cause silent path corruption?  
+- **Why 1:** Why does passing > 64 points cause silent path corruption?
   *Finding:* Clamping `num_points = 64` discards all user points from index 64 onwards without error.
-- **Why 2:** Why did legacy code clamp rather than reject?  
+- **Why 2:** Why did legacy code clamp rather than reject?
   *Finding:* Permissive embedded programming assumed executing a prefix was better than crashing.
-- **Why 3:** Why is partial execution hazardous for robotics?  
+- **Why 3:** Why is partial execution hazardous for robotics?
   *Finding:* An autonomous robot executing only the first half of a path will stop in an obstacle zone or miss the target completely without raising an alarm.
-- **Why 4:** Why is 64 points the hard limit in PBIO?  
+- **Why 4:** Why is 64 points the hard limit in PBIO?
   *Finding:* Static arrays of size 64 prevent dynamic heap allocation and deterministic memory usage on Cortex-M microcontrollers.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* The API boundary MUST fail-closed at runtime with `mp_raise_ValueError("trajectory exceeds maximum capacity of 64 points")`.
 
 ### 🌿 Branch 2: Waypoint Tuple Dimensionality & Out-of-Bounds Memory Safety
-- **Why 1:** Why does passing `[(100,)]` cause memory faults?  
+- **Why 1:** Why does passing `[(100,)]` cause memory faults?
   *Finding:* The coordinate unpacking assumes `p_coords[1]` always exists without checking `p_len`.
-- **Why 2:** Why did legacy code omit `p_len` checking?  
+- **Why 2:** Why did legacy code omit `p_len` checking?
   *Finding:* Expected idiomatic Python usage without verifying input types defensively.
-- **Why 3:** Why can malformed tuples enter the C binding?  
+- **Why 3:** Why can malformed tuples enter the C binding?
   *Finding:* Dynamic Python scripts in WRO competitions may generate variable-length tuple outputs from sensor filters.
-- **Why 4:** Why is `num_points < 2` invalid?  
+- **Why 4:** Why is `num_points < 2` invalid?
   *Finding:* A path trajectory requires at least a starting waypoint and an ending waypoint. Single points are in-place goals, not trajectories.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* Enforce `p_len >= 2` for every point and `num_points >= 2` overall before modifying internal robot buffers.
 
 ### 🌿 Branch 3: Coordinate Finiteness & Dynamic Parameter Positivity
-- **Why 1:** Why do NaN or Inf coordinates cause runaway motor states?  
+- **Why 1:** Why do NaN or Inf coordinates cause runaway motor states?
   *Finding:* IEEE 754 NaN propagates through trigonometric atan2 and distance math, corrupting motor PWM outputs.
-- **Why 2:** Why must coordinates be checked for finiteness?  
+- **Why 2:** Why must coordinates be checked for finiteness?
   *Finding:* Upstream calculations (such as computer vision or math operations) can produce NaN or Inf.
-- **Why 3:** Why must tolerances be strictly positive?  
+- **Why 3:** Why must tolerances be strictly positive?
   *Finding:* A tolerance of 0 or negative causes the trajectory follower to never reach waypoint completion.
-- **Why 4:** Why must speed be strictly positive?  
+- **Why 4:** Why must speed be strictly positive?
   *Finding:* Zero or negative speed creates divide-by-zero or reverse direction conflicts in trajectory velocity profiling.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* Assert `isfinite(px) && isfinite(py)`, `speed > 0.0f && isfinite(speed)`, `tolerance > 0.0f && isfinite(tolerance)`, and `transition_tolerance > 0.0f && isfinite(transition_tolerance)`.
 
 ### 🌿 Branch 4: Controller Enum Range Guard & Unhandled Switch Protection
-- **Why 1:** Why does `set_controller(99)` produce unhandled behavior?  
+- **Why 1:** Why does `set_controller(99)` produce unhandled behavior?
   *Finding:* Arbitrary enum values fall through trajectory control dispatchers.
-- **Why 2:** Why did `pbio_mdrobotbase_set_controller` omit enum checks?  
+- **Why 2:** Why did `pbio_mdrobotbase_set_controller` omit enum checks?
   *Finding:* C enum parameters can be assigned any integer value without compiler warnings if cast.
-- **Why 3:** Why is PID vs LQR selection critical?  
+- **Why 3:** Why is PID vs LQR selection critical?
   *Finding:* Trajectory following requires distinct state error formulations (error-pose PID vs Riccati algebraic matrix).
-- **Why 4:** Why must invalid enums return `PBIO_ERROR_INVALID_ARG`?  
+- **Why 4:** Why must invalid enums return `PBIO_ERROR_INVALID_ARG`?
   *Finding:* PBIO error conventions dictate invalid argument errors for out-of-range enumerations.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* Validate `type == PBIO_MDROBOTBASE_CONTROLLER_PID || type == PBIO_MDROBOTBASE_CONTROLLER_LQR` before mutating `rb->controller_type`.
 
 ### 🌿 Branch 5: Negative Input Test Suite & Zero Side-Effect Guarantee
-- **Why 1:** Why are mock test doubles prohibited when testing input validation?  
+- **Why 1:** Why are mock test doubles prohibited when testing input validation?
   *Finding:* Article I mandates zero mocks. Mocks hide real struct memory layouts and out-of-bounds reads.
-- **Why 2:** Why must negative tests verify zero motor command side effects?  
+- **Why 2:** Why must negative tests verify zero motor command side effects?
   *Finding:* Rejected trajectories must not alter motor targets or corrupt odometry state.
-- **Why 3:** Why must native PBIO test binary run without skips?  
+- **Why 3:** Why must native PBIO test binary run without skips?
   *Finding:* Real C unit tests in `test-pbio` verify driver invariants directly on host architecture.
-- **Why 4:** Why is `test_mdrobotbase_trajectory_controller_validation` required?  
+- **Why 4:** Why is `test_mdrobotbase_trajectory_controller_validation` required?
   *Finding:* Concrete test cases are needed to verify invalid controller enums and gain boundaries.
-- **Why 5 (Root):** What is the exact architectural invariant?  
+- **Why 5 (Root):** What is the exact architectural invariant?
   *Resolution:* Implement `test_mdrobotbase_trajectory_controller_validation()` in `lib/pbio/test/src/test_mdrobotbase.c` bringing the total passing suite to 10/10 tests.
 
 ---

@@ -1,12 +1,12 @@
 # G-MDRB-030: Perceptual Color Classifier with Circular Hue Distance and CIE L*a*b* Space
 
-**Status:** review  
-**Kind:** feature  
-**Atomic outcome:** Implement circular hue distance $dh = \min(|h_1 - h_2|, 360 - |h_1 - h_2|)$ and CIE $L^*a^*b^*$ perceptual color space transformations with weighted multi-space distance classification  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-029  
-**Blocks:** G-MDRB-031  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** review
+**Kind:** feature
+**Atomic outcome:** Implement circular hue distance $dh = \min(|h_1 - h_2|, 360 - |h_1 - h_2|)$ and CIE $L^*a^*b^*$ perceptual color space transformations with weighted multi-space distance classification
+**Epic:** MDRB
+**Depends on:** G-MDRB-029
+**Blocks:** G-MDRB-031
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -40,8 +40,8 @@ This goal implements circular hue arithmetic and standard CIE $L^*a^*b^*$ percep
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Colors lying across the $0^\circ / 360^\circ$ red boundary must be recognized as adjacent, and lighting variations must not compress chromatic separation between similar competition tiles.  
-**Done when:** Color distance calculations correctly compute circular shortest-arc hue distance and evaluate perceptual CIE $L^*a^*b^*$ color differences, maintaining continuous classification across wraparound boundaries.  
+**Why:** Colors lying across the $0^\circ / 360^\circ$ red boundary must be recognized as adjacent, and lighting variations must not compress chromatic separation between similar competition tiles.
+**Done when:** Color distance calculations correctly compute circular shortest-arc hue distance and evaluate perceptual CIE $L^*a^*b^*$ color differences, maintaining continuous classification across wraparound boundaries.
 **Unblocks:** G-MDRB-031 (Multi-sample prototype statistical calibration)
 
 ## Atomicity & Zero-Mock Contract
@@ -102,33 +102,33 @@ This goal implements circular hue arithmetic and standard CIE $L^*a^*b^*$ percep
 
 ### Step 1 — Circular Hue Metric & CIE Lab Color Space Mathematics Specification
 
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `docs/02-product/acceptance/G-MDRB-030.md`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `docs/02-product/acceptance/G-MDRB-030.md`
 **Actions:**
 1. Define circular hue distance function signature `pbio_mdrobotbase_circular_hue_distance(h1, h2)`.
 2. Define RGB-to-Lab transformation signature `pbio_mdrobotbase_rgb_to_lab(r, g, b, &l, &a, &b_val)`.
 3. Formulate Given-When-Then BDD scenarios in `docs/02-product/acceptance/G-MDRB-030.md`.
-**Completion gate:** Header compiles cleanly and BDD scenarios are formalized.  
+**Completion gate:** Header compiles cleanly and BDD scenarios are formalized.
 **Stop condition:** Mathematical ambiguity or undefined illuminant reference.
 
 ### Step 2 — Implement Circular Hue and CIE Lab Transforms in Native C & Python
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`
 **Actions:**
 1. Implement `pbio_mdrobotbase_circular_hue_distance` verifying $dh \in [0.0, 180.0]$.
 2. Implement sRGB -> XYZ -> $L^*a^*b^*$ conversion in `lib/pbio/src/mdrobotbase.c`.
 3. Update `pbio_mdrobotbase_color_cal_classify` to evaluate composite weighted distance.
 4. Implement identical circular hue and Lab transformation in VirtualHub `robotics.py`.
-**Completion gate:** Transformation tests pass on standard Macbeth reference coordinates.  
+**Completion gate:** Transformation tests pass on standard Macbeth reference coordinates.
 **Stop condition:** NaN/Inf generated during color space conversion.
 
 ### Step 3 — Empirical Boundary Verification on 359°/1° Wraparound & Similar Color Pairs
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`
 **Actions:**
 1. Write native test verifying $dh(359^\circ, 1^\circ) == 2.0^\circ$ and $dh(1^\circ, 359^\circ) == 2.0^\circ$.
 2. Write discrimination tests between similar colors (Red vs Orange, Blue vs Cyan).
 3. Verify zero compiler warnings under `-Wall -Wextra -Werror`.
-**Completion gate:** 100% green test execution across native C and VirtualHub.  
+**Completion gate:** 100% green test execution across native C and VirtualHub.
 **Stop condition:** Any test failure or failure to discriminate similar colors.
 
 ## In

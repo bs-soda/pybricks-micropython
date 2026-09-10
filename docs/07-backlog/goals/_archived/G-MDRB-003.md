@@ -1,12 +1,12 @@
 # G-MDRB-003: Constructor and Parameter Geometry Validation
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Enforce fail-closed validation on wheel diameters, axle track, motor aliasing, and non-finite dimensions before any motor command or division  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-002  
-**Blocks:** G-MDRB-004  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Enforce fail-closed validation on wheel diameters, axle track, motor aliasing, and non-finite dimensions before any motor command or division
+**Epic:** MDRB
+**Depends on:** G-MDRB-002
+**Blocks:** G-MDRB-004
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -41,8 +41,8 @@ If a user specifies `wheel_diameter <= 0` or `axle_track <= 0`:
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Physical dimensions must be strictly positive and finite; allowing non-positive or unvalidated dimensions causes division by zero, floating-point NaN contamination, and dangerous uncontrolled actuator runaway.  
-**Done when:** Construction or dimension reconfiguration fails immediately with an explicit argument error whenever wheel diameter $\le 0$, axle track $\le 0$, coordinates are non-finite, or left and right motors are identical, guaranteeing zero motor commands are issued.  
+**Why:** Physical dimensions must be strictly positive and finite; allowing non-positive or unvalidated dimensions causes division by zero, floating-point NaN contamination, and dangerous uncontrolled actuator runaway.
+**Done when:** Construction or dimension reconfiguration fails immediately with an explicit argument error whenever wheel diameter $\le 0$, axle track $\le 0$, coordinates are non-finite, or left and right motors are identical, guaranteeing zero motor commands are issued.
 **Unblocks:** G-MDRB-004 (Consistent Gear-Ratio Command and Odometry Semantics).
 
 ## Atomicity & Zero-Mock Contract
@@ -93,33 +93,33 @@ If a user specifies `wheel_diameter <= 0` or `axle_track <= 0`:
 ## Work steps
 
 ### Step 1 — PBIO Core Geometry Guards
-**Allowed files:** `lib/pbio/src/mdrobotbase.c`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c`
 **Actions:**
 1. Insert strict guards in `pbio_mdrobotbase_get_robotbase()`.
 2. Reject `left == right`, non-positive diameters, and non-positive tracks.
 3. Update `pbio_mdrobotbase_set_wheel_diameters()` with identical guards.
 
-**Completion gate:** PBIO C API rejects non-positive dimensions with `PBIO_ERROR_INVALID_ARG`.  
+**Completion gate:** PBIO C API rejects non-positive dimensions with `PBIO_ERROR_INVALID_ARG`.
 **Stop condition:** Any uncaught zero-division path remaining.
 
 ### Step 2 — MicroPython Constructor & Setter Guards
-**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Check finite float representation (`isfinite()`) in Python constructor.
 2. Reject motor aliasing before PBIO allocation call.
 3. Map `PBIO_ERROR_INVALID_ARG` to descriptive `ValueError`.
 
-**Completion gate:** Python scripts passing invalid dimensions receive `ValueError` without side effects.  
+**Completion gate:** Python scripts passing invalid dimensions receive `ValueError` without side effects.
 **Stop condition:** Any motor movement triggered on invalid construction.
 
 ### Step 3 — Negative Geometry Test Suite
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`, `tests/virtualhub/robotics/test_mdrobotbase_geometry.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`, `tests/virtualhub/robotics/test_mdrobotbase_geometry.py`
 **Actions:**
 1. Test zero, negative, extreme ($10^9$), NaN, and Inf wheel diameters.
 2. Test zero, negative, and extreme axle tracks.
 3. Test motor aliasing (`left == right`).
 
-**Completion gate:** All negative tests pass 100% green; zero division-by-zero or crashes.  
+**Completion gate:** All negative tests pass 100% green; zero division-by-zero or crashes.
 **Stop condition:** Any test failure or unhandled panic.
 
 ## In

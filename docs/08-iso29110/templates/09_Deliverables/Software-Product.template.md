@@ -2,13 +2,13 @@
 
 **Software Product** — **WP17** (Work Product 17 of 23)
 
-**Document ID:** `{{company_code}}_{{project_code}}_SWP_v1.0`  
-**Document Version:** 1.0  
-**Date:** {{date}}  
+**Document ID:** `{{company_code}}_{{project_code}}_SWP_v1.0`
+**Document Version:** 1.0
+**Date:** {{date}}
 **Author:** {{author}}
 
-> **ISO 29110:** A full project has **23** work products (WP01–WP23).  
-> This document is **WP17 — Software Product** only (Sodality short name: **SWP**).  
+> **ISO 29110:** A full project has **23** work products (WP01–WP23).
+> This document is **WP17 — Software Product** only (Sodality short name: **SWP**).
 > Do not confuse with WP11 Project Repository or WP14 Software.
 
 ### Revision History

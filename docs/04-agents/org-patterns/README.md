@@ -1,8 +1,8 @@
 # Organizational patterns — Pattern Library (v5)
 
-> **Distilled cross-project knowledge** — not whole project exports.  
-> Index: [pattern-index.json](pattern-index.json) · Template: [_template.md](_template.md)  
-> Governance: [knowledge-governance.md](../../06-workflows/knowledge-governance.md)  
+> **Distilled cross-project knowledge** — not whole project exports.
+> Index: [pattern-index.json](pattern-index.json) · Template: [_template.md](_template.md)
+> Governance: [knowledge-governance.md](../../06-workflows/knowledge-governance.md)
 > Vision: [organizational-learning.md](../../06-workflows/organizational-learning.md)
 
 Agents search **patterns**, not Project A's folder.

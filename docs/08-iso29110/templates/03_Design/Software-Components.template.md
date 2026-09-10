@@ -2,11 +2,11 @@
 
 **Software Components** — **WP15** (link register)
 
-**Document Version:** 1.0  
-**Date:** {{date}}  
+**Document Version:** 1.0
+**Date:** {{date}}
 **Author:** {{author}}
 
-> Location of **software components** (libraries, packages, monorepo paths) on GitHub.  
+> Location of **software components** (libraries, packages, monorepo paths) on GitHub.
 > Thin register — detailed design remains in WP16.
 
 ### Revision History

@@ -1,12 +1,12 @@
 # G-PAY-001: [Short title]
 
-**Status:** draft | planned | ready | in_progress | review | blocked | approved  
-**Kind:** feature *(feature | design | api | migration | qa | chore — a `design` goal routes to the `soda-design` skill)*  
+**Status:** draft | planned | ready | in_progress | review | blocked | approved
+**Kind:** feature *(feature | design | api | migration | qa | chore — a `design` goal routes to the `soda-design` skill)*
 **Atomic outcome:** [One independently verifiable outcome; one goal must not contain multiple deliverables]
-**Epic:** PAY *(slug from [epics.md](../epics.md); legacy `G-001` = CORE; base integration branch `epic/PAY` or `feature/PAY` — PR target, NEVER develop)*  
-**Depends on:** G-PAY-002 or —  
-**Blocks:** G-AUTH-001 or — *(optional — goals waiting on this one)*  
-**Spec stability:** clarify pending | done · spec check pending | done · analyze pending | done | n/a  
+**Epic:** PAY *(slug from [epics.md](../epics.md); legacy `G-001` = CORE; base integration branch `epic/PAY` or `feature/PAY` — PR target, NEVER develop)*
+**Depends on:** G-PAY-002 or —
+**Blocks:** G-AUTH-001 or — *(optional — goals waiting on this one)*
+**Spec stability:** clarify pending | done · spec check pending | done · analyze pending | done | n/a
 *(clarify + spec check before `ready`. analyze before first **เริ่ม step N**. `n/a` = docs-only / no `code/`.)*
 
 #### Plan
@@ -85,7 +85,7 @@
 
 ## Context manifest
 
-> **Compiler input** — like `package.json` for compile dependencies. [context-compiler.md](../../03-architecture/context-compiler.md)  
+> **Compiler input** — like `package.json` for compile dependencies. [context-compiler.md](../../03-architecture/context-compiler.md)
 > On `compile G-PAY-001`, compiler builds progressive `.bundle/G-PAY-001/cache/G-PAY-001-{hash}/`.
 
 | Kind | IDs / paths |
@@ -108,35 +108,35 @@ Ordered execution contract for **this card only** — Antigravity or another age
 
 ### Step 1 — [Observable objective]
 
-**Allowed files:** `path/to/file`  
+**Allowed files:** `path/to/file`
 **Actions:**
 
 1. [One concrete action]
 2. [One concrete action]
 
-**Completion gate:** [Exact test, invariant, or artifact that must pass]  
+**Completion gate:** [Exact test, invariant, or artifact that must pass]
 **Stop condition:** [Failure that blocks the next step]
 
 ### Step 2 — [Observable objective]
 
-**Allowed files:** `path/to/file`  
+**Allowed files:** `path/to/file`
 **Actions:**
 
 1. [One concrete action]
 2. [One concrete action]
 
-**Completion gate:** [Exact test, invariant, or artifact that must pass]  
+**Completion gate:** [Exact test, invariant, or artifact that must pass]
 **Stop condition:** [Failure that blocks the next step]
 
 ### Step 3 — [Verification objective]
 
-**Allowed files:** `path/to/test-or-report`  
+**Allowed files:** `path/to/test-or-report`
 **Actions:**
 
 1. [Run the scoped verification command]
 2. [Record output and exit code]
 
-**Completion gate:** [Exact green result required]  
+**Completion gate:** [Exact green result required]
 **Stop condition:** [Failure or human approval requirement]
 
 ## In
@@ -313,4 +313,3 @@ Writing guide: [goal-spec-guide.md](../../06-workflows/goal-spec-guide.md)
   - Margin invariant: $\text{Margin} = D_{\text{second\_best}} - D_{\text{best}}$.
   - Confidence calculation: $\text{Confidence} = \text{clamp}\left(\frac{\text{Margin}}{\text{Margin}_{\text{threshold}}}, 0.0, 1.0\right)$.
   - Fail-safe rejection: If $D_{\text{best}} > D_{\text{cutoff}}$ or $\text{Margin} < \text{Margin}_{\text{min}} \implies \text{Classify as } \text{Color.NONE} (0)$.
-

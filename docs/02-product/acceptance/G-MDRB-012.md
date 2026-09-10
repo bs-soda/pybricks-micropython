@@ -1,10 +1,10 @@
 # Acceptance Contract: G-MDRB-012
 
-**Goal ID:** `G-MDRB-012`  
-**Title:** Closed-Object Guarding & Idempotent Destructor Safety  
-**Epic:** MDRB  
-**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`  
-**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)  
+**Goal ID:** `G-MDRB-012`
+**Title:** Closed-Object Guarding & Idempotent Destructor Safety
+**Epic:** MDRB
+**Target Branch:** `feature/mdrobotbase-enhancement` -> `epic/MDRB`
+**Invariants:** Article I (Zero Mocks, Zero Stubs, Zero Fallbacks), Article II (Mandatory Verification Pass)
 
 ---
 

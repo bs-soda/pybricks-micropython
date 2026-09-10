@@ -2,7 +2,7 @@
 
 **Verification Record**
 
-#### 
+####
 
 ### **1\. Introduction and Purpose**
 
@@ -12,9 +12,9 @@ This record certifies that the product was built "right" by comparing the final 
 
 ### **2\. Verification Scope and Methodology**
 
-* **Scope:** The verification activities covered all functional and non-functional requirements defined in the Statement of Work (SOW) for features F-01 through F-05.  
-* **Methodology:** The primary method for verification was the execution of the formal test cases documented in the project's Test Case repository. Each requirement was mapped to one or more test cases in the Requirements Traceability Matrix (RTM).  
-* **Testing Period:** QA testing was conducted from **14th July 2025** to **31th July 2025**.  
+* **Scope:** The verification activities covered all functional and non-functional requirements defined in the Statement of Work (SOW) for features F-01 through F-05.
+* **Methodology:** The primary method for verification was the execution of the formal test cases documented in the project's Test Case repository. Each requirement was mapped to one or more test cases in the Requirements Traceability Matrix (RTM).
+* **Testing Period:** QA testing was conducted from **14th July 2025** to **31th July 2025**.
 * **Test Environment:** All tests were executed on the **Staging / QA Environment**, which mirrors the production setup.
 
 ### **3\. Verification Summary**
@@ -39,10 +39,10 @@ The following table summarizes the verification status of the project's key func
 
 This section summarizes the status of the defects found during the verification (QA) phase.
 
-* **Total Defects Reported:** 3 Cases  
-* **Defects Resolved and Closed:** 33 cases  
-* **Defects Deferred (Moved to backlog for next release):**    
-  \- TC\_ERROR\_001 : The app does not crash. A user-friendly error message is displayed (e.g., 'No internet connection. Please check your network and try again.').  
+* **Total Defects Reported:** 3 Cases
+* **Defects Resolved and Closed:** 33 cases
+* **Defects Deferred (Moved to backlog for next release):**
+  \- TC\_ERROR\_001 : The app does not crash. A user-friendly error message is displayed (e.g., 'No internet connection. Please check your network and try again.').
 * **Open Blocker / Critical Defects:** **0**
 
 All Blocker and Critical severity defects have been resolved, tested, and closed. The remaining deferred defects are of Minor severity and do not impact the core functionality of the application.

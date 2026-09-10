@@ -2,8 +2,8 @@
 
 **Traceability Record** (WP21)
 
-**Document Version:** 1.0  
-**Author:** {{author}}  
+**Document Version:** 1.0
+**Author:** {{author}}
 **Date:** {{date}}
 
 > **Requirements Traceability Matrix (RTM)** — single table linking Agreement features, requirements, design, components, and tests.
@@ -24,4 +24,3 @@
 | F-XX | REQ-XXX | [User story summary] | SD-XXX | [Design element] | [Module] | [API module] | SF-XXX | TP_UNT_XXX | PASS / FAIL | TC_XXX_001 |
 
 *(One row per requirement or per REQ–TC pair per your process. **Functional TC ID** links to WP19.)*
-

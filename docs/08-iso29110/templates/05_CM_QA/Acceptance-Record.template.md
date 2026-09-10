@@ -6,7 +6,7 @@
 
 **Acceptance Record**
 
-**Document Version: 1.0**  
+**Document Version: 1.0**
 **Author:** {{author}}
 
 ### **Approval Date:** {{date}}
@@ -19,8 +19,8 @@
 | 0.2 | {{date}} | The application (v1.0), encompassing all 5 features, has completed the final QA and UAT phases. The document is now ready for the formal acceptance review by the Product Owner. | [{{author}}]({{contact_email}}) | Ready for Review |
 | 1.0 | {{date}} | **Final Version:** All features (F-01 to F-05) have been reviewed and formally **Accepted** by the Product Owner in a single sign-off. The project is now considered complete from an acceptance standpoint. | [{{author}}]({{contact_email}}) | Accepted |
 
-**Document Version:** 1.0  
-**Date:** {{date}}  
+**Document Version:** 1.0
+**Date:** {{date}}
 **Project Name:** "{{project_name}}" Application Development
 
 ### **1\. Purpose**
@@ -29,7 +29,7 @@ This document serves as the official record of acceptance for the deliverables p
 
 This is a living document and will be updated after each project phase.
 
-#### 
+####
 
 
 ### **2. Acceptance Details**
@@ -52,7 +52,7 @@ Group by feature ID from the Agreement / WP13. One table per feature.
 
 ### **3\. Remarks / Outstanding Issues**
 
-1. Regarding Deliverable \[ID\]: 
+1. Regarding Deliverable \[ID\]:
 
    There are no outstanding issues, only rendering the image and text color that did not match.
 

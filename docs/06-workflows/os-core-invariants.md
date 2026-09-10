@@ -1,6 +1,6 @@
 # OS core invariants — Core vs Extension
 
-> **Stability contract for Soda Knowledge OS.**  
+> **Stability contract for Soda Knowledge OS.**
 > Stop adding layers; tune **extensions** from real project data (10–20 projects).
 
 When in doubt: **protect Core · tune Extension · measure with [OS Health](../02-product/os-health.md)**
@@ -56,7 +56,7 @@ Agents **draft** PDR/ADR/goals; humans **accept**. No autonomous `accepted` / `d
 
 ### C5 — Dual graph
 
-**Knowledge Services** (runtime) + **projections** (human) — same IDs, no raw transcripts in repo.  
+**Knowledge Services** (runtime) + **projections** (human) — same IDs, no raw transcripts in repo.
 Phase 1 backend: `knowledge-map.json`. Phase 2+: `.os/knowledge.db` — see [knowledge-services.md](../03-architecture/knowledge-services.md).
 
 **Upgrade:** `knowledge-map.json` = product data (`never_touch`). `knowledge-map.schema.json` = framework (synced on upgrade). Missing map → Phase 1 `--ignore-existing` scaffold.

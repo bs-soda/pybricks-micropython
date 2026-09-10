@@ -1,13 +1,13 @@
 # G-MDRB-005: Master Replication & Complete Release Gate Certification Report
 
-**Document ID:** `docs/06_raw/20260907_190500_g_mdrb_005_motion_failure_reporting_master_replication_and_release_gate_report.md`  
-**Timestamp:** `2026-09-07T19:05:00+07:00`  
-**Goal:** [G-MDRB-005: Distinct Timeout and Stall Failure Reporting](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-005.md)  
-**Epic:** [MDRB](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/epics/MDRB.md)  
-**Base Integration Target:** `epic/MDRB`  
-**Active Working Branch:** `feature/mdrobotbase-enhancement`  
-**Git Exact-HEAD SHA:** `0582aefe38928ed3fe7456775dc5784a901bd28b`  
-**Status:** `review` (Awaiting Human Review & Approval)  
+**Document ID:** `docs/06_raw/20260907_190500_g_mdrb_005_motion_failure_reporting_master_replication_and_release_gate_report.md`
+**Timestamp:** `2026-09-07T19:05:00+07:00`
+**Goal:** [G-MDRB-005: Distinct Timeout and Stall Failure Reporting](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-005.md)
+**Epic:** [MDRB](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/epics/MDRB.md)
+**Base Integration Target:** `epic/MDRB`
+**Active Working Branch:** `feature/mdrobotbase-enhancement`
+**Git Exact-HEAD SHA:** `0582aefe38928ed3fe7456775dc5784a901bd28b`
+**Status:** `review` (Awaiting Human Review & Approval)
 
 ---
 

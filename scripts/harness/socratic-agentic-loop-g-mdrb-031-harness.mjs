@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Socratic Agentic Loop: G-MDRB-031 Multi-Sample Prototype Statistical Calibration
- * 
+ *
  * Executes 5 Causal Branches x 5 Dialectic Levels (25 Total Nodes)
  * Strict Zero-Mock Contract: Article I Invariant (Zero Mocks, Zero Stubs, Zero String Simulations)
  * Article II: Mandatory Verification & Testing Pass
- * 
+ *
  * Branches:
  * 1. Statistical Prototype Class Model (color_class_t Data Structure)
  * 2. Welford Online Accumulation & Numerical Stability

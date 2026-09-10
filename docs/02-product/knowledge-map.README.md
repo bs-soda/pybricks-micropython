@@ -1,8 +1,8 @@
 # Knowledge map — runtime graph (Phase 1 backend)
 
-> **Knowledge Services** (capabilities) — skills use this. Storage: [knowledge-store.md](../03-architecture/knowledge-store.md) (implementers).  
-> Discovery: [soda-discovery](../../.agents/skills/soda-discovery/SKILL.md)  
-> Learning: [soda-learning-loop](../../.agents/skills/soda-learning-loop/SKILL.md)  
+> **Knowledge Services** (capabilities) — skills use this. Storage: [knowledge-store.md](../03-architecture/knowledge-store.md) (implementers).
+> Discovery: [soda-discovery](../../.agents/skills/soda-discovery/SKILL.md)
+> Learning: [soda-learning-loop](../../.agents/skills/soda-learning-loop/SKILL.md)
 > Schema: [knowledge-map.schema.json](knowledge-map.schema.json) (v1.1)
 
 **Source vs runtime:** ADR/PDR/Goals stay in Git. High-churn graph data lives here until migration triggers fire.
@@ -175,7 +175,7 @@ Tech Lead may waive → [changelog.md](../07-backlog/changelog.md).
 
 ## Example — temporal supersede
 
-**Jan 2026** — P-001 + E-001 (interview): "Users don't want dark mode"  
+**Jan 2026** — P-001 + E-001 (interview): "Users don't want dark mode"
 **Jul 2026** — O-001 + E-010 (analytics): 90% dark mode usage
 
 ```json

@@ -1,18 +1,18 @@
 # G-MDRB-025 Master Replication & Release Gate Certification Report
 
-**ISO Timestamp:** `2026-09-08T21:30:00+07:00`  
-**Author:** AI Agentic Pair (Sodality OS / Antigravity)  
-**Goal:** [`G-MDRB-025: Motion Dispatcher Modularization & Sub-Controller Decomposition`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-025.md)  
-**Acceptance Contract:** [`docs/02-product/acceptance/G-MDRB-025.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-025.md)  
-**Exact-HEAD Git Commit:** `f51bc095c910303af3a99db57ff2d6b8f9281ba7`  
-**Status:** Review (Green Phase Release Gate Completed)  
+**ISO Timestamp:** `2026-09-08T21:30:00+07:00`
+**Author:** AI Agentic Pair (Sodality OS / Antigravity)
+**Goal:** [`G-MDRB-025: Motion Dispatcher Modularization & Sub-Controller Decomposition`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-025.md)
+**Acceptance Contract:** [`docs/02-product/acceptance/G-MDRB-025.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-025.md)
+**Exact-HEAD Git Commit:** `f51bc095c910303af3a99db57ff2d6b8f9281ba7`
+**Status:** Review (Green Phase Release Gate Completed)
 
 ---
 
 ## 1. Executive Summary & Problem Resolution
 
 Codex's September 2026 architectural review noted:
-> **P2 — Dispatcher complexity & monolithic coroutine step**  
+> **P2 — Dispatcher complexity & monolithic coroutine step**
 > `pb_type_mdrobotbase_motion_iterate_once()` in `pybricks/robotics/pb_type_mdrobotbase.c` spans over 570 lines with massive nested control blocks for navigation, pure pursuit, spin turn, locked pivot, and multi-point trajectory tracking. Extract common terminal handling, wheel-command conversion, and stall handling. Keep each motion controller small enough to test independently.
 
 Under Goal `G-MDRB-025`, the monolithic dispatcher was systematically decomposed into isolated, static step functions while preserving 100% exact differential kinematic equations and mathematical constants.

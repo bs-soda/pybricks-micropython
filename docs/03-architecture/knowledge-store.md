@@ -1,6 +1,6 @@
 # Knowledge repository & storage
 
-> **Implementers only** — agents/skills use [knowledge-services.md](knowledge-services.md) capabilities, not this file.  
+> **Implementers only** — agents/skills use [knowledge-services.md](knowledge-services.md) capabilities, not this file.
 > **Status:** Phase 1 — JSON file backend behind services.
 
 ---
@@ -74,7 +74,7 @@ Used by **services** when implementing capabilities:
 | `aggregate_health()` | HealthService |
 | `aggregate_roi()` | HealthService |
 
-Phase 1: services read/write JSON per [schema](../02-product/knowledge-map.schema.json).  
+Phase 1: services read/write JSON per [schema](../02-product/knowledge-map.schema.json).
 Phase 2: same interface, SQL backend — **services unchanged**.
 
 ---

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Isolated Mutation Test Suite: G-MDRB-029
- * 
+ *
  * Verifies harness sensitivity by injecting synthetic mutations into
  * two-point optical calibration, dark offset subtraction, white gain normalization,
  * dynamic range guards, and numerical clamping invariants.
- * 
+ *
  * Invariants: Exact-HEAD provenance, Article I (Zero False-Positives), Article II (Mandatory Failure Detection).
  */
 

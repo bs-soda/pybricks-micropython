@@ -1,14 +1,14 @@
 # G-MDRB-028 Baseline Freeze & Initial Replication Blocker Record
 
-**Document ID:** `DOC-06RAW-20260909-MDRB028-BASELINE`  
-**Timestamp:** `2026-09-09T07:18:00+07:00`  
-**Author:** Antigravity AI Engine (on behalf of WRO Robotics Engineering Team)  
-**Corpus Name:** `bs-soda/pybricks-micropython`  
-**Active Feature Branch:** `feature/mdrobotbase-enhancement`  
-**Base Integration Target:** `epic/MDRB`  
-**Goal ID:** `G-MDRB-028`  
-**Kind:** `api`  
-**Pre-Implementation Git HEAD:** `20ee9fb72dec90d84e92c096fbbd7a2ac28fff2f`  
+**Document ID:** `DOC-06RAW-20260909-MDRB028-BASELINE`
+**Timestamp:** `2026-09-09T07:18:00+07:00`
+**Author:** Antigravity AI Engine (on behalf of WRO Robotics Engineering Team)
+**Corpus Name:** `bs-soda/pybricks-micropython`
+**Active Feature Branch:** `feature/mdrobotbase-enhancement`
+**Base Integration Target:** `epic/MDRB`
+**Goal ID:** `G-MDRB-028`
+**Kind:** `api`
+**Pre-Implementation Git HEAD:** `20ee9fb72dec90d84e92c096fbbd7a2ac28fff2f`
 
 ---
 
@@ -20,11 +20,11 @@ Prior to the execution of `G-MDRB-028`, the color perception subsystem suffers f
 In [`lib/pbio/include/pbio/mdrobotbase.h:249`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/include/pbio/mdrobotbase.h#L249):
 ```c
 pbio_error_t pbio_mdrobotbase_color_cal_classify(
-    pbio_mdrobotbase_t *rb, 
-    float h, 
-    float s, 
-    float v, 
-    uint8_t *matched_color_id, 
+    pbio_mdrobotbase_t *rb,
+    float h,
+    float s,
+    float v,
+    uint8_t *matched_color_id,
     float *min_distance
 );
 ```

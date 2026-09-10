@@ -38,8 +38,8 @@ This goal executes the full battery across both test environments, captures exac
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Autonomous competition firmware must be proven by empirical runtime execution data rather than source code presence alone.  
-**Done when:** All native and virtual test suites pass with recorded empirical logs, the compiler emits zero warnings, and an audited release certification elevates the overall architectural score to 9.4+/10.  
+**Why:** Autonomous competition firmware must be proven by empirical runtime execution data rather than source code presence alone.
+**Done when:** All native and virtual test suites pass with recorded empirical logs, the compiler emits zero warnings, and an audited release certification elevates the overall architectural score to 9.4+/10.
 **Unblocks:** — (Epic MDRB 100% full closeout)
 
 ## Atomicity & Zero-Mock Contract
@@ -92,33 +92,33 @@ This goal executes the full battery across both test environments, captures exac
 
 ### Step 1 — Runtime Test Matrix & Compiler Audit Specification
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-027.md` · `docs/02-product/acceptance/G-MDRB-027.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-027.md` · `docs/02-product/acceptance/G-MDRB-027.md`
 **Actions:**
 1. Define the empirical verification matrix spanning native PBIO TinyTest, VirtualHub robotics, and compiler warning checks.
 2. Formulate Given-When-Then BDD scenarios in `docs/02-product/acceptance/G-MDRB-027.md`.
 3. Specify release proof artifact structure in `docs/06_raw/`.
-**Completion gate:** Acceptance contract exists defining exact runtime execution gates.  
+**Completion gate:** Acceptance contract exists defining exact runtime execution gates.
 **Stop condition:** Ambiguity in required test targets or compiler flags.
 
 ### Step 2 — Execute PBIO, VirtualHub, and Compiler Warning Test Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`
 **Actions:**
 1. Run `./lib/pbio/test/build/test-pbio src/mdrobotbase/..` and record output.
 2. Run `python3 -m unittest discover tests/virtualhub/robotics/` and record output.
 3. Run compiler check ensuring zero warnings under `-Wall -Wextra`.
 4. Verify all tests pass with 0 failures and 0 skips.
-**Completion gate:** 100% green test execution across all targets.  
+**Completion gate:** 100% green test execution across all targets.
 **Stop condition:** Any failed test or compiler warning.
 
 ### Step 3 — Publish Release Proofs and Elevate Architectural Scorecard to 9.4+/10
 
-**Allowed files:** `docs/06_raw/`  
+**Allowed files:** `docs/06_raw/`
 **Actions:**
 1. Generate formal release certification document in `docs/06_raw/` with exact terminal logs, commit SHA, and environment metadata.
 2. Recalculate scorecard across all 12 architectural categories demonstrating $\ge 9.4/10$.
 3. Publish final release certification.
-**Completion gate:** Published certification report confirming score $\ge 9.4/10$.  
+**Completion gate:** Published certification report confirming score $\ge 9.4/10$.
 **Stop condition:** Final calculated score $< 9.4/10$.
 
 ## In

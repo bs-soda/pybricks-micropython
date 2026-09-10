@@ -1,12 +1,12 @@
 # G-MDRB-029: Two-Point Sensor Calibration Pipeline with Dark-Offset and White-Gain Normalization
 
-**Status:** review  
-**Kind:** feature  
-**Atomic outcome:** Implement true two-point sensor calibration computing per-channel dark current offset $[R_0, G_0, B_0]$ and white reference intensity $[R_w, G_w, B_w]$ with normalized unit output $[0.0, 1.0]$  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-028  
-**Blocks:** G-MDRB-030  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** review
+**Kind:** feature
+**Atomic outcome:** Implement true two-point sensor calibration computing per-channel dark current offset $[R_0, G_0, B_0]$ and white reference intensity $[R_w, G_w, B_w]$ with normalized unit output $[0.0, 1.0]$
+**Epic:** MDRB
+**Depends on:** G-MDRB-028
+**Blocks:** G-MDRB-030
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -38,8 +38,8 @@ This goal implements two-point reference calibration: dark-current offset subtra
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Optical robotics sensors operate under fluctuating competition lighting; without black-level offset subtraction and white-level gain normalization, color classification fails across varying arena conditions.  
-**Done when:** Optical inputs are deterministically normalized using black and white calibration reference vectors, producing identical normalized $[0.0, 1.0]$ responses across varying illumination levels.  
+**Why:** Optical robotics sensors operate under fluctuating competition lighting; without black-level offset subtraction and white-level gain normalization, color classification fails across varying arena conditions.
+**Done when:** Optical inputs are deterministically normalized using black and white calibration reference vectors, producing identical normalized $[0.0, 1.0]$ responses across varying illumination levels.
 **Unblocks:** G-MDRB-030 (Perceptual circular HSV and CIE Lab classifier)
 
 ## Atomicity & Zero-Mock Contract
@@ -97,32 +97,32 @@ This goal implements two-point reference calibration: dark-current offset subtra
 
 ### Step 1 — Two-Point Sensor Calibration Data Structure & Math Specification
 
-**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `docs/02-product/acceptance/G-MDRB-029.md`  
+**Allowed files:** `lib/pbio/include/pbio/mdrobotbase.h` · `docs/02-product/acceptance/G-MDRB-029.md`
 **Actions:**
 1. Define black and white reference vectors in `lib/pbio/include/pbio/mdrobotbase.h`.
 2. Declare C API functions: `pbio_mdrobotbase_color_cal_set_black_reference` and `_set_white_reference`.
 3. Formulate Given-When-Then BDD acceptance scenarios in `docs/02-product/acceptance/G-MDRB-029.md`.
-**Completion gate:** Header compiles cleanly and acceptance scenarios are verified.  
+**Completion gate:** Header compiles cleanly and acceptance scenarios are verified.
 **Stop condition:** ABI inconsistency or missing data structure fields.
 
 ### Step 2 — Implement Dark Offset Subtraction & White Gain Normalization in C & Python
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `tests/virtualhub/robotics/pybricks/robotics.py`
 **Actions:**
 1. Implement reference setters validating $C_{\text{white}} > C_{\text{black}} + 5.0f$.
 2. Implement pre-classification normalization pipeline clamping output to $[0.0f, 1.0f]$.
 3. Implement identical normalization logic in `tests/virtualhub/robotics/pybricks/robotics.py`.
-**Completion gate:** Normalization converts test vectors $R \in [R_0, R_w]$ to exactly $[0.0, 1.0]$.  
+**Completion gate:** Normalization converts test vectors $R \in [R_0, R_w]$ to exactly $[0.0, 1.0]$.
 **Stop condition:** Division by zero or negative normalized reflection output.
 
 ### Step 3 — Empirical Verification Across Multi-Lux Illumination Sweeps
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c` · `tests/virtualhub/robotics/test_mdrobotbase_color.py`
 **Actions:**
 1. Construct unit test verifying invariant: scaling both ambient light and signal preserves normalized color vector.
 2. Verify zero compiler warnings under `-Wall -Wextra -Werror`.
 3. Verify test passes in both native PBIO TinyTest and VirtualHub Python.
-**Completion gate:** 100% green tests proving lighting robustness.  
+**Completion gate:** 100% green tests proving lighting robustness.
 **Stop condition:** Any test failure or normalized drift $> 5\%$.
 
 ## In

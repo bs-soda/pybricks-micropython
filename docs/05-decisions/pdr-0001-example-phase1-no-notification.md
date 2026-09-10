@@ -1,7 +1,7 @@
 # PDR-0001: Phase 1 release excludes push notification
 
-**Status:** example *(bootstrap sample — replace on bootstrap)*  
-**Date:** 2026-06-27  
+**Status:** example *(bootstrap sample — replace on bootstrap)*
+**Date:** 2026-06-27
 **Deciders:** PO, tech lead
 
 > Example PDR format. Delete or replace when bootstrapping a real project.

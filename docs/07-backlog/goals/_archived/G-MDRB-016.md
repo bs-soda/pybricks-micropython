@@ -1,12 +1,12 @@
 # G-MDRB-016: Numerical Robustness, Geometry Bounds, and Quantization Hardening
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Harden input validation against non-finite floats, zero or negative geometry, integer motor-speed quantization overflow, and millisecond clock wraparound in PBIO and MicroPython layers  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-015  
-**Blocks:** G-MDRB-017  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Harden input validation against non-finite floats, zero or negative geometry, integer motor-speed quantization overflow, and millisecond clock wraparound in PBIO and MicroPython layers
+**Epic:** MDRB
+**Depends on:** G-MDRB-015
+**Blocks:** G-MDRB-017
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -38,9 +38,9 @@ In `lib/pbio/src/mdrobotbase.c:139-143` and `pybricks/robotics/pb_type_mdrobotba
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Non-finite floats, zero divisions, and integer overflows corrupt motion calculations, leading to firmware panics, uncommanded wheel spins, or runaway robot behavior.  
-**Done when:** All floating-point inputs are validated as finite, extreme scale ratios are bounded, arithmetic operations are protected against integer overflow, and clock calculations handle millisecond wraparound.  
-**Unblocks:** G-MDRB-017  
+**Why:** Non-finite floats, zero divisions, and integer overflows corrupt motion calculations, leading to firmware panics, uncommanded wheel spins, or runaway robot behavior.
+**Done when:** All floating-point inputs are validated as finite, extreme scale ratios are bounded, arithmetic operations are protected against integer overflow, and clock calculations handle millisecond wraparound.
+**Unblocks:** G-MDRB-017
 
 ## Atomicity & Zero-Mock Contract
 
@@ -97,37 +97,37 @@ In `lib/pbio/src/mdrobotbase.c:139-143` and `pybricks/robotics/pb_type_mdrobotba
 
 ### Step 1 — Specification & Numerical Boundary Matrix Formulation
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-016.md` · `docs/02-product/acceptance/G-MDRB-016.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-016.md` · `docs/02-product/acceptance/G-MDRB-016.md`
 **Actions:**
 
 1. Define test matrix covering `NaN`, `+Infinity`, `-Infinity`, subnormal floats, and `0.0`.
 2. Define maximum speed saturation bounds for 32-bit signed motor targets.
 
-**Completion gate:** Acceptance criteria defined with zero unresolved clarification tags.  
+**Completion gate:** Acceptance criteria defined with zero unresolved clarification tags.
 **Stop condition:** Unspecified gear ratio or velocity limits.
 
 ### Step 2 — Enforce Finite Number Checks & Quantization Protection
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 
 1. Add `isfinite()` checks to all MicroPython float parsers and PBIO setter methods.
 2. Add saturation clamping in `mdrobotbase_linear_to_angular_dps` to prevent integer overflow.
 3. Use signed subtraction for clock timeout evaluation.
 
-**Completion gate:** C code compiles cleanly without warnings.  
+**Completion gate:** C code compiles cleanly without warnings.
 **Stop condition:** Compiler warnings or floating point performance regressions.
 
 ### Step 3 — Verification & Extreme Value Invariant Test Pass
 
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 
 1. Add `test_mdrobotbase_numerical_robustness` in `test_mdrobotbase.c`.
 2. Verify all non-finite inputs return `PBIO_ERROR_INVALID_ARG`.
 3. Verify timer arithmetic behaves correctly across simulated 32-bit overflow boundary.
 
-**Completion gate:** All numerical tests pass with exit code 0.  
+**Completion gate:** All numerical tests pass with exit code 0.
 **Stop condition:** Any NaN leakage or uncaught overflow.
 
 ## In

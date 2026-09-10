@@ -1,8 +1,8 @@
 # Context compiler — action bundles
 
-> **Goal:** reduce **cognitive load** — not only tokens. Agent executes a recipe; does not re-plan.  
-> **IR model:** [compiler-ir.md](compiler-ir.md) · **Coordination:** [coordination.md](coordination.md)  
-> Skills: [soda-goal-workflow](../../.agents/skills/soda-goal-workflow/SKILL.md) · Services: [knowledge-services.md](knowledge-services.md)  
+> **Goal:** reduce **cognitive load** — not only tokens. Agent executes a recipe; does not re-plan.
+> **IR model:** [compiler-ir.md](compiler-ir.md) · **Coordination:** [coordination.md](coordination.md)
+> Skills: [soda-goal-workflow](../../.agents/skills/soda-goal-workflow/SKILL.md) · Services: [knowledge-services.md](knowledge-services.md)
 > Terminology: [design-spec.md](design-spec.md) §8 (`bundle mode`, collaboration phase)
 
 **Status:** Roadmap phase 1 — agent compiles in procedure; optional `scripts/context/compile.sh` later.

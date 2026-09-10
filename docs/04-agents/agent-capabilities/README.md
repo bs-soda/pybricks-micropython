@@ -1,6 +1,6 @@
 # Agent capability matrix
 
-> **Agent skill progression** — same recipe, different IR per agent.  
+> **Agent skill progression** — same recipe, different IR per agent.
 > Compiler pass: [compiler-ir.md](../../03-architecture/compiler-ir.md) · Coordination: [coordination.md](../../03-architecture/coordination.md)
 
 ---

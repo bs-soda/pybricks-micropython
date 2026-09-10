@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-032
 
-**Goal ID:** `G-MDRB-032`  
-**Title:** Confidence Scoring and Ambiguity Margin Rejection Engine  
-**Epic:** MDRB  
-**Kind:** feature  
+**Goal ID:** `G-MDRB-032`
+**Title:** Confidence Scoring and Ambiguity Margin Rejection Engine
+**Epic:** MDRB
+**Kind:** feature
 
 ---
 

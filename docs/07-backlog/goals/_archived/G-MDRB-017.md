@@ -1,12 +1,12 @@
 # G-MDRB-017: Deterministic PBIO and VirtualHub Behavioral Test Suite Hardening
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Replace synthetic tautological assertions with simulated motor and encoder trajectories, explicit numerical tolerance bounds, fail-before-fix proof assertions, and lifecycle state transition checks  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-016  
-**Blocks:** G-MDRB-018  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Replace synthetic tautological assertions with simulated motor and encoder trajectories, explicit numerical tolerance bounds, fail-before-fix proof assertions, and lifecycle state transition checks
+**Epic:** MDRB
+**Depends on:** G-MDRB-016
+**Blocks:** G-MDRB-018
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -37,9 +37,9 @@ In `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py:83`, assertions such
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Vacuous and tautological tests create false confidence, masking regressions in motor synchronization, motion preemption, and odometry tracking.  
-**Done when:** All test suites execute meaningful behavioral assertions with explicit quantitative tolerances, simulated encoder progress, and proven failure on intentional code regressions.  
-**Unblocks:** G-MDRB-018  
+**Why:** Vacuous and tautological tests create false confidence, masking regressions in motor synchronization, motion preemption, and odometry tracking.
+**Done when:** All test suites execute meaningful behavioral assertions with explicit quantitative tolerances, simulated encoder progress, and proven failure on intentional code regressions.
+**Unblocks:** G-MDRB-018
 
 ## Atomicity & Zero-Mock Contract
 
@@ -96,37 +96,37 @@ In `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py:83`, assertions such
 
 ### Step 1 — Specification & Test Quality Audit Formulation
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-017.md` · `docs/02-product/acceptance/G-MDRB-017.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-017.md` · `docs/02-product/acceptance/G-MDRB-017.md`
 **Actions:**
 
 1. Audit all existing tests in `test_mdrobotbase_lifecycle.py` and `test_mdrobotbase.c`.
 2. Document all vacuous or field-inspection-only tests.
 3. Formulate strict behavioral assertion criteria with explicit expected values.
 
-**Completion gate:** Audit table completed and acceptance criteria defined.  
+**Completion gate:** Audit table completed and acceptance criteria defined.
 **Stop condition:** Any unaddressed tautological assertion.
 
 ### Step 2 — Refactor VirtualHub & PBIO Suites for Behavioral Verification
 
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` · `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py` · `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` · `tests/virtualhub/robotics/test_mdrobotbase_trajectory.py` · `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 
 1. Replace line 83 in `test_mdrobotbase_lifecycle.py` with explicit state checks.
 2. Add multi-step trajectory waypoints verification with arrival coordinate checks ($\pm 2.0\text{ mm}$).
 3. Add simulated encoder feedback loops in `test_mdrobotbase.c`.
 
-**Completion gate:** Tests execute against real motor models without stubs.  
+**Completion gate:** Tests execute against real motor models without stubs.
 **Stop condition:** Test execution hang or nondeterministic failure.
 
 ### Step 3 — Verification & Fail-Before-Fix Attestation Pass
 
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` · `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` · `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 
 1. Introduce mutation test: invert a completion condition and verify test fails.
 2. Revert mutation and verify all tests pass with 100% green exit code.
 
-**Completion gate:** Proven mutation failure and 100% pass on valid code.  
+**Completion gate:** Proven mutation failure and 100% pass on valid code.
 **Stop condition:** Mutation passes undetected.
 
 ## In

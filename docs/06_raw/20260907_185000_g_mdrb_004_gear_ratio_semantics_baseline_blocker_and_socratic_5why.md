@@ -1,11 +1,11 @@
 # G-MDRB-004 Baseline Blocker & Socratic 5-Why Dialectic Report
 
-**Timestamp:** 2026-09-07T18:50:00+07:00  
-**Goal:** G-MDRB-004 — Consistent Gear-Ratio Command and Odometry Semantics  
-**Epic:** MDRB (MDRobotBase Kinematics & Motion Engine)  
-**Git Exact HEAD:** `0582aefe38928ed3fe7456775dc5784a901bd28b`  
-**Git Branch:** `feature/mdrobotbase-enhancement`  
-**Author:** Antigravity AI (Pair Programming)  
+**Timestamp:** 2026-09-07T18:50:00+07:00
+**Goal:** G-MDRB-004 — Consistent Gear-Ratio Command and Odometry Semantics
+**Epic:** MDRB (MDRobotBase Kinematics & Motion Engine)
+**Git Exact HEAD:** `0582aefe38928ed3fe7456775dc5784a901bd28b`
+**Git Branch:** `feature/mdrobotbase-enhancement`
+**Author:** Antigravity AI (Pair Programming)
 **Status:** BASELINE FROZEN (3/25 Checks Passed - 22 Failures)
 
 ---
@@ -110,63 +110,63 @@ In the baseline state of `lib/pbio/src/mdrobotbase.c` and `pybricks/robotics/pb_
 ## 3. Five-Why Dialectic Decomposition
 
 ### Branch 1: Kinematic Directionality & Gear Ratio Definition
-- **L1:** Why must gear ratio be defined as $R = \omega_{\text{motor}} / \omega_{\text{wheel}}$?  
+- **L1:** Why must gear ratio be defined as $R = \omega_{\text{motor}} / \omega_{\text{wheel}}$?
   *Root finding:* In standard mechanical engineering, a 2:1 reduction means $R = 2.0$ (motor turns faster than output wheel).
-- **L2:** Why must conversion helpers be declared in `mdrobotbase.h`?  
+- **L2:** Why must conversion helpers be declared in `mdrobotbase.h`?
   *Root finding:* Exposes an immutable contract ensuring all firmware consumers compute forward/inverse kinematics identically.
-- **L3:** Why must `motor_to_wheel_deg` divide by $R$?  
+- **L3:** Why must `motor_to_wheel_deg` divide by $R$?
   *Root finding:* $\theta_{\text{wheel}} = \theta_{\text{motor}} / R$. Dividing converts motor encoder degrees to true wheel degrees.
-- **L4:** Why must `wheel_to_motor_dps` multiply by $R$?  
+- **L4:** Why must `wheel_to_motor_dps` multiply by $R$?
   *Root finding:* $\omega_{\text{motor}} = \omega_{\text{wheel}} \times R$. Multiplying scales desired wheel speed to motor shaft dps.
-- **L5:** Why must `set_gear_ratio()` validate $R > 0.0001$ and finiteness?  
+- **L5:** Why must `set_gear_ratio()` validate $R > 0.0001$ and finiteness?
   *Root finding:* Negative or zero ratios invert differential steering or trigger division by zero.
 
 ### Branch 2: Odometry Encoder Tick Scaling
-- **L1:** Why did baseline odometry omit gear ratio scaling?  
+- **L1:** Why did baseline odometry omit gear ratio scaling?
   *Root finding:* The original implementation assumed direct-drive (1:1), bypassing $R$.
-- **L2:** Why does unscaled ratio cause 100% error at $R = 2.0$?  
+- **L2:** Why does unscaled ratio cause 100% error at $R = 2.0$?
   *Root finding:* $720^\circ$ of motor rotation was counted as $720^\circ$ of wheel rotation instead of $360^\circ$.
-- **L3:** Why must motor tick deltas scale before distance integration?  
+- **L3:** Why must motor tick deltas scale before distance integration?
   *Root finding:* Linear travel is governed by wheel contact with ground, not motor rotor rotation.
-- **L4:** Why must gear scaling precede backlash hysteresis?  
+- **L4:** Why must gear scaling precede backlash hysteresis?
   *Root finding:* Mechanical backlash is measured at the output wheel frame.
-- **L5:** Why enforce $< 0.1\text{mm}$ error tolerance?  
+- **L5:** Why enforce $< 0.1\text{mm}$ error tolerance?
   *Root finding:* High precision dead-reckoning is required for autonomous competition navigation.
 
 ### Branch 3: Bidirectional Kinematic Consistency Across Motion Commands
-- **L1:** Why were command conversions inconsistent across motion types?  
+- **L1:** Why were command conversions inconsistent across motion types?
   *Root finding:* Straight and trajectory modes lacked $R$ multiplication; turn and pivot had ad-hoc code.
-- **L2:** Why must straight commands use the shared helper?  
+- **L2:** Why must straight commands use the shared helper?
   *Root finding:* Commanded velocity $v$ (mm/s) must generate correct motor angular velocity.
-- **L3:** Why must trajectory tracking use the shared helper?  
+- **L3:** Why must trajectory tracking use the shared helper?
   *Root finding:* Waypoint pursuit algorithms require symmetrical wheel response.
-- **L4:** Why validate in MicroPython?  
+- **L4:** Why validate in MicroPython?
   *Root finding:* Immediate developer feedback with `ValueError`.
-- **L5:** Why does centralized helper eliminate drift?  
+- **L5:** Why does centralized helper eliminate drift?
   *Root finding:* Forward and inverse kinematics cancel symmetrically.
 
 ### Branch 4: In-Place Turn Odometry Kinematics
-- **L1:** Why does in-place turn odometry depend on gear ratio?  
+- **L1:** Why does in-place turn odometry depend on gear ratio?
   *Root finding:* $\Delta\theta = (d_{\text{right}} - d_{\text{left}}) / W_{\text{track}}$. Unscaled travel corrupts yaw.
-- **L2:** Why does unscaled ratio fight the gyro complementary filter?  
+- **L2:** Why does unscaled ratio fight the gyro complementary filter?
   *Root finding:* Sensor fusion expects consistent angular rates; mismatched encoder heading induces oscillation.
-- **L3:** Why test $R \in \{0.5, 1.0, 2.0\}$?  
+- **L3:** Why test $R \in \{0.5, 1.0, 2.0\}$?
   *Root finding:* Covers overdrive, direct drive, and reduction gearing.
-- **L4:** Why enforce $\le 0.5^\circ$ heading error tolerance?  
+- **L4:** Why enforce $\le 0.5^\circ$ heading error tolerance?
   *Root finding:* Guarantees accurate orientation tracking through sharp turns.
-- **L5:** Why is empirical verification non-negotiable?  
+- **L5:** Why is empirical verification non-negotiable?
   *Root finding:* Proves whole-robot 3-DOF kinematic state estimation works on hardware.
 
 ### Branch 5: Multi-Ratio Embedded Test Suite & Zero-Mock Verification
-- **L1:** Why test across multiple physical ratios?  
+- **L1:** Why test across multiple physical ratios?
   *Root finding:* Prevents hardcoded 1:1 assumptions from creeping back into code.
-- **L2:** Why verify $720^\circ \to 175.93\text{mm}$ at $R = 2.0$?  
+- **L2:** Why verify $720^\circ \to 175.93\text{mm}$ at $R = 2.0$?
   *Root finding:* Precise mathematical confirmation of 2:1 reduction.
-- **L3:** Why verify $180^\circ \to 175.93\text{mm}$ at $R = 0.5$?  
+- **L3:** Why verify $180^\circ \to 175.93\text{mm}$ at $R = 0.5$?
   *Root finding:* Precise mathematical confirmation of 1:2 overdrive.
-- **L4:** Why register in `pbio_mdrobotbase_tests`?  
+- **L4:** Why register in `pbio_mdrobotbase_tests`?
   *Root finding:* Ensures continuous regression testing.
-- **L5:** Why must all 25 nodes converge?  
+- **L5:** Why must all 25 nodes converge?
   *Root finding:* Non-negotiable compliance with Article I and Article II.
 
 ---

@@ -1,6 +1,6 @@
 # Project snapshot
 
-> **TL;DR for agents.** Update when architecture, active goals, or constraints change.  
+> **TL;DR for agents.** Update when architecture, active goals, or constraints change.
 > Reload this at the start of every session before collaboration phase EXECUTE.
 
 ## Architecture (one paragraph)

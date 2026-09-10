@@ -1,7 +1,7 @@
 # External tools & MCP (consumer)
 
-> **OS governs when. The consumer repo names which tool.**  
-> Soda OS does **not** ship MCP servers, `mcp.json`, or tool credentials.  
+> **OS governs when. The consumer repo names which tool.**
+> Soda OS does **not** ship MCP servers, `mcp.json`, or tool credentials.
 > Policy: [governance.md](../../.agents/rules/governance.md) § External tools.
 
 Chrome/browser automation, Figma, and similar assistants are **project connectors**. Connect them in the consumer repo. Do not add named servers to soda-os.

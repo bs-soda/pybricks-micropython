@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * Isolated Mutation Test Suite: G-MDRB-028
- * 
+ *
  * Verifies harness sensitivity by injecting synthetic mutations into
  * optical contracts, tuple structures, confidence bounds, and error handling.
- * 
+ *
  * Invariants: Exact-HEAD provenance, Article I (Zero False-Positives), Article II (Mandatory Failure Detection).
  */
 

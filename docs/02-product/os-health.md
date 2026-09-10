@@ -1,6 +1,6 @@
 # OS Health
 
-> **System KPIs — not people KPIs.** One dashboard for knowledge debt and learning rate.  
+> **System KPIs — not people KPIs.** One dashboard for knowledge debt and learning rate.
 > Agent recalculates on **`os health`** · stored in [knowledge-map.json](knowledge-map.json) → `os_health`.
 
 Invariants: [os-core-invariants.md](../06-workflows/os-core-invariants.md)
@@ -22,7 +22,7 @@ Invariants: [os-core-invariants.md](../06-workflows/os-core-invariants.md)
 
 ### Knowledge ROI (executive)
 
-> Answers: *"What did we get back from investing in Knowledge OS?"*  
+> Answers: *"What did we get back from investing in Knowledge OS?"*
 > Agent fills on **`os health`** → `os_health.metrics.knowledge_roi`. Early projects: estimate + human `notes`.
 
 | Metric | Value | Notes |
@@ -33,7 +33,7 @@ Invariants: [os-core-invariants.md](../06-workflows/os-core-invariants.md)
 | **Decisions reused** | — | PDR/ADR from prior patterns without new evidence |
 | **ADR suggested** | — | Pattern recommend → ADR proposals filed |
 
-**Last calculated:** —  
+**Last calculated:** —
 **Warnings:** *(none)*
 
 ---

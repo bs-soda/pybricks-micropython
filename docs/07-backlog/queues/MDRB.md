@@ -1,11 +1,11 @@
 # Queue: MDRB
 
-> MDRobotBase Drivebase Engine & Kinematics Hardening stream.  
+> MDRobotBase Drivebase Engine & Kinematics Hardening stream.
 > Edit **only this file** when working on the `MDRB` epic. Contract: [goal-id.md](../../06-workflows/goal-id.md)
 
-**Epic:** MDRB  
-**Slug:** MDRB  
-**Epic Branch:** `epic/MDRB`  
+**Epic:** MDRB
+**Slug:** MDRB
+**Epic Branch:** `epic/MDRB`
 **Base Integration Target:** `epic/MDRB`
 
 ## Active
@@ -15,9 +15,9 @@
 | G-MDRB-028 | api | P1 | review | REVIEW | G-MDRB-027 | [../goals/G-MDRB-028.md](../goals/G-MDRB-028.md) |
 | G-MDRB-029 | feature | P1 | review | REVIEW | G-MDRB-028 | [../goals/G-MDRB-029.md](../goals/G-MDRB-029.md) |
 | G-MDRB-030 | feature | P1 | review | REVIEW | G-MDRB-029 | [../goals/G-MDRB-030.md](../goals/G-MDRB-030.md) |
-| G-MDRB-031 | feature | P2 | ready | PLAN | G-MDRB-030 | [../goals/G-MDRB-031.md](../goals/G-MDRB-031.md) |
-| G-MDRB-032 | feature | P1 | ready | PLAN | G-MDRB-031 | [../goals/G-MDRB-032.md](../goals/G-MDRB-032.md) |
-| G-MDRB-033 | qa | P1 | ready | PLAN | G-MDRB-032 | [../goals/G-MDRB-033.md](../goals/G-MDRB-033.md) |
+| G-MDRB-031 | feature | P2 | review | REVIEW | G-MDRB-030 | [../goals/G-MDRB-031.md](../goals/G-MDRB-031.md) |
+| G-MDRB-032 | feature | P1 | review | REVIEW | G-MDRB-031 | [../goals/G-MDRB-032.md](../goals/G-MDRB-032.md) |
+| G-MDRB-033 | qa | P1 | review | REVIEW | G-MDRB-032 | [../goals/G-MDRB-033.md](../goals/G-MDRB-033.md) |
 
 ## Archived
 

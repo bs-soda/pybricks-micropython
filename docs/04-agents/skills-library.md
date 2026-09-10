@@ -1,6 +1,6 @@
 # Skills library
 
-> **Sodality standard skills** — shipped with every project from **Soda Agent OS**.  
+> **Sodality standard skills** — shipped with every project from **Soda Agent OS**.
 > Versioned, repeatable procedures for humans and Cursor agents.
 
 Project-specific skills use prefix `{project}-*` and are listed in a separate section below.

@@ -17,8 +17,8 @@
 
 ## Scenario 1: Gear Ratio 2.0 (2:1 Reduction) Odometry Scaling (Happy Path)
 
-**Given** an MDRobotBase with wheel diameter $D = 56\text{mm}$, axle track $W = 112\text{mm}$, and `gear_ratio = 2.0`  
-**When** both left and right motor shafts rotate forward by $720^\circ$  
+**Given** an MDRobotBase with wheel diameter $D = 56\text{mm}$, axle track $W = 112\text{mm}$, and `gear_ratio = 2.0`
+**When** both left and right motor shafts rotate forward by $720^\circ$
 **Then** the wheel rotates by $720^\circ / 2.0 = 360^\circ$, and `update_state()` computes linear distance $d = \pi \times 56\text{mm} = 175.93 \pm 0.1\text{mm}$.
 
 | Field | Value |
@@ -32,8 +32,8 @@
 
 ## Scenario 2: Gear Ratio 0.5 (1:2 Overdrive) Odometry Scaling (Happy Path)
 
-**Given** an MDRobotBase with wheel diameter $D = 56\text{mm}$, axle track $W = 112\text{mm}$, and `gear_ratio = 0.5`  
-**When** both left and right motor shafts rotate forward by $180^\circ$  
+**Given** an MDRobotBase with wheel diameter $D = 56\text{mm}$, axle track $W = 112\text{mm}$, and `gear_ratio = 0.5`
+**When** both left and right motor shafts rotate forward by $180^\circ$
 **Then** the wheel rotates by $180^\circ / 0.5 = 360^\circ$, and `update_state()` computes linear distance $d = \pi \times 56\text{mm} = 175.93 \pm 0.1\text{mm}$.
 
 | Field | Value |
@@ -47,8 +47,8 @@
 
 ## Scenario 3: In-Place Turn Odometry Scaling Across Gear Ratios (Happy Path)
 
-**Given** an MDRobotBase with track $W = 112\text{mm}$ and arbitrary gear ratio $R \in \{0.5, 1.0, 2.0\}$  
-**When** left motor rotates $-\Delta\theta_{\text{motor}}$ and right motor rotates $+\Delta\theta_{\text{motor}}$  
+**Given** an MDRobotBase with track $W = 112\text{mm}$ and arbitrary gear ratio $R \in \{0.5, 1.0, 2.0\}$
+**When** left motor rotates $-\Delta\theta_{\text{motor}}$ and right motor rotates $+\Delta\theta_{\text{motor}}$
 **Then** differential heading $\Delta\theta_{\text{enc\_rad}} = (d_{\text{right}} - d_{\text{left}}) / W$ is scaled by $1/R$, producing mathematically exact angular heading change.
 
 | Field | Value |
@@ -60,8 +60,8 @@
 
 ## Scenario 4: Command Velocity & Kinematic Helper Consistency (Happy Path)
 
-**Given** an MDRobotBase with positive gear ratio $R$  
-**When** converting linear wheel velocity $v$ or angular rate $\omega_{\text{wheel}}$ to motor dps  
+**Given** an MDRobotBase with positive gear ratio $R$
+**When** converting linear wheel velocity $v$ or angular rate $\omega_{\text{wheel}}$ to motor dps
 **Then** `pbio_mdrobotbase_wheel_to_motor_dps(rb, wheel_dps)` returns $(int32\_t)\text{lroundf}(\text{wheel\_dps} \times R)$, exactly matching the inverse of `pbio_mdrobotbase_motor_to_wheel_deg()`.
 
 | Helper | Input | Output Formula |
@@ -73,8 +73,8 @@
 
 ## Scenario 5: Non-Positive or Non-Finite Gear Ratio Rejection (Failure Case)
 
-**Given** an active MDRobotBase instance  
-**When** `pbio_mdrobotbase_set_gear_ratio()` is called with $R \le 0.0001f$, $R > 1000.0f$, `NaN`, or `Inf`  
+**Given** an active MDRobotBase instance
+**When** `pbio_mdrobotbase_set_gear_ratio()` is called with $R \le 0.0001f$, $R > 1000.0f$, `NaN`, or `Inf`
 **Then** the call fails closed returning `PBIO_ERROR_INVALID_ARG` (raising `ValueError` in Python), leaving the previous gear ratio unmodified.
 
 | Case | Input | Expected |

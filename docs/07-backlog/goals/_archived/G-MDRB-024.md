@@ -39,8 +39,8 @@ This goal eliminates all raw assignments and routes every state change through v
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Direct state mutations bypass state machine validation, allowing invalid transitions that cause desynchronization between execution flags and reported motion states.  
-**Done when:** All motion status transitions occur strictly through validated state machine functions, with zero direct mutations remaining in runtime dispatchers, and state and execution flags are provably coupled at all times.  
+**Why:** Direct state mutations bypass state machine validation, allowing invalid transitions that cause desynchronization between execution flags and reported motion states.
+**Done when:** All motion status transitions occur strictly through validated state machine functions, with zero direct mutations remaining in runtime dispatchers, and state and execution flags are provably coupled at all times.
 **Unblocks:** G-MDRB-025
 
 ## Atomicity & Zero-Mock Contract
@@ -92,32 +92,32 @@ This goal eliminates all raw assignments and routes every state change through v
 
 ### Step 1 — Transition Helper Specification & Terminal Matrix Alignment
 
-**Allowed files:** `docs/07-backlog/goals/G-MDRB-024.md` · `docs/02-product/acceptance/G-MDRB-024.md`  
+**Allowed files:** `docs/07-backlog/goals/G-MDRB-024.md` · `docs/02-product/acceptance/G-MDRB-024.md`
 **Actions:**
 1. Formulate transition helper prototypes (`pbio_mdrobotbase_mark_running`, `pbio_mdrobotbase_mark_completed`, `pbio_mdrobotbase_mark_stalled`, `pbio_mdrobotbase_mark_timed_out`).
 2. Map all 15 direct mutation call sites in `pb_type_mdrobotbase.c` to their required helper functions.
 3. Formulate Given-When-Then BDD acceptance scenarios in `docs/02-product/acceptance/G-MDRB-024.md`.
-**Completion gate:** Acceptance contract exists defining exact transition rules and assertions.  
+**Completion gate:** Acceptance contract exists defining exact transition rules and assertions.
 **Stop condition:** Unresolved transition rules or ambiguous terminal semantics.
 
 ### Step 2 — Route Production Dispatch and Terminal Paths through Helpers
 
-**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `lib/pbio/include/pbio/mdrobotbase.h` · `pybricks/robotics/pb_type_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/src/mdrobotbase.c` · `lib/pbio/include/pbio/mdrobotbase.h` · `pybricks/robotics/pb_type_mdrobotbase.c`
 **Actions:**
 1. Implement internal transition helpers in `lib/pbio/src/mdrobotbase.c` that wrap `pbio_mdrobotbase_set_motion_status()`.
 2. Replace all 15 raw `self->rb->motion_status = ...` assignments in `pybricks/robotics/pb_type_mdrobotbase.c` with helper calls.
 3. Guarantee that `motion_status` and `motion_in_progress` are updated in a single atomic operation.
-**Completion gate:** Clean compilation with 0 direct `motion_status =` matches outside transition definitions.  
+**Completion gate:** Clean compilation with 0 direct `motion_status =` matches outside transition definitions.
 **Stop condition:** Compiler error or remaining raw assignments in dispatch loops.
 
 ### Step 3 — Single-Source-of-Truth Verification & Illegal Transition Rejection Test Pass
 
-**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` · `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py` · `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Implement test cases verifying that completed, stalled, and timed-out terminal paths strictly update status and reset progress flag.
 2. Assert that illegal transitions (e.g. `COMPLETED` -> `STALLED`) are rejected and return `PBIO_ERROR_INVALID_OP`.
 3. Run native PBIO and VirtualHub test suites to confirm 100% green execution.
-**Completion gate:** All FSM terminal tests pass without failure or skips.  
+**Completion gate:** All FSM terminal tests pass without failure or skips.
 **Stop condition:** Any test failure where status and progress flag disagree.
 
 ## In

@@ -1,6 +1,6 @@
 # Coordination — multi-agent layer
 
-> **Three OS levels:** Knowledge (รู้) · Execution (ทำ) · **Coordination (ร่วมกันทำ)**  
+> **Three OS levels:** Knowledge (รู้) · Execution (ทำ) · **Coordination (ร่วมกันทำ)**
 > Execution stack: [context-compiler.md](context-compiler.md) · IR: [compiler-ir.md](compiler-ir.md)
 
 **Status:** Phase 1 — shared working memory spec; event bus documented, not implemented.

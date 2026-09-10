@@ -1,6 +1,6 @@
 # Playbooks — recipe selection
 
-> **Pattern** = what worked · **Playbook** = when to use which recipes · **Recipe** = how to execute  
+> **Pattern** = what worked · **Playbook** = when to use which recipes · **Recipe** = how to execute
 > Compiler: [context-compiler.md](../../03-architecture/context-compiler.md) · IR: [compiler-ir.md](../../03-architecture/compiler-ir.md)
 
 ---

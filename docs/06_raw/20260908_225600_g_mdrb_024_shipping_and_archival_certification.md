@@ -1,17 +1,17 @@
 # G-MDRB-024 Shipping & Archival Certification Report
 
-**Document ID:** `DOC-06RAW-20260908-MDRB024-SHIP-CERT`  
-**Timestamp:** `2026-09-08T22:56:00+07:00`  
-**Author:** Antigravity AI Engine (on behalf of WRO Robotics Engineering Team)  
-**Corpus Name:** `bs-soda/pybricks-micropython`  
-**Active Feature Branch:** `feature/mdrobotbase-enhancement`  
-**Target Integration Branch:** `epic/MDRB`  
-**Goal ID:** `G-MDRB-024`  
-**Archived Goal Card:** [`docs/07-backlog/goals/_archived/G-MDRB-024.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-024.md)  
-**Acceptance Contract:** [`docs/02-product/acceptance/G-MDRB-024.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-024.md)  
-**Queue Registry:** [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md)  
-**Goal Status:** `done`  
-**Collaboration Phase:** `SHIP`  
+**Document ID:** `DOC-06RAW-20260908-MDRB024-SHIP-CERT`
+**Timestamp:** `2026-09-08T22:56:00+07:00`
+**Author:** Antigravity AI Engine (on behalf of WRO Robotics Engineering Team)
+**Corpus Name:** `bs-soda/pybricks-micropython`
+**Active Feature Branch:** `feature/mdrobotbase-enhancement`
+**Target Integration Branch:** `epic/MDRB`
+**Goal ID:** `G-MDRB-024`
+**Archived Goal Card:** [`docs/07-backlog/goals/_archived/G-MDRB-024.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/_archived/G-MDRB-024.md)
+**Acceptance Contract:** [`docs/02-product/acceptance/G-MDRB-024.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-024.md)
+**Queue Registry:** [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md)
+**Goal Status:** `done`
+**Collaboration Phase:** `SHIP`
 
 ---
 

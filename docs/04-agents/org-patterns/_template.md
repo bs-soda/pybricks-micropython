@@ -1,13 +1,13 @@
 # ORG-0000: [Pattern title]
 
-**Status:** proposed | published | deprecated  
-**Category:** authentication | data | sync | ui | infra | process | other  
-**Reusable score:** 0–100 *(human-maintained — % of similar contexts where outcome was good)*  
-**Source projects:** *(count only — no names if sensitive)*  
-**Last validated:** YYYY-MM-DD  
+**Status:** proposed | published | deprecated
+**Category:** authentication | data | sync | ui | infra | process | other
+**Reusable score:** 0–100 *(human-maintained — % of similar contexts where outcome was good)*
+**Source projects:** *(count only — no names if sensitive)*
+**Last validated:** YYYY-MM-DD
 **Publish approver:** Architect + PO
 
-> Copy to `ORG-xxx-{slug}.md`. Register in [pattern-index.json](pattern-index.json).  
+> Copy to `ORG-xxx-{slug}.md`. Register in [pattern-index.json](pattern-index.json).
 > **No PII, secrets, or customer names.**
 
 ---

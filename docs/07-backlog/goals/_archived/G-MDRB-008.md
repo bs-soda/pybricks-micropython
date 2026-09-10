@@ -1,12 +1,12 @@
 # G-MDRB-008: Comprehensive MDRobotBase Regression Coverage
 
-**Status:** done  
-**Kind:** feature  
-**Atomic outcome:** Construct an exhaustive regression test suite across PBIO tinytest and VirtualHub pytest covering all 8 failure domains with zero mocks  
-**Epic:** MDRB  
-**Depends on:** G-MDRB-007  
-**Blocks:** G-MDRB-009  
-**Spec stability:** clarify done · spec check done · analyze done  
+**Status:** done
+**Kind:** feature
+**Atomic outcome:** Construct an exhaustive regression test suite across PBIO tinytest and VirtualHub pytest covering all 8 failure domains with zero mocks
+**Epic:** MDRB
+**Depends on:** G-MDRB-007
+**Blocks:** G-MDRB-009
+**Spec stability:** clarify done · spec check done · analyze done
 
 #### Plan
 
@@ -42,8 +42,8 @@ Without automated regression tests for these domains, future modifications risk 
 
 ## Intent *(WHAT / WHY only — no stack, APIs, folders, or libraries)*
 
-**Why:** Embedded robotics firmware requires automated regression tests for all physical failure modes and edge cases; relying solely on happy-path tests allows critical regressions to go undetected until hardware breaks in the field.  
-**Done when:** All P0 and P1 remediation scenarios are covered by concrete tests in PBIO tinytest or VirtualHub pytest, executing with real servo structures and simulated clock ticks, achieving 100% green verification without any test doubles or mocks.  
+**Why:** Embedded robotics firmware requires automated regression tests for all physical failure modes and edge cases; relying solely on happy-path tests allows critical regressions to go undetected until hardware breaks in the field.
+**Done when:** All P0 and P1 remediation scenarios are covered by concrete tests in PBIO tinytest or VirtualHub pytest, executing with real servo structures and simulated clock ticks, achieving 100% green verification without any test doubles or mocks.
 **Unblocks:** G-MDRB-009 (Maintainability and Duplicate Control Logic Reduction).
 
 ## Atomicity & Zero-Mock Contract
@@ -101,30 +101,30 @@ Without automated regression tests for these domains, future modifications risk 
 ## Work steps
 
 ### Step 1 — PBIO C Regression Suite Expansion
-**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`  
+**Allowed files:** `lib/pbio/test/src/test_mdrobotbase.c`
 **Actions:**
 1. Implement test groups for allocation, initialization, geometry, gear ratios, and stall.
 2. Register new test cases in tinytest runner.
 
-**Completion gate:** All PBIO unit tests compile and pass green under `ctest`.  
+**Completion gate:** All PBIO unit tests compile and pass green under `ctest`.
 **Stop condition:** Any failed assertion.
 
 ### Step 2 — VirtualHub Python Integration Test Suite
-**Allowed files:** `tests/virtualhub/robotics/**`  
+**Allowed files:** `tests/virtualhub/robotics/**`
 **Actions:**
 1. Implement trajectory capacity and malformed coordinate tests.
 2. Implement async motion preemption and lifecycle test scripts.
 
-**Completion gate:** All pytest tests pass green under Python 3 test environment.  
+**Completion gate:** All pytest tests pass green under Python 3 test environment.
 **Stop condition:** Any uncaught exception or hanging test.
 
 ### Step 3 — Regression Coverage Audit & Attestation
-**Allowed files:** `scripts/harness/mdrobotbase-epic-harness.mjs`  
+**Allowed files:** `scripts/harness/mdrobotbase-epic-harness.mjs`
 **Actions:**
 1. Run automated epic verification harness verifying all 8 failure domains are tested.
 2. Verify zero mocks or stubs across test code.
 
-**Completion gate:** Epic verification harness reports 100% green attestation.  
+**Completion gate:** Epic verification harness reports 100% green attestation.
 **Stop condition:** Any uncovered defect domain.
 
 ## In

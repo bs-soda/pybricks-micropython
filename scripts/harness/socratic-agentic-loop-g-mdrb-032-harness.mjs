@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Socratic Agentic Loop: G-MDRB-032 Confidence Scoring & Ambiguity Margin Engine
- * 
+ *
  * Executes 5 Causal Branches x 5 Dialectic Levels (25 Total Nodes)
  * Strict Zero-Mock Contract: Article I Invariant (Zero Mocks, Zero Stubs, Zero String Simulations)
  * Article II: Mandatory Verification & Testing Pass
- * 
+ *
  * Branches:
  * 1. Second-Best Candidate Tracking (D1 and D2 Ordering)
  * 2. Margin Calculation & Normalized Confidence Scoring
@@ -73,7 +73,9 @@ function evaluateNode(branchId, branchName, level, query, hypothesis, testFn) {
   return passed;
 }
 
-const goalCardPath = resolve(ROOT, 'docs/07-backlog/goals/G-MDRB-032.md');
+const goalCardPath = existsSync(resolve(ROOT, 'docs/07-backlog/goals/G-MDRB-032.md'))
+  ? resolve(ROOT, 'docs/07-backlog/goals/G-MDRB-032.md')
+  : resolve(ROOT, 'docs/07-backlog/goals/_archived/G-MDRB-032.md');
 const acceptancePath = resolve(ROOT, 'docs/02-product/acceptance/G-MDRB-032.md');
 const goalCard = readFileSync(goalCardPath, 'utf8');
 const acceptance = readFileSync(acceptancePath, 'utf8');

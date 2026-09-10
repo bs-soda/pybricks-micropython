@@ -1,9 +1,9 @@
 # Acceptance Contract: G-MDRB-033
 
-**Goal ID:** `G-MDRB-033`  
-**Title:** Comprehensive Color Detector Verification Matrix & Final Scorecard Attestation  
-**Epic:** MDRB  
-**Kind:** qa  
+**Goal ID:** `G-MDRB-033`
+**Title:** Comprehensive Color Detector Verification Matrix & Final Scorecard Attestation
+**Epic:** MDRB
+**Kind:** qa
 
 ---
 

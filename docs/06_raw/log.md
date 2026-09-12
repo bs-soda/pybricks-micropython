@@ -2,6 +2,19 @@
 
 This log records all major operations, architectural reviews, backlog restructuring, and conformance validations in `pybricks-micropython`.
 
+## 2026-09-12
+
+- `2026-09-12T10:10:00+07:00` — **Bare-Metal ARM Cortex-M4 STM32F413 Build Remediation & Memory Budget Certification**
+  - Resolved compiler and linker blockers for target `prime_hub_f4` (`make -C bricks/primehub_f4`):
+    - **Enum Bounds Check:** Replaced `status < PBIO_MDROBOTBASE_STATUS_NONE` with `(uint32_t)status >= PBIO_MDROBOTBASE_STATUS_COUNT` in `pbio_mdrobotbase_set_motion_status()` to eliminate `-Werror=type-limits` under ARM AAPCS ABI.
+    - **Freestanding Math Functions:** Implemented inline `mdrobotbase_fmaxf` and `mdrobotbase_fminf`, substituted `cbrtf` with `powf(t, 1.0f / 3.0f)`, and replaced `lroundf` with exact symmetric rounding to eliminate unresolved runtime dependencies on bare-metal.
+    - **RAM Budget Balancing:** Tuned `PBDRV_CONFIG_BLOCK_DEVICE_RAM_SIZE` from 272 KB to 258 KB (reclaiming 14,336 bytes of SRAM, aligned with `essential_hub`), and defaulted `PBIO_CONFIG_NUM_MDROBOTBASES` to 2 (saving 4,548 bytes of BSS).
+  - Target firmware binary `firmware.zip` generated cleanly with exit code 0.
+  - Native PBIO Test Suite: 88/88 passed (0 skipped).
+  - VirtualHub Python Test Suite: 61/61 passed (0 failures).
+  - Governance check (`scripts/ci/governance-check.sh`): All checks passed.
+  - Published attestation report [`docs/06_raw/20260912_101000_primehub_f4_cortex_m4_baremetal_build_remediation.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_101000_primehub_f4_cortex_m4_baremetal_build_remediation.md).
+
 ## 2026-09-10
 
 - `2026-09-10T12:45:00+07:00` — **MDRobotBase Subsystem: 10/10 Full Release Certification & Scorecard Elevation Report**

@@ -9,16 +9,12 @@
 #include <pbio/control_settings.h>
 
 #ifndef PBIO_CONFIG_NUM_MDROBOTBASES
-#ifdef PBIO_CONFIG_SERVO_NUM_DEV
-#define PBIO_CONFIG_NUM_MDROBOTBASES (PBIO_CONFIG_SERVO_NUM_DEV / 2)
-#else
 #define PBIO_CONFIG_NUM_MDROBOTBASES 2
-#endif
 #endif
 
-#if PBIO_CONFIG_NUM_MDROBOTBASES < 2
+#if PBIO_CONFIG_NUM_MDROBOTBASES < 1
 #undef PBIO_CONFIG_NUM_MDROBOTBASES
-#define PBIO_CONFIG_NUM_MDROBOTBASES 2
+#define PBIO_CONFIG_NUM_MDROBOTBASES 1
 #endif
 
 static pbio_mdrobotbase_t mdrobotbases[PBIO_CONFIG_NUM_MDROBOTBASES];
@@ -651,13 +647,13 @@ pbio_error_t pbio_mdrobotbase_set_motion_status(pbio_mdrobotbase_t *rb, pbio_mdr
         return PBIO_ERROR_INVALID_ARG;
     }
     // Reject any enum values outside 0..PBIO_MDROBOTBASE_STATUS_COUNT - 1
-    if (status < PBIO_MDROBOTBASE_STATUS_NONE || status > PBIO_MDROBOTBASE_STATUS_TIMED_OUT) {
+    if ((uint32_t)status >= PBIO_MDROBOTBASE_STATUS_COUNT) {
         return PBIO_ERROR_INVALID_ARG;
     }
 
     // Fail-closed guard for current status corruption
     pbio_mdrobotbase_motion_status_t cur_status = rb->motion_status;
-    if (cur_status < PBIO_MDROBOTBASE_STATUS_NONE || cur_status > PBIO_MDROBOTBASE_STATUS_TIMED_OUT) {
+    if ((uint32_t)cur_status >= PBIO_MDROBOTBASE_STATUS_COUNT) {
         cur_status = PBIO_MDROBOTBASE_STATUS_NONE;
     }
 
@@ -791,7 +787,7 @@ int32_t pbio_mdrobotbase_wheel_to_motor_dps(const pbio_mdrobotbase_t *rb, float 
     if (product < (float)INT32_MIN) {
         return INT32_MIN;
     }
-    return (int32_t)lroundf(product);
+    return (int32_t)(product >= 0.0f ? product + 0.5f : product - 0.5f);
 }
 
 float pbio_mdrobotbase_wrap_degrees(float angle) {
@@ -960,7 +956,7 @@ static inline float mdrobotbase_srgb_to_linear(float c) {
 
 static inline float mdrobotbase_lab_f(float t) {
     if (t > 0.00885645f) {
-        return cbrtf(t);
+        return powf(t, 1.0f / 3.0f);
     }
     return 7.787037f * t + 0.137931034f;
 }
@@ -1003,9 +999,17 @@ pbio_error_t pbio_mdrobotbase_rgb_to_lab(float r, float g, float b, float *l, fl
     return PBIO_SUCCESS;
 }
 
+static inline float mdrobotbase_fmaxf(float a, float b) {
+    return (a > b) ? a : b;
+}
+
+static inline float mdrobotbase_fminf(float a, float b) {
+    return (a < b) ? a : b;
+}
+
 static void mdrobotbase_rgb_to_hsv(float r, float g, float b, float *h, float *s, float *v) {
-    float max_c = fmaxf(r, fmaxf(g, b));
-    float min_c = fminf(r, fminf(g, b));
+    float max_c = mdrobotbase_fmaxf(r, mdrobotbase_fmaxf(g, b));
+    float min_c = mdrobotbase_fminf(r, mdrobotbase_fminf(g, b));
     float delta = max_c - min_c;
     *v = max_c;
     if (max_c <= 1e-6f || delta <= 1e-6f) {

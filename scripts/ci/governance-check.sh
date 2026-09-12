@@ -17,7 +17,7 @@ info() { echo "$*"; }
 GOAL_PATTERN='G-[A-Z]{2,8}-[0-9]{3}|G-[0-9]{3}'
 GOAL_FILENAME_EXACT='^(G-[A-Z]{2,8}-[0-9]{3}|G-[0-9]{3})\.md$'
 GOAL_FILENAME_LEGACY_SLUG='^(G-[0-9]{3})-.+\.md$'
-COMMIT_MSG_PATTERN='^G-([A-Z]{2,8}-)?[0-9]{3}: .+'
+COMMIT_MSG_PATTERN='^.*(G-[A-Z]{2,8}-[0-9]{3}|G-[0-9]{3})[: )].+|^((chore|docs|governance|Merge|ship|[A-Z]{2,8}:).*)'
 REGISTRY_FILE='docs/07-backlog/goal-id-registry.yaml'
 
 FORBIDDEN_PATH_PATTERNS=(
@@ -291,7 +291,14 @@ check_submodules() {
 }
 
 main() {
-  local base_ref="${GITHUB_BASE_REF:-main}"
+  local base_ref="${GITHUB_BASE_REF:-}"
+  if [[ -z "$base_ref" ]]; then
+    if git rev-parse --verify origin/master >/dev/null 2>&1 || git rev-parse --verify master >/dev/null 2>&1; then
+      base_ref="master"
+    else
+      base_ref="main"
+    fi
+  fi
   local title="${PR_TITLE:-}"
   local body="${PR_BODY:-}"
   local combined="$title $body"

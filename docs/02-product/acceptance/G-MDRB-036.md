@@ -76,3 +76,13 @@ with diagonal cost matrices $Q = \text{diag}(q_x, q_y, q_\theta) \succeq 0$ and 
 **Then** by the Block-Diagonal Separation Theorem, off-diagonal coupling blocks $P_{12}, P_{21}, K_{12}, K_{21}$ are identically zero,
 **And** the full $3\times 3$ optimal feedback gains match the decoupled $1\times 1$ longitudinal and $2\times 2$ lateral/heading solutions within numerical convergence tolerance ($\|K_{full} - K_{dec}\| < 10^{-2}, \|P_{full} - P_{dec}\| < 10^{-2}$),
 **And** the discrete closed-loop spectral radius satisfies $\rho_{full} = \max(|1 - T_s k_{11}|, \rho_{lat}) < 1.0$ across all operating velocities $v_r \in [50, 800]\text{ mm/s}$.
+
+---
+
+### Scenario 10: Production Look-Up Table Derivation from Full 3-State DARE & Riccati Residual Bound (AC-MDRB-036-10)
+**Given** active production configuration via `set_lqr_weights(q_x, q_y, q_theta, r_v, r_omega)` or certified presets,
+**When** populating the 16 operating velocity bins ($v \in [50, 100, \dots, 800]\text{ mm/s}$),
+**Then** the active production LUT gains (`lqr_lut_kx`, `lqr_lut_ky`, `lqr_lut_kth`, and `lqr_lut_rho`) must be generated directly from `pbio_mdrobotbase_lqr_solve_dare_full()` using the Structured Doubling Algorithm (SDA),
+**And** the full matrix Riccati residual $\|P - (A_d^T P A_d - A_d^T P B_d (R + B_d^T P B_d)^{-1} B_d^T P A_d + Q)\|_\infty$ must be strictly $< 5\times 10^{-4}$ for float32 storage and $< 10^{-9}$ for double precision across all 16 bins,
+**And** the optimal gain matrix must strictly satisfy $K(v_r) = (R + B_d^T P B_d)^{-1} B_d^T P A_d$ within numerical tolerance $< 10^{-6}$,
+**And** `set_lqr_gains()` is labeled and guarded as legacy manual mode without DARE optimality guarantees.

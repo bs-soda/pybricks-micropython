@@ -703,7 +703,12 @@ static mp_obj_t pb_type_mdrobotbase_wait_or_await(pb_type_MDRobotBase_obj_t *sel
   return pb_type_async_wait_or_await(&config, &self->last_awaitable, true);
 }
 
-// pybricks.robotics.MDRobotBase.set_lqr_gains
+// pybricks.robotics.MDRobotBase.set_lqr_gains (Legacy / Manual Mode)
+// Note: This method is provided for manual gain experimentation and backward
+// compatibility. Manual gains populate the controller LUT uniformly and DO NOT
+// provide DARE optimality guarantees. For mathematically derived optimal gains
+// with guaranteed discrete stability (spectral radius rho < 1.0), use
+// set_lqr_weights() or set_lqr_preset().
 // Physical Units:
 //   k_x:      [s^-1]            (1/s)     Along-track convergence rate (m -> m/s)
 //   k_y:      [rad / (m * s)]   (1/(m*s)) Cross-track restoring stiffness (m -> rad/s)

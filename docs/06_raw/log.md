@@ -4,6 +4,16 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-12
 
+- `2026-09-12T20:45:00+07:00` — **G-MDRB-036 Full Production DARE LQR Integration & Codex Review Remediation**
+  - Resolved Codex Review P1 & P2 findings:
+    1. **P1 Active Production DARE Integration:** Replaced the reduced-order solver call in `pbio_mdrobotbase_set_lqr_weights()` with the full 3-state, 2-input DARE solver `pbio_mdrobotbase_lqr_solve_dare_full()`. Upgraded solver to Structured Doubling Algorithm (SDA) with double precision accumulators, achieving quadratic convergence in 10-13 iterations with Riccati residual $< 2.33\times 10^{-10}$ (double) and $< 1.4\times 10^{-4}$ (float32).
+    2. **Active LUT 3-State Feedback Gains:** Populated `lqr_lut_kx`, `lqr_lut_ky`, `lqr_lut_kth`, and `lqr_lut_rho` from full DARE optimal gain matrix $K = (R + B_d^T P B_d)^{-1} B_d^T P A_d$. Updated `pbio_mdrobotbase_lqr_step()` to interpolate $k_x$, $k_y$, and $k_\theta$ concurrently with $O(1)$ complexity and zero heap allocation.
+    3. **VirtualHub Parity:** Synchronized VirtualHub `MDRobotBase` with exact identical SDA solver, Riccati residual calculation, and 16-bin gain scheduling.
+    4. **P2 Legacy Guarding:** Documented `set_lqr_gains()` in native C and MicroPython bindings as legacy manual mode; cleared active weights upon manual gain invocation to ensure mathematical certification is not compromised.
+    5. **Empirical Verification:** 31/31 native PBIO C tests pass (0 skipped). 23/23 VirtualHub LQR tests pass. 94/94 full robotics suite tests pass. 35/35 master replication gates pass. Governance check passes cleanly. Benchmark: 75.34% mean RMS error reduction vs PID (CI 95% lower: 73.31%).
+  - Audit report exported to [`docs/06_raw/20260912_204000_g_mdrb_036_full_dare_production_integration_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_204000_g_mdrb_036_full_dare_production_integration_report.md).
+
+
 - `2026-09-12T20:15:00+07:00` — **G-MDRB-036 Codex Review Remediation & Scorecard Elevation to 10.0/10**
   - Addressed all 6 findings from Codex static review scorecard (previously 8.5/10):
     1. **P1 Preset Gain Overwrite Elimination:** Removed hardcoded manual gain overwrites (`1.0, 1.0, 1.0`, etc.) from `set_lqr_preset()` in both native C [`lib/pbio/src/mdrobotbase.c`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/src/mdrobotbase.c) and VirtualHub [`tests/virtualhub/robotics/pybricks/robotics.py`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/tests/virtualhub/robotics/pybricks/robotics.py). `get_lqr_gains()` now reports active DARE gains ($k_x = k_{11}, k_y = k_{22}(v_0), k_\theta = k_{23}(v_0)$) at nominal velocity.

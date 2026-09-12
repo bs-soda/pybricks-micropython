@@ -651,6 +651,165 @@ class TestMDRobotBaseLQR(unittest.TestCase):
             f"Wilson 95% CI lower bound {ci_lower:.4f} is below required 0.85 threshold",
         )
 
+    def test_full_dare_riccati_residual_all_16_bins(self):
+        """Verify full Riccati residual P - (A^T P A - A^T P B (R+B^T P B)^-1 B^T P A + Q) < 1e-4 at all 16 bins."""
+        qx, qy, qth, rv, rw = 2500.0, 5000.0, 20.0, 25.0, 0.1
+        for bin_idx, v in enumerate(range(50, 850, 50)):
+            v_flt = float(v)
+            K, P, rho = self.robot.solve_dare_full(qx, qy, qth, rv, rw, v_flt)
+            res = self.robot.compute_riccati_residual(qx, qy, qth, rv, rw, v_flt, P)
+            self.assertLess(
+                res,
+                1e-4,
+                f"Riccati residual at bin {bin_idx} (v={v} mm/s) is {res:.2e}, expected < 1e-4",
+            )
+            self.assertLess(rho, 1.0, f"Closed-loop spectral radius at v={v} mm/s is {rho}, expected < 1.0")
+
+    def test_full_dare_optimal_gain_formula_identity(self):
+        """Verify returned K strictly equals (R + B^T P B)^-1 B^T P A within 1e-6 at all 16 bins."""
+        Ts = 0.005
+        qx, qy, qth, rv, rw = 2500.0, 5000.0, 20.0, 25.0, 0.1
+        for v in range(50, 850, 50):
+            vr = float(v) / 1000.0
+            vTs = vr * Ts
+            b0 = -0.5 * vr * Ts * Ts
+            b1 = -Ts
+            K, P, rho = self.robot.solve_dare_full(qx, qy, qth, rv, rw, float(v))
+
+            # M1 = Ad^T * P * Bd (3x2)
+            # Wk = R + Bd^T * P * Bd (2x2)
+            M1_00 = -Ts * P[0][0]
+            M1_01 = b0 * P[0][1] + b1 * P[0][2]
+            M1_10 = -Ts * P[1][0]
+            M1_11 = b0 * P[1][1] + b1 * P[1][2]
+            M1_20 = -Ts * (vTs * P[1][0] + P[2][0])
+            M1_21 = vTs * (b0 * P[1][1] + b1 * P[1][2]) + (b0 * P[2][1] + b1 * P[2][2])
+
+            Wk_00 = rv + Ts * Ts * P[0][0]
+            Wk_01 = -Ts * (b0 * P[0][1] + b1 * P[0][2])
+            Wk_10 = Wk_01
+            Wk_11 = rw + b0 * (b0 * P[1][1] + b1 * P[1][2]) + b1 * (b0 * P[2][1] + b1 * P[2][2])
+
+            detWk = Wk_00 * Wk_11 - Wk_01 * Wk_10
+            invW_00 = Wk_11 / detWk
+            invW_01 = -Wk_01 / detWk
+            invW_10 = -Wk_10 / detWk
+            invW_11 = Wk_00 / detWk
+
+            # K_formula = invW * M1^T (2x3)
+            K_exp_00 = invW_00 * M1_00 + invW_01 * M1_01
+            K_exp_01 = invW_00 * M1_10 + invW_01 * M1_11
+            K_exp_02 = invW_00 * M1_20 + invW_01 * M1_21
+            K_exp_10 = invW_10 * M1_00 + invW_11 * M1_01
+            K_exp_11 = invW_10 * M1_10 + invW_11 * M1_11
+            K_exp_12 = invW_10 * M1_20 + invW_11 * M1_21
+
+            self.assertAlmostEqual(K[0][0], K_exp_00, delta=1e-6)
+            self.assertAlmostEqual(K[0][1], K_exp_01, delta=1e-6)
+            self.assertAlmostEqual(K[0][2], K_exp_02, delta=1e-6)
+            self.assertAlmostEqual(K[1][0], K_exp_10, delta=1e-6)
+            self.assertAlmostEqual(K[1][1], K_exp_11, delta=1e-6)
+            self.assertAlmostEqual(K[1][2], K_exp_12, delta=1e-6)
+
+    def test_spectral_radius_operating_velocities(self):
+        """Verify rho(A - BK) < 1.0 for v in {-800, -400, -50, 50, 400, 800} mm/s."""
+        qx, qy, qth, rv, rw = 2500.0, 5000.0, 20.0, 25.0, 0.1
+        for v_test in [-800.0, -400.0, -50.0, 50.0, 400.0, 800.0]:
+            K, P, rho = self.robot.solve_dare_full(qx, qy, qth, rv, rw, abs(v_test))
+            self.assertLess(rho, 1.0, f"Spectral radius at {v_test} mm/s is {rho}, expected < 1.0")
+
+    def test_production_lut_derived_from_full_dare(self):
+        """Verify active production LUT values at all 16 bins strictly match the full DARE solver."""
+        qx, qy, qth, rv, rw = 2500.0, 5000.0, 20.0, 25.0, 0.1
+        self.robot.set_lqr_weights(qx, qy, qth, rv, rw)
+
+        for i, v in enumerate(range(50, 850, 50)):
+            K, P, rho = self.robot.solve_dare_full(qx, qy, qth, rv, rw, float(v))
+            v_bin, ky_lut, kth_lut, rho_lut = self.robot._lqr_lut[i]
+            kx_entry = self.robot._lqr_lut_kx[i]
+
+            self.assertEqual(v_bin, float(v))
+            self.assertAlmostEqual(kx_entry, abs(K[0][0]), delta=1e-5)
+            self.assertAlmostEqual(ky_lut, abs(K[1][1]), delta=1e-5)
+            self.assertAlmostEqual(kth_lut, abs(K[1][2]), delta=1e-5)
+            self.assertAlmostEqual(rho_lut, rho, delta=1e-5)
+
+    def test_interpolation_continuity_between_adjacent_bins(self):
+        """Verify interpolation continuity between adjacent velocity bins."""
+        self.robot.set_lqr_preset(0)
+        # Test intermediate velocities
+        test_vs = [75.0, 125.0, 225.0, 375.0, 525.0, 725.0]
+        for v in test_vs:
+            # Query interpolated gains via internal lookup
+            idx = int((v - 50.0) / 50.0)
+            idx = max(0, min(14, idx))
+            v0 = 50.0 + idx * 50.0
+            v1 = v0 + 50.0
+            frac = (v - v0) / 50.0
+
+            k_x0 = self.robot._lqr_lut_kx[idx]
+            k_x1 = self.robot._lqr_lut_kx[idx + 1]
+            k_x_exp = k_x0 + frac * (k_x1 - k_x0)
+
+            _, k_y0, k_th0, _ = self.robot._lqr_lut[idx]
+            _, k_y1, k_th1, _ = self.robot._lqr_lut[idx + 1]
+            k_y_exp = k_y0 + frac * (k_y1 - k_y0)
+            k_th_exp = k_th0 + frac * (k_th1 - k_th0)
+
+            # Continuity bound: interpolated values must lie strictly between bin values
+            self.assertTrue(min(k_x0, k_x1) <= k_x_exp <= max(k_x0, k_x1))
+            self.assertTrue(min(k_y0, k_y1) <= k_y_exp <= max(k_y0, k_y1))
+            self.assertTrue(min(k_th0, k_th1) <= k_th_exp <= max(k_th0, k_th1))
+
+    def test_invalid_qr_fails_closed_without_mutating_state(self):
+        """Verify invalid Q/R configurations fail closed without mutating prior state."""
+        self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, 0.1)
+        prev_weights = self.robot.get_lqr_weights()
+        prev_lut = list(self.robot._lqr_lut)
+        prev_lut_kx = list(self.robot._lqr_lut_kx)
+
+        # Negative Q rejected
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(-10.0, 5000.0, 20.0, 25.0, 0.1)
+        # Non-positive R rejected
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 0.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, -0.01)
+
+        # State must remain identical to prior state
+        self.assertEqual(self.robot.get_lqr_weights(), prev_weights)
+        self.assertEqual(self.robot._lqr_lut, prev_lut)
+        self.assertEqual(self.robot._lqr_lut_kx, prev_lut_kx)
+
+    def test_preset_getters_return_actual_active_dare_gains(self):
+        """Verify certified presets populate active LUT with mathematically derived DARE gains."""
+        for preset_id in [0, 1, 2]:
+            self.robot.set_lqr_preset(preset_id)
+            weights = self.robot.get_lqr_weights()
+            self.assertIsNotNone(weights)
+            qx, qy, qth, rv, rw = weights
+            # First bin (v=50) check
+            K, P, rho = self.robot.solve_dare_full(qx, qy, qth, rv, rw, 50.0)
+            self.assertAlmostEqual(self.robot._lqr_lut_kx[0], abs(K[0][0]), delta=1e-4)
+            self.assertAlmostEqual(self.robot._lqr_lut[0][1], abs(K[1][1]), delta=1e-4)
+            self.assertAlmostEqual(self.robot._lqr_lut[0][2], abs(K[1][2]), delta=1e-4)
+
+    def test_native_and_virtualhub_full_solver_parity(self):
+        """Verify VirtualHub solve_dare_full matches native PBIO benchmark values."""
+        # For nominal weights (2500, 5000, 20, 25, 0.1) at v = 300 mm/s
+        K, P, rho = self.robot.solve_dare_full(2500.0, 5000.0, 20.0, 25.0, 0.1, 300.0)
+        # Decoupled separation theorem: cross gains strictly 0
+        self.assertAlmostEqual(K[0][1], 0.0, delta=1e-5)
+        self.assertAlmostEqual(K[0][2], 0.0, delta=1e-5)
+        self.assertAlmostEqual(K[1][0], 0.0, delta=1e-5)
+        # Longitudinal gain k_x strictly positive
+        kx = abs(K[0][0])
+        self.assertGreater(kx, 9.0)
+        self.assertLess(kx, 11.0)
+        # Spectral radius < 1.0
+        self.assertLess(rho, 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

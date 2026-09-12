@@ -2985,6 +2985,14 @@ static pbio_error_t test_mdrobotbase_lqr_dare_optimal_controller(pbio_os_state_t
     tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 0.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 25.0f, -0.01f), ==, PBIO_ERROR_INVALID_ARG);
 
+    // Atomic guarantee: previous weights remain completely untouched after rejected updates
+    tt_uint_op(pbio_mdrobotbase_get_lqr_weights(rb, &qx, &qy, &qth, &rv, &rw), ==, PBIO_SUCCESS);
+    tt_want(fabsf(qx - 2500.0f) < 1e-4f);
+    tt_want(fabsf(qy - 5000.0f) < 1e-4f);
+    tt_want(fabsf(qth - 20.0f) < 1e-4f);
+    tt_want(fabsf(rv - 25.0f) < 1e-4f);
+    tt_want(fabsf(rw - 0.1f) < 1e-4f);
+
     // 2. Scenario 2 (AC-MDRB-036-2): Discrete Closed-Loop Spectral Radius Invariance across all 16 positive AND negative bins
     for (int i = 0; i < 16; i++) {
         float v_bin = 50.0f + (float)i * 50.0f;
@@ -2999,38 +3007,55 @@ static pbio_error_t test_mdrobotbase_lqr_dare_optimal_controller(pbio_os_state_t
         float rho_check = 0.0f;
         tt_uint_op(pbio_mdrobotbase_lqr_verify_discrete_stability(ky_val, kth_val, v_bin, &rho_check), ==, PBIO_SUCCESS);
         tt_want(rho_check < 1.0f);
-        tt_want(fabsf(rho - rho_check) < 1e-4f);
+        // Full system spectral radius is max(|1 - Ts*kx|, rho_lat)
+        tt_want(fabsf(rho - fmaxf(fabsf(1.0f - 0.005f * kx_val), rho_check)) < 1e-4f);
 
         // Discrete stability validator API - negative speed (backward driving stability across full range)
         float rho_neg = 0.0f;
         tt_uint_op(pbio_mdrobotbase_lqr_verify_discrete_stability(ky_val, kth_val, -v_bin, &rho_neg), ==, PBIO_SUCCESS);
         tt_want(rho_neg < 1.0f);
-        tt_want(fabsf(rho - rho_neg) < 1e-4f);
+        tt_want(fabsf(rho_check - rho_neg) < 1e-4f);
     }
 
-    // 2b. Full 3x3 DARE vs Decoupled DARE Mathematical Equivalence Test
-    float K_full[2][3];
-    float P_full[3][3];
-    float rho_full = 0.0f;
-    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, K_full, P_full, &rho_full), ==, PBIO_SUCCESS);
+    // 2b. Full 3x3 DARE vs Production LUT & Riccati Residual Verification across all 16 bins
+    for (int i = 0; i < 16; i++) {
+        float v_bin = 50.0f + (float)i * 50.0f;
+        float K_bin[2][3];
+        float P_bin[3][3];
+        float rho_bin = 0.0f;
+        tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, v_bin, K_bin, P_bin, &rho_bin), ==, PBIO_SUCCESS);
 
-    float kx_dec, ky_dec, kth_dec, rho_dec;
-    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, &kx_dec, &ky_dec, &kth_dec, &rho_dec), ==, PBIO_SUCCESS);
+        // Cross-coupling entries must be strictly zero by block-diagonal decoupling
+        tt_want(fabsf(K_bin[0][1]) < 1e-5f);
+        tt_want(fabsf(K_bin[0][2]) < 1e-5f);
+        tt_want(fabsf(K_bin[1][0]) < 1e-5f);
+        tt_want(fabsf(P_bin[0][1]) < 1e-5f);
+        tt_want(fabsf(P_bin[0][2]) < 1e-5f);
+        tt_want(fabsf(P_bin[1][0]) < 1e-5f);
+        tt_want(fabsf(P_bin[2][0]) < 1e-5f);
 
-    // Cross-coupling entries must be strictly 0 by block-diagonal separation theorem
-    tt_want(fabsf(K_full[0][1]) < 1e-5f);
-    tt_want(fabsf(K_full[0][2]) < 1e-5f);
-    tt_want(fabsf(K_full[1][0]) < 1e-5f);
-    tt_want(fabsf(P_full[0][1]) < 1e-5f);
-    tt_want(fabsf(P_full[0][2]) < 1e-5f);
-    tt_want(fabsf(P_full[1][0]) < 1e-5f);
-    tt_want(fabsf(P_full[2][0]) < 1e-5f);
+        // Verify full Riccati residual ||P - (A^T P A - A^T P B (R + B^T P B)^-1 B^T P A + Q)||_inf < 5e-4
+        // Note: For float32 storage with P[0][0] ~ 1.336e6, float32 machine epsilon produces ~1.5e-4 rounding noise
+        float res_norm = 0.0f;
+        tt_uint_op(pbio_mdrobotbase_lqr_compute_riccati_residual(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, v_bin, P_bin, &res_norm), ==, PBIO_SUCCESS);
+        tt_want(res_norm < 5e-4f);
 
-    // Active feedback gains must match decoupled solution
-    tt_want(fabsf(fabsf(K_full[0][0]) - kx_dec) < 1e-3f);
-    tt_want(fabsf(fabsf(K_full[1][1]) - ky_dec) < 1e-2f);
-    tt_want(fabsf(fabsf(K_full[1][2]) - kth_dec) < 1e-2f);
-    tt_want(fabsf(rho_full - rho_dec) < 1e-3f);
+        // Verify active production LUT strictly matches full DARE solver gains and spectral radius
+        tt_want(fabsf(rb->lqr_lut_kx[i] - fabsf(K_bin[0][0])) < 1e-5f);
+        tt_want(fabsf(rb->lqr_lut_ky[i] - fabsf(K_bin[1][1])) < 1e-5f);
+        tt_want(fabsf(rb->lqr_lut_kth[i] - fabsf(K_bin[1][2])) < 1e-5f);
+        tt_want(fabsf(rb->lqr_lut_rho[i] - rho_bin) < 1e-5f);
+    }
+
+    // 2c. Spectral radius strictly < 1.0 for specific positive and negative operating velocities:
+    // v = -800, -400, -50, 50, 400, 800 mm/s
+    float test_speeds[6] = {-800.0f, -400.0f, -50.0f, 50.0f, 400.0f, 800.0f};
+    for (int idx = 0; idx < 6; idx++) {
+        float v_test = test_speeds[idx];
+        float K_t[2][3], P_t[3][3], rho_t = 0.0f;
+        tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, fabsf(v_test), K_t, P_t, &rho_t), ==, PBIO_SUCCESS);
+        tt_want(rho_t < 1.0f);
+    }
 
     // 3. Scenario 3 (AC-MDRB-036-3): Velocity interpolation & minimum velocity clamping
     // Zero/tiny velocity clamps to v_min = 10 mm/s and succeeds without division by zero

@@ -21,6 +21,42 @@ typedef enum {
     PBIO_MDROBOTBASE_CONTROLLER_LQR = 1
 } pbio_mdrobotbase_controller_t;
 
+/**
+ * Linear Quadratic Regulator (LQR) Kinematic Tracking Controller Gains & Presets:
+ *
+ * Coordinates & Units:
+ * - Along-track error (e_x): meters [m]
+ * - Cross-track error (e_y): meters [m]
+ * - Heading error (e_theta): radians [rad]
+ *
+ * Control Corrections:
+ * - Forward linear velocity correction (u_v): meters/second [m/s]
+ * - Angular yaw velocity correction (u_w): radians/second [rad/s]
+ *
+ * Gain Dimensionality & Physical Units:
+ * - k_x:      [s^-1]            (1/s)     Along-track convergence rate (m -> m/s)
+ * - k_y:      [rad / (m * s)]   (1/(m*s)) Cross-track restoring stiffness (m -> rad/s)
+ * - k_theta:  [s^-1]            (1/s)     Heading damping rate (rad -> rad/s)
+ *
+ * Stability Invariants:
+ * Linearized unicycle error dynamics around reference forward speed v_r > 0:
+ *   det(sI - A_cl) = (s + k_x) * (s^2 + k_theta * s + v_r * k_y) = 0
+ * Asymptotic stability requires:
+ *   1. k_x > 0.0f      (strictly positive along-track convergence rate)
+ *   2. k_y > 0.0f      (strictly positive lateral restoring stiffness)
+ *   3. k_theta > 0.0f  (strictly positive heading damping rate)
+ * Natural frequency: omega_n = sqrt(v_r * k_y) [rad/s]
+ * Damping ratio:     zeta = k_theta / (2 * sqrt(v_r * k_y)) [dimensionless]
+ */
+typedef enum {
+    /** Balanced critically-damped tuning for standard driving surfaces (zeta ~ 0.9-1.0 at 0.3 m/s) */
+    PBIO_MDROBOTBASE_LQR_PRESET_BALANCED = 0,
+    /** High-gain fast-settling tuning for competitive/high-speed tasks */
+    PBIO_MDROBOTBASE_LQR_PRESET_AGGRESSIVE = 1,
+    /** Low-gain smooth low-jerk tuning for low-traction/carpet surfaces */
+    PBIO_MDROBOTBASE_LQR_PRESET_SMOOTH = 2,
+} pbio_mdrobotbase_lqr_preset_t;
+
 typedef enum {
     PBIO_MDROBOTBASE_MOTION_NONE = 0,
     PBIO_MDROBOTBASE_MOTION_NAVIGATE,
@@ -224,6 +260,10 @@ pbio_error_t pbio_mdrobotbase_put_robotbase(pbio_mdrobotbase_t *rb);
 pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track);
 pbio_error_t pbio_mdrobotbase_motion_reset(pbio_mdrobotbase_t *rb);
 pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, float k_y, float k_theta, bool schedule);
+pbio_error_t pbio_mdrobotbase_get_lqr_gains(const pbio_mdrobotbase_t *rb, float *k_x, float *k_y, float *k_theta, bool *schedule);
+pbio_error_t pbio_mdrobotbase_set_lqr_preset(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_lqr_preset_t preset, bool schedule);
+pbio_error_t pbio_mdrobotbase_lqr_verify_stability(float k_x, float k_y, float k_theta, float v_nominal, float *damping_ratio, float *natural_freq);
+pbio_error_t pbio_mdrobotbase_lqr_step(const pbio_mdrobotbase_t *rb, float v_profile, float x_ref, float y_ref, float path_theta_deg, float *v_cmd, float *w_cmd);
 pbio_error_t pbio_mdrobotbase_set_controller(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_controller_t type);
 pbio_error_t pbio_mdrobotbase_set_pid_gains(pbio_mdrobotbase_t *rb, float kp, float ki, float kd);
 pbio_error_t pbio_mdrobotbase_set_turn_pid_gains(pbio_mdrobotbase_t *rb, float kp, float ki, float kd);

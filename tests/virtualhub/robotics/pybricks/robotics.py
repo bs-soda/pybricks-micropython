@@ -90,7 +90,8 @@ class MDRobotBase:
         self._current_task: Optional[asyncio.Task] = None
 
         # Control gains & limits
-        self._lqr_gains = (1.0, 1.0, 0.1)
+        self._lqr_gains = (1.0, 1.0, 1.0)
+        self._lqr_schedule_enabled = True
         self._pid_gains = (1.0, 0.0, 0.1)
         self._turn_pid_gains = (1.2, 0.0, 0.15)
         self._pivot_pid_gains = (1.1, 0.0, 0.12)
@@ -504,12 +505,129 @@ class MDRobotBase:
     # -------------------------------------------------------------------------
 
     @_require_open
-    def set_lqr_gains(self, *args):
-        self._lqr_gains = args
+    def set_lqr_gains(self, *args, **kwargs):
+        """
+        Sets LQR tracking controller feedback gains.
+
+        Units:
+            k_x:     [s^-1]            (1/s)     Along-track position error rate (m -> m/s)
+            k_y:     [rad / (m * s)]   (1/(m*s)) Cross-track restoring stiffness (m -> rad/s)
+            k_theta: [s^-1]            (1/s)     Heading damping rate (rad -> rad/s)
+            schedule: bool (default True) - Gain scheduling based on velocity profile
+
+        Stability:
+            Requires k_x > 0, k_y > 0, k_theta > 0 for asymptotic closed-loop stability.
+        """
+        if len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) >= 3:
+            k_x, k_y, k_theta = args[0][0], args[0][1], args[0][2]
+            schedule = args[0][3] if len(args[0]) > 3 else kwargs.get("schedule", True)
+        elif len(args) >= 3:
+            k_x, k_y, k_theta = args[0], args[1], args[2]
+            schedule = args[3] if len(args) > 3 else kwargs.get("schedule", True)
+        else:
+            raise ValueError("set_lqr_gains requires k_x, k_y, k_theta")
+
+        for val in (k_x, k_y, k_theta):
+            if not isinstance(val, (int, float)) or not math.isfinite(val):
+                raise ValueError("LQR feedback gains must be finite numbers")
+            if val <= 0.0:
+                raise ValueError("LQR feedback gains must be strictly positive (k > 0) for asymptotic stability")
+            if val > 50.0:
+                raise ValueError(f"LQR feedback gain {val} exceeds maximum saturation bound of 50.0 s^-1")
+
+        self._lqr_gains = (float(k_x), float(k_y), float(k_theta))
+        self._lqr_schedule_enabled = bool(schedule)
 
     @_require_open
     def get_lqr_gains(self):
+        """Returns tuple of (k_x [1/s], k_y [1/(m*s)], k_theta [1/s])."""
         return self._lqr_gains
+
+    @_require_open
+    def set_lqr_preset(self, preset: int, schedule: bool = True):
+        """
+        Applies a certified LQR gain preset.
+
+        Presets:
+            0 (BALANCED):   k_x=1.0 s^-1, k_y=1.0 rad/(m*s), k_theta=1.0 s^-1 (damping ~0.91)
+            1 (AGGRESSIVE): k_x=2.0 s^-1, k_y=3.0 rad/(m*s), k_theta=2.5 s^-1 (damping ~1.32)
+            2 (SMOOTH):     k_x=0.5 s^-1, k_y=0.5 rad/(m*s), k_theta=0.8 s^-1 (damping ~1.03)
+        """
+        p = int(preset)
+        if p == 0:
+            self.set_lqr_gains(1.0, 1.0, 1.0, schedule=schedule)
+        elif p == 1:
+            self.set_lqr_gains(2.0, 3.0, 2.5, schedule=schedule)
+        elif p == 2:
+            self.set_lqr_gains(0.5, 0.5, 0.8, schedule=schedule)
+        else:
+            raise ValueError(f"Invalid LQR preset {preset}. Expected 0 (BALANCED), 1 (AGGRESSIVE), or 2 (SMOOTH).")
+
+    @_require_open
+    def check_lqr_stability(self, v_nominal: float = 0.3) -> dict:
+        """
+        Analytically checks closed-loop stability and calculates damping ratio.
+        Characteristic equation: det(sI - A_cl) = (s + k_x)(s^2 + k_theta*s + v_nominal*k_y) = 0
+        Natural frequency: omega_n = sqrt(v_nominal * k_y)
+        Damping ratio:     zeta = k_theta / (2 * omega_n)
+        """
+        v_nom = float(v_nominal)
+        if not math.isfinite(v_nom) or v_nom <= 0.0:
+            raise ValueError("Nominal velocity must be strictly positive and finite")
+        k_x, k_y, k_theta = self._lqr_gains
+        omega_n = math.sqrt(v_nom * k_y)
+        zeta = k_theta / (2.0 * omega_n)
+        if zeta < 0.05:
+            raise ValueError(f"LQR gain configuration is underdamped (zeta = {zeta:.4f} < 0.05)")
+        return {
+            "is_stable": True,
+            "damping_ratio": zeta,
+            "natural_frequency": omega_n,
+            "eigenvalues": (-k_x, complex(-0.5 * k_theta, math.sqrt(abs(omega_n**2 - 0.25 * k_theta**2))))
+        }
+
+    @_require_open
+    def lqr_step(self, v_profile: float, x_ref: float, y_ref: float, path_theta_deg: float):
+        """
+        Computes a single LQR tracking control step.
+        Returns (v_cmd [mm/s], w_cmd [deg/s]).
+        """
+        dx_ref = float(x_ref) - self._x
+        dy_ref = float(y_ref) - self._y
+
+        theta_rad = math.radians(self._theta)
+        cos_th = math.cos(theta_rad)
+        sin_th = math.sin(theta_rad)
+
+        e_x_local = cos_th * dx_ref + sin_th * dy_ref
+        e_y_local = -sin_th * dx_ref + cos_th * dy_ref
+
+        cross_steer_gain = 0.35
+        dir_sign = 1.0
+        cross_corr = max(-30.0, min(30.0, cross_steer_gain * e_y_local * dir_sign))
+
+        ref_theta_lqr = self.wrap_degrees(path_theta_deg + cross_corr)
+        e_theta_deg = self.wrap_degrees(ref_theta_lqr - self._theta)
+
+        e_x = e_x_local / 1000.0
+        e_y = e_y_local / 1000.0
+        e_theta = math.radians(e_theta_deg)
+
+        sched_scale = 1.0
+        if getattr(self, "_lqr_schedule_enabled", True):
+            v_abs = abs(float(v_profile))
+            sched_scale = max(0.2, math.sqrt(v_abs / 300.0))
+
+        k_x, k_y, k_theta = self._lqr_gains
+        scheduled_k_y = k_y * sched_scale
+        scheduled_k_theta = k_theta * sched_scale
+
+        u_v = -(k_x * e_x)
+        u_w = -(scheduled_k_y * e_y + scheduled_k_theta * e_theta)
+
+        v_cmd = float(v_profile) - u_v * 1000.0
+        w_cmd = 0.0 - math.degrees(u_w)
+        return (v_cmd, w_cmd)
 
     @_require_open
     def set_pid_gains(self, *args):

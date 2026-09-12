@@ -928,10 +928,15 @@ static pbio_error_t test_mdrobotbase_trajectory_controller_validation(pbio_os_st
     tt_uint_op(pbio_mdrobotbase_set_pivot_pid_gains(rb, 1.0f, 0.0f, -0.1f), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_set_pivot_pid_gains(NULL, 1.0f, 0.0f, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
 
-    // LQR gains rejection
+    // LQR gains rejection: negative, non-positive (zero), and saturated
     tt_uint_op(pbio_mdrobotbase_set_lqr_gains(rb, -1.0f, 1.0f, 1.0f, false), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_set_lqr_gains(rb, 1.0f, -1.0f, 1.0f, false), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_set_lqr_gains(rb, 1.0f, 1.0f, -1.0f, false), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_gains(rb, 0.0f, 0.0f, 0.0f, false), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_gains(rb, 0.0f, 1.0f, 1.0f, false), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_gains(rb, 1.0f, 0.0f, 1.0f, false), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_gains(rb, 1.0f, 1.0f, 0.0f, false), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_gains(rb, 55.0f, 1.0f, 1.0f, false), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_set_lqr_gains(NULL, 1.0f, 1.0f, 1.0f, false), ==, PBIO_ERROR_INVALID_ARG);
 
     // Valid gain updates succeed
@@ -2833,6 +2838,119 @@ end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }
 
+static pbio_error_t test_mdrobotbase_lqr_closed_loop_convergence(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left;
+    static pbio_servo_t *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    // Initialize concrete test servos
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+
+    // 1. Analytical Stability Verification API Checks (P1)
+    float zeta = 0.0f, omega_n = 0.0f;
+    // Balanced preset at nominal 0.3 m/s
+    tt_uint_op(pbio_mdrobotbase_lqr_verify_stability(1.0f, 1.0f, 1.0f, 0.3f, &zeta, &omega_n), ==, PBIO_SUCCESS);
+    tt_want(zeta >= 0.7f);
+    tt_want(omega_n > 0.5f);
+
+    // Underdamped gain configuration (zeta < 0.05) rejected
+    tt_uint_op(pbio_mdrobotbase_lqr_verify_stability(1.0f, 1.0f, 0.01f, 0.3f, &zeta, &omega_n), ==, PBIO_ERROR_INVALID_ARG);
+
+    // Non-positive and saturated gains rejected
+    tt_uint_op(pbio_mdrobotbase_lqr_verify_stability(0.0f, 1.0f, 1.0f, 0.3f, &zeta, &omega_n), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_verify_stability(1.0f, 0.0f, 1.0f, 0.3f, &zeta, &omega_n), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_verify_stability(1.0f, 1.0f, 0.0f, 0.3f, &zeta, &omega_n), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_verify_stability(1.0f, 1.0f, 1.0f, -0.1f, &zeta, &omega_n), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_verify_stability(55.0f, 1.0f, 1.0f, 0.3f, &zeta, &omega_n), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 2. Preset Switching & Accessor Round-Trip (P1)
+    float k_x, k_y, k_theta;
+    bool schedule;
+    // Balanced preset (0)
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_BALANCED, true), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_get_lqr_gains(rb, &k_x, &k_y, &k_theta, &schedule), ==, PBIO_SUCCESS);
+    tt_want(fabsf(k_x - 1.0f) < 1e-4f);
+    tt_want(fabsf(k_y - 1.0f) < 1e-4f);
+    tt_want(fabsf(k_theta - 1.0f) < 1e-4f);
+    tt_want(schedule == true);
+
+    // Aggressive preset (1)
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_AGGRESSIVE, false), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_get_lqr_gains(rb, &k_x, &k_y, &k_theta, &schedule), ==, PBIO_SUCCESS);
+    tt_want(fabsf(k_x - 2.0f) < 1e-4f);
+    tt_want(fabsf(k_y - 3.0f) < 1e-4f);
+    tt_want(fabsf(k_theta - 2.5f) < 1e-4f);
+    tt_want(schedule == false);
+
+    // Smooth preset (2)
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_SMOOTH, true), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_get_lqr_gains(rb, &k_x, &k_y, &k_theta, &schedule), ==, PBIO_SUCCESS);
+    tt_want(fabsf(k_x - 0.5f) < 1e-4f);
+    tt_want(fabsf(k_y - 0.5f) < 1e-4f);
+    tt_want(fabsf(k_theta - 0.8f) < 1e-4f);
+
+    // Invalid preset rejected
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, (pbio_mdrobotbase_lqr_preset_t)99, true), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 3. Deterministic Closed-Loop Trajectory Tracking Convergence (P2)
+    // Test both AGGRESSIVE and BALANCED presets
+    for (int p = 0; p < 2; p++) {
+        pbio_mdrobotbase_lqr_preset_t preset = (p == 0) ? PBIO_MDROBOTBASE_LQR_PRESET_AGGRESSIVE : PBIO_MDROBOTBASE_LQR_PRESET_BALANCED;
+        tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, preset, true), ==, PBIO_SUCCESS);
+
+        // Perturbed initial conditions: lateral offset y = 30.0 mm, heading offset theta = 5.0 deg
+        rb->x = 0.0f;
+        rb->y = 30.0f;
+        rb->theta = 5.0f;
+
+        float dt = 0.02f;
+        float v_profile = 200.0f; // mm/s
+        float x_ref = 0.0f;
+        float y_ref = 0.0f;
+        float path_theta_deg = 0.0f;
+
+        for (int step = 0; step < 500; step++) {
+            float v_cmd = 0.0f, w_cmd = 0.0f;
+            tt_uint_op(pbio_mdrobotbase_lqr_step(rb, v_profile, x_ref, y_ref, path_theta_deg, &v_cmd, &w_cmd), ==, PBIO_SUCCESS);
+
+            float th_rad = rb->theta * (3.141592653589793f / 180.0f);
+            rb->x += v_cmd * cosf(th_rad) * dt;
+            rb->y += v_cmd * sinf(th_rad) * dt;
+            rb->theta = pbio_mdrobotbase_wrap_degrees(rb->theta + w_cmd * dt);
+            x_ref += v_profile * dt;
+        }
+
+        // Prove asymptotic convergence to reference line y = 0, theta = 0
+        float final_y_err = fabsf(rb->y);
+        float final_theta_err = fabsf(rb->theta);
+
+        if (preset == PBIO_MDROBOTBASE_LQR_PRESET_AGGRESSIVE) {
+            tt_want(final_y_err < 0.2f);
+            tt_want(final_theta_err < 0.2f);
+        } else {
+            tt_want(final_y_err < 1.5f);
+            tt_want(final_theta_err < 0.5f);
+        }
+    }
+
+    // Clean release
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
 struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_basics),
     PBIO_THREAD_TEST(test_mdrobotbase_motion_state),
@@ -2862,5 +2980,6 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_statistical_color_calibration),
     PBIO_THREAD_TEST(test_mdrobotbase_confidence_and_ambiguity_rejection),
     PBIO_THREAD_TEST(test_mdrobotbase_comprehensive_verification_matrix),
+    PBIO_THREAD_TEST(test_mdrobotbase_lqr_closed_loop_convergence),
     END_OF_TESTCASES
 };

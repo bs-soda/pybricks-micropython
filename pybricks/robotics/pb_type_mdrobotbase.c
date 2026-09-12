@@ -749,6 +749,12 @@ static mp_obj_t pb_type_mdrobotbase_wait_or_await(pb_type_MDRobotBase_obj_t *sel
 }
 
 // pybricks.robotics.MDRobotBase.set_lqr_gains
+// Physical Units:
+//   k_x:      [s^-1]            (1/s)     Along-track convergence rate (m -> m/s)
+//   k_y:      [rad / (m * s)]   (1/(m*s)) Cross-track restoring stiffness (m -> rad/s)
+//   k_theta:  [s^-1]            (1/s)     Heading damping rate (rad -> rad/s)
+// Stability:
+//   Requires k_x > 0, k_y > 0, k_theta > 0 for asymptotic closed-loop stability.
 static mp_obj_t pb_type_MDRobotBase_set_lqr_gains(size_t n_args,
                                                   const mp_obj_t *pos_args,
                                                   mp_map_t *kw_args) {
@@ -773,14 +779,36 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_lqr_gains_obj, 1,
 static mp_obj_t pb_type_MDRobotBase_get_lqr_gains(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
+  float k_x, k_y, k_theta;
+  bool schedule;
+  pb_assert(pbio_mdrobotbase_get_lqr_gains(self->rb, &k_x, &k_y, &k_theta, &schedule));
   mp_obj_t gains[3];
-  gains[0] = mp_obj_new_float_from_f(self->rb->k_x);
-  gains[1] = mp_obj_new_float_from_f(self->rb->k_y);
-  gains[2] = mp_obj_new_float_from_f(self->rb->k_theta);
+  gains[0] = mp_obj_new_float_from_f(k_x);
+  gains[1] = mp_obj_new_float_from_f(k_y);
+  gains[2] = mp_obj_new_float_from_f(k_theta);
   return mp_obj_new_tuple(3, gains);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_lqr_gains_obj,
                                  pb_type_MDRobotBase_get_lqr_gains);
+
+// pybricks.robotics.MDRobotBase.set_lqr_preset
+static mp_obj_t pb_type_MDRobotBase_set_lqr_preset(size_t n_args,
+                                                   const mp_obj_t *pos_args,
+                                                   mp_map_t *kw_args) {
+  PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
+                       self, PB_ARG_REQUIRED(preset),
+                       PB_ARG_DEFAULT_TRUE(schedule));
+  pb_type_mdrobotbase_require_open(self);
+
+  mp_int_t preset_val = mp_obj_get_int(preset_in);
+  bool schedule = mp_obj_is_true(schedule_in);
+
+  pb_assert(pbio_mdrobotbase_set_lqr_preset(self->rb, (pbio_mdrobotbase_lqr_preset_t)preset_val, schedule));
+
+  return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_lqr_preset_obj, 1,
+                                  pb_type_MDRobotBase_set_lqr_preset);
 
 // pybricks.robotics.MDRobotBase.set_controller
 static mp_obj_t pb_type_MDRobotBase_set_controller(size_t n_args,
@@ -2404,6 +2432,8 @@ static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
      MP_ROM_PTR(&pb_type_MDRobotBase_set_lqr_gains_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_lqr_gains),
      MP_ROM_PTR(&pb_type_MDRobotBase_get_lqr_gains_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_lqr_preset),
+     MP_ROM_PTR(&pb_type_MDRobotBase_set_lqr_preset_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_controller),
      MP_ROM_PTR(&pb_type_MDRobotBase_set_controller_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_controller),

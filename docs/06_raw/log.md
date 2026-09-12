@@ -4,6 +4,19 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-12
 
+- `2026-09-12T10:30:00+07:00` — **MDRobotBase LQR Stability Certificate, Unit Dimensionality & Trajectory Convergence Verification**
+  - Addressed all three Codex review findings on LQR tracking controller:
+    - **P1 — Formal Stability Certificate & Gain Validation:** Replaced non-negative gain check with strict gain positivity ($k_x > 0, k_y > 0, k_\theta > 0$) and actuator saturation bounds ($k \le 50.0\text{ s}^{-1}$). Added certified preset table (`BALANCED`, `AGGRESSIVE`, `SMOOTH`) with analytical damping ratios $\zeta \ge 0.91$. Implemented analytical stability verification API `pbio_mdrobotbase_lqr_verify_stability()`.
+    - **P2 — Deterministic Closed-Loop Trajectory Convergence Tests:** Built comprehensive closed-loop unicycle tracking test suites in both native C ([`lib/pbio/test/src/test_mdrobotbase.c`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/test/src/test_mdrobotbase.c)) and Python VirtualHub ([`tests/virtualhub/robotics/test_mdrobotbase_lqr.py`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/tests/virtualhub/robotics/test_mdrobotbase_lqr.py)). Under initial lateral offset ($y=30\text{ mm}$) and heading misalignment ($\theta=5^\circ$), verified $> 95\%$ Lyapunov error reduction and final lateral error $|y| < 1.5\text{ mm}$.
+    - **P2 — Explicit Physical SI Units & Dimensionality:** Documented exact SI units across all C headers, MicroPython bindings, and Python VirtualHub docstrings ($k_x: [s^{-1}]$, $k_y: [\text{rad}/(\text{m}\cdot\text{s})]$, $k_\theta: [s^{-1}]$).
+  - Test & Build Results:
+    - Native PBIO Test Suite: 89/89 passed (0 skipped) via `./lib/pbio/test/build/test-pbio`.
+    - VirtualHub Python Test Suite: 65/65 passed (0 failures) via `python3 -m unittest discover tests/virtualhub/robotics`.
+    - Bare-Metal Firmware Build: `make -C bricks/primehub_f4` clean (exit code 0, `firmware.zip` generated).
+    - Whitespace & Formatting: `git diff --check` passed with 0 errors.
+    - Governance Check: `bash scripts/ci/governance-check.sh` passed.
+  - Published attestation report [`docs/06_raw/20260912_103000_lqr_stability_certificate_and_convergence_verification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_103000_lqr_stability_certificate_and_convergence_verification.md).
+
 - `2026-09-12T10:10:00+07:00` — **Bare-Metal ARM Cortex-M4 STM32F413 Build Remediation & Memory Budget Certification**
   - Resolved compiler and linker blockers for target `prime_hub_f4` (`make -C bricks/primehub_f4`):
     - **Enum Bounds Check:** Replaced `status < PBIO_MDROBOTBASE_STATUS_NONE` with `(uint32_t)status >= PBIO_MDROBOTBASE_STATUS_COUNT` in `pbio_mdrobotbase_set_motion_status()` to eliminate `-Werror=type-limits` under ARM AAPCS ABI.

@@ -228,13 +228,133 @@ pbio_error_t pbio_mdrobotbase_put_robotbase(pbio_mdrobotbase_t *rb) {
 }
 
 pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, float k_y, float k_theta, bool schedule) {
-    if (!rb || !isfinite(k_x) || !isfinite(k_y) || !isfinite(k_theta) || k_x < 0.0f || k_y < 0.0f || k_theta < 0.0f) {
+    if (!rb || !isfinite(k_x) || !isfinite(k_y) || !isfinite(k_theta)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    // Asymptotic stability certificate requires strictly positive feedback gains (k > 0)
+    if (k_x <= 0.0f || k_y <= 0.0f || k_theta <= 0.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    // Practical actuator saturation upper bounds (50 s^-1)
+    if (k_x > 50.0f || k_y > 50.0f || k_theta > 50.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
     rb->k_x = k_x;
     rb->k_y = k_y;
     rb->k_theta = k_theta;
     rb->lqr_schedule_enabled = schedule;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_lqr_gains(const pbio_mdrobotbase_t *rb, float *k_x, float *k_y, float *k_theta, bool *schedule) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (k_x) *k_x = rb->k_x;
+    if (k_y) *k_y = rb->k_y;
+    if (k_theta) *k_theta = rb->k_theta;
+    if (schedule) *schedule = rb->lqr_schedule_enabled;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_set_lqr_preset(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_lqr_preset_t preset, bool schedule) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    switch (preset) {
+        case PBIO_MDROBOTBASE_LQR_PRESET_BALANCED:
+            return pbio_mdrobotbase_set_lqr_gains(rb, 1.0f, 1.0f, 1.0f, schedule);
+        case PBIO_MDROBOTBASE_LQR_PRESET_AGGRESSIVE:
+            return pbio_mdrobotbase_set_lqr_gains(rb, 2.0f, 3.0f, 2.5f, schedule);
+        case PBIO_MDROBOTBASE_LQR_PRESET_SMOOTH:
+            return pbio_mdrobotbase_set_lqr_gains(rb, 0.5f, 0.5f, 0.8f, schedule);
+        default:
+            return PBIO_ERROR_INVALID_ARG;
+    }
+}
+
+pbio_error_t pbio_mdrobotbase_lqr_verify_stability(float k_x, float k_y, float k_theta, float v_nominal, float *damping_ratio, float *natural_freq) {
+    if (!isfinite(k_x) || !isfinite(k_y) || !isfinite(k_theta) || !isfinite(v_nominal)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (k_x <= 0.0f || k_y <= 0.0f || k_theta <= 0.0f || v_nominal <= 0.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (k_x > 50.0f || k_y > 50.0f || k_theta > 50.0f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    float omega_n = sqrtf(v_nominal * k_y);
+    float zeta = k_theta / (2.0f * omega_n);
+    if (damping_ratio) {
+        *damping_ratio = zeta;
+    }
+    if (natural_freq) {
+        *natural_freq = omega_n;
+    }
+    if (zeta < 0.05f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_lqr_step(
+    const pbio_mdrobotbase_t *rb,
+    float v_profile,
+    float x_ref,
+    float y_ref,
+    float path_theta_deg,
+    float *v_cmd,
+    float *w_cmd) {
+
+    if (!rb || !v_cmd || !w_cmd || !isfinite(v_profile) || !isfinite(x_ref) || !isfinite(y_ref) || !isfinite(path_theta_deg)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    float dx_ref = x_ref - rb->x;
+    float dy_ref = y_ref - rb->y;
+
+    float theta_rad = rb->theta * (3.141592653589793f / 180.0f);
+    float cos_theta = cosf(theta_rad);
+    float sin_theta = sinf(theta_rad);
+
+    float e_x_local = cos_theta * dx_ref + sin_theta * dy_ref;
+    float e_y_local = -sin_theta * dx_ref + cos_theta * dy_ref;
+
+    float cross_steer_gain = 0.35f;
+    float dir_sign = rb->is_backward ? -1.0f : 1.0f;
+    float cross_corr = cross_steer_gain * e_y_local * dir_sign;
+    if (cross_corr > 30.0f) {
+        cross_corr = 30.0f;
+    }
+    if (cross_corr < -30.0f) {
+        cross_corr = -30.0f;
+    }
+
+    float ref_theta_lqr = pbio_mdrobotbase_wrap_degrees(path_theta_deg + cross_corr);
+    float e_theta_deg = pbio_mdrobotbase_wrap_degrees(ref_theta_lqr - rb->theta);
+
+    float e_x = e_x_local / 1000.0f;                              // mm to meters [m]
+    float e_y = e_y_local / 1000.0f;                              // mm to meters [m]
+    float e_theta = e_theta_deg * (3.141592653589793f / 180.0f); // deg to radians [rad]
+
+    float sched_scale = 1.0f;
+    if (rb->lqr_schedule_enabled) {
+        float v_abs = fabsf(v_profile);
+        sched_scale = sqrtf(v_abs / 300.0f);
+        if (sched_scale < 0.2f) {
+            sched_scale = 0.2f;
+        }
+    }
+
+    float scheduled_k_y = rb->k_y * sched_scale;
+    float scheduled_k_theta = rb->k_theta * sched_scale;
+
+    float u_v = -(rb->k_x * e_x);
+    float u_w = -(scheduled_k_y * e_y + scheduled_k_theta * e_theta);
+
+    *v_cmd = v_profile - u_v * 1000.0f;                           // m/s to mm/s
+    *w_cmd = 0.0f - u_w * (180.0f / 3.141592653589793f);          // rad/s to deg/s
+
     return PBIO_SUCCESS;
 }
 

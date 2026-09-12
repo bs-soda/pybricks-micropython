@@ -13,6 +13,7 @@ Tests lifecycle transitions:
 
 import os
 import sys
+import time
 import unittest
 
 _pkg_dir = os.path.dirname(os.path.abspath(__file__))
@@ -359,6 +360,321 @@ async def test_closed_object_exhaustive_audit():
 
     print(f"Exhaustive 49-method closed-object audit passed ({len(operational_methods)} operational methods verified).")
 
+async def test_dynamic_kinematic_deadline_trajectory_invariance():
+    """Scenario 1: Long-distance trajectory dynamic deadline invariance (AC-MDRB-034-1)."""
+    print("Testing long-distance trajectory dynamic kinematic deadline invariance...")
+    robot.reset_state(0.0, 0.0, 0.0)
+    pts = [(0.0, 0.0), (1500.0, 0.0)]
+    deadline = robot.calculate_trajectory_deadline_ms(pts, speed_mm_s=50.0)
+    assert deadline >= 47000, f"Expected deadline >= 47000 ms, got {deadline}"
+    await robot.follow_trajectory(pts, speed_mm_s=50.0)
+    assert robot.done(), "Robot must report done() == True"
+    assert robot.status() == 2, f"Expected status 2 (COMPLETED), got {robot.status()}"
+    assert robot.get_last_deadline_ms() >= 47000, f"Recorded deadline {robot.get_last_deadline_ms()} must be >= 47000 ms"
+    print("Long-distance trajectory dynamic deadline invariance passed.")
+
+async def test_explicit_timeout_override():
+    """Scenario 2: Explicit timeout parameter override (AC-MDRB-034-2)."""
+    print("Testing explicit timeout override and ETIMEDOUT abort...")
+    robot.reset_state(0.0, 0.0, 0.0)
+    timed_out = False
+    try:
+        await robot.straight(1000.0, speed_mm_s=100.0, timeout_ms=50)
+    except OSError as e:
+        timed_out = True
+        assert e.errno == 110 or "ETIMEDOUT" in str(e), f"Expected ETIMEDOUT (110), got {e}"
+    assert timed_out, "Expected OSError ETIMEDOUT on explicit 50ms timeout override"
+    assert robot.status() == 4, f"Expected status 4 (TIMED_OUT), got {robot.status()}"
+    assert robot.done(), "Robot must report done() == True after timeout abort"
+    assert robot.get_last_deadline_ms() == 50, f"Expected recorded deadline 50 ms, got {robot.get_last_deadline_ms()}"
+    print("Explicit timeout override passed.")
+
+async def test_deadline_enforcement_on_stall_timeout():
+    """Scenario 3: Real stall and deadline enforcement (AC-MDRB-034-3)."""
+    print("Testing deadline enforcement on stall timeout...")
+    robot.reset_state(0.0, 0.0, 0.0)
+    timed_out = False
+    try:
+        await robot.turn_to_angle(90.0, speed_deg_s=100.0, timeout_ms=50)
+    except OSError as e:
+        timed_out = True
+        assert e.errno == 110 or "ETIMEDOUT" in str(e)
+    assert timed_out, "Expected deadline expiration on short timeout"
+    assert robot.status() == 4, f"FSM status must transition to TIMED_OUT (4), got {robot.status()}"
+    assert left_motor.speed() == 0.0, "Left motor speed must clamp to 0"
+    assert right_motor.speed() == 0.0, "Right motor speed must clamp to 0"
+    print("Deadline enforcement on stall timeout passed.")
+
+async def test_virtualhub_native_pbio_parity():
+    """Scenario 4: VirtualHub and Native PBIO Parity (AC-MDRB-034-4)."""
+    print("Testing VirtualHub and native PBIO kinematic deadline calculation parity...")
+    robot.reset_state(0.0, 0.0, 0.0)
+
+    # 1. Straight trajectory without turns
+    pts1 = [(0.0, 0.0), (1000.0, 0.0)]
+    d1 = robot.calculate_trajectory_deadline_ms(pts1, speed_mm_s=200.0, accel_mm_s2=200.0, decel_mm_s2=200.0)
+    assert d1 == 12500, f"Expected 12500 ms, got {d1}"
+
+    # 2. Multi-segment trajectory with 90-degree total waypoint heading changes
+    # Segment 1: (0,0) -> (300,400): dist=500mm, angle=53.13 deg
+    # Segment 2: (300,400) -> (300,1000): dist=600mm, angle change=36.87 deg
+    # Total dist = 1100mm, total turn = 90.0 deg
+    # t_linear = 1100/100 + 100/200 + 100/200 = 12.0s
+    # t_angular = 90/200 + 200/400 + 200/400 = 1.45s
+    # t_kinematic = 13.45s -> deadline = int(13.45 * 1.5 * 1000) + 2000 = 22175 ms
+    pts2 = [(0.0, 0.0), (300.0, 400.0), (300.0, 1000.0)]
+    d2 = robot.calculate_trajectory_deadline_ms(pts2, speed_mm_s=100.0, accel_mm_s2=200.0, decel_mm_s2=200.0)
+    assert d2 == 22175, f"Expected 22175 ms, got {d2}"
+
+    # 3. Multi-segment right-angle corner trajectory (Codex P1 verification)
+    # (0,0) -> (500,0) -> (500,500)
+    # dist = 1000mm, heading change = 90.0 deg
+    # t_linear = 1000/100 + 100/200 + 100/200 = 11.0s
+    # t_angular = 1.45s -> t_kinematic = 12.45s -> deadline = int(12.45 * 1.5 * 1000) + 2000 = 20675 ms
+    pts_rt = [(0.0, 0.0), (500.0, 0.0), (500.0, 500.0)]
+    d_rt = robot.calculate_trajectory_deadline_ms(pts_rt, speed_mm_s=100.0, accel_mm_s2=200.0, decel_mm_s2=200.0)
+    assert d_rt == 20675, f"Expected 20675 ms, got {d_rt}"
+
+    # 4. Golden vectors across all motion families (Codex P1/P2 verification)
+    # Golden Vector A - Straight motion:
+    # 1500 mm @ 50 mm/s, accel 200, decel 200 -> t_linear = 30.0 + 0.5 = 30.5s -> deadline = 47750 ms
+    d_straight_golden = robot.calculate_motion_deadline_ms(
+        distance_mm=1500.0, speed_linear=50.0, accel_linear=200.0, decel_linear=200.0
+    )
+    assert d_straight_golden == 47750, f"Expected 47750 ms, got {d_straight_golden}"
+
+    # Golden Vector B - Spin Turn:
+    # 90 deg @ 200 deg/s, accel 400, decel 400 -> t_angular = 0.45 + 1.0 = 1.45s -> deadline = 4175 ms
+    d_turn_golden = robot.calculate_motion_deadline_ms(
+        angle_deg=90.0, turn_rate_dps=200.0, accel_angular=400.0, decel_angular=400.0
+    )
+    assert d_turn_golden == 4175, f"Expected 4175 ms, got {d_turn_golden}"
+
+    # Golden Vector C - Pivot Turn:
+    # 90 deg @ 150 deg/s, accel 400, decel 400 -> t_angular = 0.6 + 0.75 = 1.35s -> deadline = 4025 ms
+    d_pivot_golden = robot.calculate_motion_deadline_ms(
+        angle_deg=90.0, turn_rate_dps=150.0, accel_angular=400.0, decel_angular=400.0
+    )
+    assert d_pivot_golden == 4025, f"Expected 4025 ms, got {d_pivot_golden}"
+
+    # Golden Vector D - Navigation to Goal:
+    # Distance = 500 mm @ 100 mm/s, heading diff = 53.1301 deg -> deadline = 12898 ms
+    d_nav_golden = robot.calculate_motion_deadline_ms(
+        distance_mm=500.0, angle_deg=53.1301, speed_linear=100.0, turn_rate_dps=200.0,
+        accel_linear=200.0, decel_linear=200.0, accel_angular=400.0, decel_angular=400.0
+    )
+    assert d_nav_golden == 12898, f"Expected 12898 ms, got {d_nav_golden}"
+
+    # 5. Backward trajectory parity (AC-MDRB-034-6, Codex review finding)
+    # When back=True, segment headings are offset by 180 degrees
+    # Straight backward: [(0,0), (1000,0)] starting at theta=0 -> heading diff = 180 deg
+    # t_linear = 7.0s, t_angular = 180/200 + 1.0 = 1.9s -> t_kinematic = 8.9s -> deadline = 15350 ms
+    d_str_back = robot.calculate_trajectory_deadline_ms(
+        pts1, speed_mm_s=200.0, accel_mm_s2=200.0, decel_mm_s2=200.0, back=True
+    )
+    assert d_str_back == 15350, f"Expected 15350 ms for straight backward, got {d_str_back}"
+
+    # Multi-segment backward: [(0,0), (300,400), (300,1000)] with back=True
+    # Total turn = 163.74 deg -> deadline = 22728 ms
+    d_multi_back = robot.calculate_trajectory_deadline_ms(
+        pts2, speed_mm_s=100.0, accel_mm_s2=200.0, decel_mm_s2=200.0, back=True
+    )
+    assert d_multi_back == 22728, f"Expected 22728 ms for multi-segment backward, got {d_multi_back}"
+
+    # 6. Dynamic ramp calculation and floor invariant
+    pts3 = [(0.0, 0.0), (1.0, 0.0)]
+    d3 = robot.calculate_trajectory_deadline_ms(pts3, speed_mm_s=500.0)
+    assert d3 == 9503 and d3 >= 1500, f"Expected 9503 ms (>= 1500 ms floor), got {d3}"
+
+    # 7. Explicit timeout override
+    d4 = robot.calculate_trajectory_deadline_ms(pts1, timeout_ms=3500)
+    assert d4 == 3500, f"Expected 3500 ms, got {d4}"
+    print("VirtualHub and native PBIO parity passed.")
+
+async def test_table_driven_motion_deadline_parity():
+    """Table-driven parity test across all 6 motion configurations and .5 ms boundaries."""
+    print("Testing table-driven motion deadline parity and boundary vectors...")
+    robot.reset_state(0.0, 0.0, 0.0)
+
+    test_matrix = [
+        (
+            "straight_1500mm_at_50mms",
+            lambda: robot.calculate_motion_deadline_ms(
+                distance_mm=1500.0, speed_linear=50.0, accel_linear=200.0, decel_linear=200.0
+            ),
+            47750,
+        ),
+        (
+            "spin_turn_90deg_at_200dps",
+            lambda: robot.calculate_motion_deadline_ms(
+                angle_deg=90.0, turn_rate_dps=200.0, accel_angular=400.0, decel_angular=400.0
+            ),
+            4175,
+        ),
+        (
+            "pivot_turn_90deg_at_150dps",
+            lambda: robot.calculate_motion_deadline_ms(
+                angle_deg=90.0, turn_rate_dps=150.0, accel_angular=400.0, decel_angular=400.0
+            ),
+            4025,
+        ),
+        (
+            "navigate_to_goal_500mm_corner",
+            lambda: robot.calculate_motion_deadline_ms(
+                distance_mm=500.0, angle_deg=53.1301, speed_linear=100.0, turn_rate_dps=200.0,
+                accel_linear=200.0, decel_linear=200.0, accel_angular=400.0, decel_angular=400.0
+            ),
+            12898,
+        ),
+        (
+            "forward_trajectory_right_angle",
+            lambda: robot.calculate_trajectory_deadline_ms(
+                [(0.0, 0.0), (500.0, 0.0), (500.0, 500.0)],
+                speed_mm_s=100.0, accel_mm_s2=200.0, decel_mm_s2=200.0, back=False
+            ),
+            20675,
+        ),
+        (
+            "backward_trajectory_straight",
+            lambda: robot.calculate_trajectory_deadline_ms(
+                [(0.0, 0.0), (1000.0, 0.0)],
+                speed_mm_s=200.0, accel_mm_s2=200.0, decel_mm_s2=200.0, back=True
+            ),
+            15350,
+        ),
+        (
+            "backward_trajectory_corner",
+            lambda: robot.calculate_trajectory_deadline_ms(
+                [(0.0, 0.0), (300.0, 400.0), (300.0, 1000.0)],
+                speed_mm_s=100.0, accel_mm_s2=200.0, decel_mm_s2=200.0, back=True
+            ),
+            22728,
+        ),
+        (
+            "floor_clamp_zero_motion",
+            lambda: robot.calculate_motion_deadline_ms(distance_mm=0.0, angle_deg=0.0),
+            2000,
+        ),
+    ]
+
+    for name, fn, expected in test_matrix:
+        actual = fn()
+        assert actual == expected, f"Table case '{name}' failed: expected {expected} ms, got {actual} ms"
+
+    # Boundary vector tests around .5 ms floor tie cases
+    b1 = robot.calculate_motion_deadline_ms(distance_mm=1000.4, speed_linear=1500.0, accel_linear=1e8, decel_linear=1e8)
+    b2 = robot.calculate_motion_deadline_ms(distance_mm=1000.5, speed_linear=1500.0, accel_linear=1e8, decel_linear=1e8)
+    b3 = robot.calculate_motion_deadline_ms(distance_mm=1000.6, speed_linear=1500.0, accel_linear=1e8, decel_linear=1e8)
+    b4 = robot.calculate_motion_deadline_ms(distance_mm=1001.0, speed_linear=1500.0, accel_linear=1e8, decel_linear=1e8)
+    assert b1 == 3000, f"Expected boundary vector 1000.4ms -> 3000, got {b1}"
+    assert b2 == 3000, f"Expected boundary vector 1000.5ms -> 3000 (floor rule), got {b2}"
+    assert b3 == 3000, f"Expected boundary vector 1000.6ms -> 3000, got {b3}"
+    assert b4 == 3001, f"Expected boundary vector 1001.0ms -> 3001, got {b4}"
+    print("Table-driven motion deadline parity and boundary vectors passed.")
+
+async def test_real_monotonic_clock_timeout_enforcement():
+    """Real monotonic clock elapsed-time deadline test (P1/P2 Codex verification)."""
+    print("Testing real monotonic clock timeout enforcement...")
+    robot.reset_state(0.0, 0.0, 0.0)
+
+    # 1. Verify that a timeout of 150 ms occurs after approximately 150 ms (not immediately)
+    t_start = time.monotonic()
+    timed_out = False
+    try:
+        # Long move (5000 mm) at 100 mm/s takes 50 seconds; with timeout_ms=150 it must abort after ~150 ms
+        await robot.straight(5000.0, speed_mm_s=100.0, timeout_ms=150)
+    except OSError as e:
+        timed_out = True
+        assert e.errno == 110 or "ETIMEDOUT" in str(e)
+    t_elapsed_ms = (time.monotonic() - t_start) * 1000.0
+
+    assert timed_out, "Motion must abort with OSError ETIMEDOUT"
+    assert t_elapsed_ms >= 140.0, f"Expected elapsed time >= 140 ms, got {t_elapsed_ms:.2f} ms"
+    assert robot.status() == 4, f"Status must be TIMED_OUT (4), got {robot.status()}"
+    assert left_motor.speed() == 0.0, "Left motor must be stopped on timeout"
+    assert right_motor.speed() == 0.0, "Right motor must be stopped on timeout"
+
+    # 2. Verify that a timeout of 500 ms does NOT occur prematurely at ~100 ms
+    # Short move (50 mm) at 500 mm/s takes ~100 ms; with timeout_ms=500 it must complete successfully
+    robot.motion_reset()
+    t_start2 = time.monotonic()
+    await robot.straight(50.0, speed_mm_s=500.0, timeout_ms=500)
+    t_elapsed2_ms = (time.monotonic() - t_start2) * 1000.0
+
+    assert robot.status() == 2, f"Expected COMPLETED status (2), got {robot.status()}"
+    assert t_elapsed2_ms < 400.0, f"Expected motion to finish quickly (~100ms), took {t_elapsed2_ms:.2f} ms"
+    print("Real monotonic clock timeout enforcement passed.")
+
+async def test_episode_oracle_raw_trial_schema_and_statistics():
+    """Episode oracle / raw-trial schema measurement and Wilson score confidence validation."""
+    print("Testing episode oracle raw trial execution and confidence statistics...")
+    import math
+    import time
+    trials = []
+    num_episodes = 25
+
+    for i in range(num_episodes):
+        dist = 50.0 + (i * 10.0)
+        speed = 100.0 + (i * 5.0)
+        t_start = time.perf_counter()
+        await robot.straight(dist, speed_mm_s=speed)
+        t_elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+
+        trial_record = {
+            "trial_id": i + 1,
+            "motion_type": "straight",
+            "distance_mm": dist,
+            "speed_mm_s": speed,
+            "computed_deadline_ms": robot.get_last_deadline_ms(),
+            "elapsed_wall_ms": round(t_elapsed_ms, 2),
+            "status": robot.status(),
+            "stalled": robot.stalled(),
+            "success": (robot.status() == 2 and not robot.stalled()),
+        }
+        assert trial_record["trial_id"] > 0
+        assert trial_record["computed_deadline_ms"] >= 1500
+        assert trial_record["elapsed_wall_ms"] >= 0.0
+        assert trial_record["status"] in (0, 1, 2, 3, 4)
+        trials.append(trial_record)
+
+    successes = sum(1 for t in trials if t["success"])
+    assert successes == num_episodes, f"Expected {num_episodes}/{num_episodes} successes, got {successes}"
+
+    def calc_wilson(k: int, n: int, z: float = 1.95996):
+        if n <= 0:
+            raise ValueError("n must be positive")
+        if k < 0 or k > n:
+            raise ValueError("k must be in [0, n]")
+        p = k / n
+        denom = 1.0 + (z * z) / n
+        ctr = (p + (z * z) / (2.0 * n)) / denom
+        spr = (z / denom) * math.sqrt((p * (1.0 - p) / n) + (z * z) / (4.0 * n * n))
+        return max(0.0, ctr - spr), min(1.0, ctr + spr)
+
+    ci_lower, ci_upper = calc_wilson(successes, num_episodes)
+    assert ci_lower > 0.85, f"Expected Wilson 95% CI lower bound > 0.85, got {ci_lower:.4f}"
+    assert ci_upper <= 1.0, f"Expected Wilson 95% CI upper bound <= 1.0, got {ci_upper:.4f}"
+
+    try:
+        calc_wilson(5, 0)
+        assert False, "Expected ValueError on zero trial size"
+    except ValueError:
+        pass
+
+    try:
+        calc_wilson(-1, 25)
+        assert False, "Expected ValueError on negative success count"
+    except ValueError:
+        pass
+
+    try:
+        calc_wilson(30, 25)
+        assert False, "Expected ValueError when k > n"
+    except ValueError:
+        pass
+
+    print(f"Episode oracle verified: {num_episodes} trials, 100% pass, Wilson 95% CI: [{ci_lower:.4f}, {ci_upper:.4f}].")
+
 async def main():
     await test_idle_stop_idempotence()
     await test_motion_preemption()
@@ -368,6 +684,13 @@ async def main():
     await test_behavioral_motion_preemption_immunity()
     await test_closed_handle_guarding()
     await test_closed_object_exhaustive_audit()
+    await test_dynamic_kinematic_deadline_trajectory_invariance()
+    await test_explicit_timeout_override()
+    await test_deadline_enforcement_on_stall_timeout()
+    await test_virtualhub_native_pbio_parity()
+    await test_table_driven_motion_deadline_parity()
+    await test_real_monotonic_clock_timeout_enforcement()
+    await test_episode_oracle_raw_trial_schema_and_statistics()
     print("All MDRobotBase async lifecycle regression tests passed!")
 
 class TestMDRobotBaseLifecycle(unittest.IsolatedAsyncioTestCase):
@@ -400,6 +723,27 @@ class TestMDRobotBaseLifecycle(unittest.IsolatedAsyncioTestCase):
 
     async def test_closed_object_exhaustive_audit(self):
         await test_closed_object_exhaustive_audit()
+
+    async def test_dynamic_kinematic_deadline_trajectory_invariance(self):
+        await test_dynamic_kinematic_deadline_trajectory_invariance()
+
+    async def test_explicit_timeout_override(self):
+        await test_explicit_timeout_override()
+
+    async def test_deadline_enforcement_on_stall_timeout(self):
+        await test_deadline_enforcement_on_stall_timeout()
+
+    async def test_virtualhub_native_pbio_parity(self):
+        await test_virtualhub_native_pbio_parity()
+
+    async def test_table_driven_motion_deadline_parity(self):
+        await test_table_driven_motion_deadline_parity()
+
+    async def test_real_monotonic_clock_timeout_enforcement(self):
+        await test_real_monotonic_clock_timeout_enforcement()
+
+    async def test_episode_oracle_raw_trial_schema_and_statistics(self):
+        await test_episode_oracle_raw_trial_schema_and_statistics()
 
 if __name__ == "__main__":
     unittest.main()

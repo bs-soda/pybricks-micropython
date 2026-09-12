@@ -1,59 +1,67 @@
-# MDRobotBase Epic Hardening & Codex Remediation — Clarification State Machine
+# Codex Review Remediation — Socratic Clarification State Machine
 
-**Session ID:** `2825f1e8-2b5b-47e9-a98e-357aa3c3ef66`
+**Session ID:** `302d2e56-9574-46cf-ad58-6c4733d0b9f4`
 **Current State:** `[STATE: ALIGNMENT_COMPLETE_READY_FOR_EXECUTION]`
-**Target Repository:** `/Users/batrarethsudprasert/projects/wro/pybricks-micropython`
-**Timestamp:** `2026-09-08T22:55:00+07:00`
-**Review Baseline:** Codex Color Detector Assessment (Scorecard: `4.2/10`, Target: `9.8+/10`)
+**Target Workspace:** `/Users/batrarethsudprasert/projects/wro/pybricks-micropython`
+**Timestamp:** `2026-09-12T15:25:00+07:00`
 **Active Branch:** `feature/mdrobotbase-enhancement`
+**Topic:** Codex Codebase Review on MDRobotBase + LQR Subsystem
 
 ---
 
-## 👁️ Fact vs. Assumption Audit (Round 2: Color Detector Subsystem)
+## 🏛️ SECTION I: ZERO-CODE LOCK & INVARIANT VERIFICATION
+
+In accordance with **Article I (Zero Mocks, Zero Stubs, Zero Fallbacks)** and **Section II/III/IV (Anti-Hallucination Socratic Clarification Protocol)** of the Global Agentic Engineering Constitution:
+- **Zero-Code Lock is UNLOCKED for Goal Card, Acceptance Contract & Test Harness generation.**
+- **Architectural Alignment Certified:** Human engineer selected:
+  1. Option A: Create Goal `G-MDRB-036` for true Discrete Algebraic Riccati Equation (DARE) LQR with $Q/R$ cost matrices and discrete eigenvalue validation.
+  2. Drafting sequence: Draft `G-MDRB-036` goal card, BDD contract, and master replication harness now, then execute goals in atomic sequence.
+
+---
+
+## 👁️ SECTION II: FACT VS. ASSUMPTION AUDIT
 
 ### `[OBSERVED_FACTS]`
-1. **Current Color Detector Score**: `4.2 / 10.0` based on Codex's architectural assessment.
-2. **Contract Mismatch**: Native PBIO C accepts `classify_color(h, s, v)` ([`lib/pbio/include/pbio/mdrobotbase.h:249`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/include/pbio/mdrobotbase.h#L249)) while VirtualHub Python accepts `classify_color(r, g, b)` ([`tests/virtualhub/robotics/pybricks/robotics.py:575`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/tests/virtualhub/robotics/pybricks/robotics.py#L575)).
-3. **Calibration Defect**: `set_color_baseline()` in `lib/pbio/src/mdrobotbase.c:814-823` only adjusts scalar `v_scale`. It does NOT subtract dark ambient offset $[R_0, G_0, B_0]$ or normalize per-channel white gain $[k_r, k_g, k_b]$.
-4. **Distance & Color Space Defect**: C classifier computes cylindrical Euclidean distance without circular hue wrapping ($359^\circ$ to $1^\circ = 358^\circ$ error) and lacks perceptual CIE $L^*a^*b^*$ metric separation.
-5. **Prototype Limitation**: Prototype registration registers single-sample points rather than statistical class models (`color_class_t`) with intra-class variance and outlier filtering.
-6. **Ambiguity Risk**: Nearest-neighbor classifier only checks minimum distance against static threshold; does not calculate second-best distance margin ($\text{confidence} = D_2 - D_1$) to reject ambiguous borderline classifications as `Color.NONE`.
+1. **Codex Review Scorecard Assessment:**
+   - Overall codebase: **9.2/10**
+   - MDRobotBase without LQR mathematical rigor: **9.8/10**
+   - LQR subsystem specifically: **8.2/10** (Mathematics: 7.8/10, Test coverage: 7.5/10).
+2. **Main LQR Finding:**
+   - The current control law in [`lib/pbio/src/mdrobotbase.c`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/src/mdrobotbase.c) is scheduled proportional state feedback rather than optimal LQR derived from discrete algebraic Riccati equation (DARE) $P = A^T P A - (A^T P B)(R + B^T P B)^{-1}(B^T P A) + Q$.
+3. **Existing Foundation (`439f51ed`):**
+   - Strict gain positivity $k > 0$, upper bounds $k \le 50.0\text{ s}^{-1}$, Routh-Hurwitz analytical damping ratio validation $\zeta \ge 0.05$, closed-loop convergence tests, and SI unit documentation ($k_x: [s^{-1}], k_y: [\text{rad}/(\text{m}\cdot\text{s})], k_\theta: [s^{-1}]$) are in place.
+4. **Current Queue Status:**
+   - `G-MDRB-034` (Kinematic Timeout): `ready`
+   - `G-MDRB-035` (Instance Reclamation): `ready`
+   - `G-MDRB-036` (DARE Optimal LQR Tracking Controller): Allocated and ready for specification.
 
 ### `[UNDETERMINED_DYNAMICS]`
-- All undetermined dynamics resolved: 6 atomic goals generated (`G-MDRB-028` through `G-MDRB-033`), BDD acceptance contracts formalized, and 100% test harness verification suites completed.
+- All undetermined dynamics resolved via human alignment modal.
 
 ---
 
-## 🎯 Point-by-Point Alignment Matrix (Round 2)
+## 🎯 SECTION III: 6-DOMAIN CANDIDATE BLUEPRINT & TECHNICAL SPECIFICATION (`G-MDRB-036`)
 
-### Question 1: Atomic Goal Decomposition for Color Detector Overhaul
-How should the color detector overhaul be decomposed across Epic MDRB?
-- [x] **(Recommended) Option A:** Decompose into 6 atomic, single-responsibility goals:
-  - `G-MDRB-028` (P1, api): Color Input Contract Unification & Structured Classification Output `(color_id, distance, confidence)`.
-  - `G-MDRB-029` (P1, feature): Two-Point Sensor Calibration Pipeline (Dark-Offset Subtraction & White-Gain Normalization).
-  - `G-MDRB-030` (P1, feature): Perceptual Color Classifier with Circular Hue Distance & CIE $L^*a^*b^*$ Color Space.
-  - `G-MDRB-031` (P2, feature): Multi-Sample Prototype Statistical Calibration (`color_class_t` Variance Modeling).
-  - `G-MDRB-032` (P1, feature): Confidence Scoring & Ambiguity Margin Rejection Engine.
-  - `G-MDRB-033` (P1, qa): Comprehensive Multi-Condition Color Detector Verification Matrix & Final Scorecard Attestation ($\ge 9.8/10$).
-- [ ] **Option B:** Combine all detector changes into a single monolithic goal.
-
-### Question 2: Input Contract Standardization
-How should public color classification methods be exposed across native PBIO C and VirtualHub Python?
-- [x] **(Recommended) Option A:** Dual-input overload support: expose both raw RGB sensor input (`classify_rgb(r, g, b)`) and pre-computed HSV (`classify_hsv(h, s, v)`), returning a structured tuple/struct `(color_id, distance, confidence)`.
-- [ ] **Option B:** Strictly RGB only, dropping HSV.
-- [ ] **Option C:** Strictly HSV only, requiring caller to perform RGB-to-HSV conversion.
-
-### Question 3: Calibration Architecture & Zero-Mock Verification
-How should two-point calibration and prototype statistics be verified?
-- [x] **(Recommended) Option A:** 100% concrete implementation in PBIO C and Python VirtualHub with zero mocks/stubs. Verified through real optical conversion math, dark/white reference matrix inversion, and multi-condition empirical tests (varying ambient lux, noisy samples, adjacent hues).
-- [ ] **Option B:** Test doubles simulating color sensor outputs with pre-recorded dictionaries.
+1. **Discrete State-Space Model:**
+   - State error vector: $e_k = [e_x, e_y, e_\theta]^T$ in robot body frame.
+   - Control correction vector: $u_k = [\Delta v, \Delta \omega]^T$.
+   - Sample period: $T_s = 5\text{ ms} = 0.005\text{ s}$.
+   - System matrices parameterized by reference velocity $v_r$:
+     $$A_d(v_r) = \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & v_r T_s \\ 0 & 0 & 1 \end{bmatrix}, \quad B_d(v_r) = \begin{bmatrix} -T_s & 0 \\ 0 & -\frac{1}{2} v_r T_s^2 \\ 0 & -T_s \end{bmatrix}$$
+2. **Cost Matrices & Riccati Optimization:**
+   - State penalty matrix: $Q = \text{diag}(q_x, q_y, q_\theta) \succeq 0$.
+   - Control penalty matrix: $R = \text{diag}(r_v, r_\omega) \succ 0$.
+   - DARE solution: $P = A_d^T P A_d - (A_d^T P B_d)(R + B_d^T P B_d)^{-1}(B_d^T P A_d) + Q$.
+   - Optimal gain matrix: $K(v_r) = (R + B_d^T P B_d)^{-1} B_d^T P A_d$.
+3. **Stability & Discrete Eigenvalue Certification:**
+   - Closed-loop transition matrix: $A_{cl}(v_r) = A_d(v_r) - B_d(v_r) K(v_r)$.
+   - Spectral radius invariant: $\rho(A_{cl}(v_r)) = \max_i |\lambda_i| < 1.0$ across all operating speeds $v_r \in [50, 800]\text{ mm/s}$.
+4. **Test & Benchmark Scope:**
+   - 8 Codex validation test scenarios (zero-error equilibrium, sign correctness, bounded output, lateral/heading convergence, oscillation-free tracking, gain-schedule continuity, backward driving, wheel saturation).
+   - Comparative benchmark report against standard PID under identical disturbance profiles.
 
 ---
 
-## 📝 User Write-In Feedback
-Human alignment confirmed. Zero remaining ambiguities. 6 atomic goals and 18 verification harnesses verified at 100% green attestation.
-
-```text
-Status: ALIGNMENT_COMPLETE_READY_FOR_EXECUTION
-Remaining Ambiguities: 0
-```
+## 📝 SECTION IV: USER ALIGNMENT RECORD
+- **Question 1:** Option A (Create Goal G-MDRB-036 for true DARE LQR) selected.
+- **Question 2:** Drafting sequence (Draft G-MDRB-036 now, then execute in atomic sequence) selected.

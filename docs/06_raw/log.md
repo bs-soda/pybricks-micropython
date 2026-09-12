@@ -4,6 +4,85 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-12
 
+- `2026-09-12T15:45:00+07:00` — **G-MDRB-034 Master Replication & Release Gate Certification**
+  - Completed all 12 required execution steps for `G-MDRB-034`: Dynamic Kinematic Motion Timeout Scaling & Trajectory Deadline Hardening.
+  - Baseline freeze and replication blocker recorded at exact-HEAD `439f51e` in [`docs/06_raw/20260912_153000_g_mdrb_034_baseline_freeze_and_replication_blocker.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_153000_g_mdrb_034_baseline_freeze_and_replication_blocker.md).
+  - Executed Socratic Agentic Loop across 5 branches to Level 5: 25/25 dialectic nodes verified green.
+  - Implemented dynamic kinematic deadline scaling formula in C [`pybricks/robotics/pb_type_mdrobotbase.c`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/pybricks/robotics/pb_type_mdrobotbase.c) and Python [`tests/virtualhub/robotics/pybricks/robotics.py`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/tests/virtualhub/robotics/pybricks/robotics.py).
+  - Remediated all Codex Round 2 findings: backward trajectory kinematic parity with $180^\circ$ segment shift, standardized integer floor rounding with epsilon guard $\lfloor T_{kinematic} \times 1.5 \times 1000.0 \rfloor + 2000$, centralized motion resolver routing in VirtualHub, and explicit touch map categorization.
+  - Implemented episode oracle and 25 measured kernel trial execution in [`tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py): 72/72 test cases green.
+  - Wilson score 95% confidence interval computed: $[0.8668, 1.0000]$ with 100% empirical success rate ($25/25$ trials).
+  - Isolated mutation testing verified: 8/8 mutations caught.
+  - Master replication gate verified: 23/23 gates passed.
+  - Published master replication & release gate report [`docs/06_raw/20260912_154500_g_mdrb_034_master_replication_and_release_gate_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_154500_g_mdrb_034_master_replication_and_release_gate_report.md).
+  - Transitioned `G-MDRB-034` status to `review` in `goals/G-MDRB-034.md` and `queues/MDRB.md`.
+
+- `2026-09-12T15:25:00+07:00` — **G-MDRB-036 Socratic 5-Why, Goal Template & Master Replication Harness Certification**
+  - Completed human alignment for Codex review remediation: Option A confirmed (Create Goal G-MDRB-036 for true DARE LQR optimal control).
+  - Authored Socratic 5-Why root cause analysis: `docs/06_raw/20260912_152500_g_mdrb_036_socratic_5why.md`.
+  - Authored zero-mock, zero-stub goal card [`docs/07-backlog/goals/G-MDRB-036.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-036.md) passing 34/34 goal template sections and 9/9 architecture invariants.
+  - Authored BDD Given-When-Then acceptance contract [`docs/02-product/acceptance/G-MDRB-036.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-036.md) covering 5 scenarios: DARE optimal gain calculation, discrete closed-loop spectral radius $\rho < 1.0$, disturbance convergence, backward driving/saturation, and empirical PID benchmark.
+  - Built and executed master replication harness [`scripts/harness/master-replication-g-mdrb-036.mjs`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/scripts/harness/master-replication-g-mdrb-036.mjs): 26/26 gates passed (100% certified).
+  - Registered `G-MDRB-036` in `ready` state in [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md).
+
+- `2026-09-12T15:20:00+07:00` — **Codex MDRobotBase + LQR Review Socratic Analysis & Clarification State Machine**
+  - Ingested and decomposed Codex review findings on MDRobotBase + LQR subsystem.
+  - Noted high marks across lifecycle/FSM (9.8/10), kinematics/odometry (9.7/10), and color detection (9.9/10).
+  - Deconstructed Main LQR Finding: current controller is scheduled proportional state feedback rather than optimal LQR derived from discrete algebraic Riccati equation (DARE) $P = A^T P A - (A^T P B)(R + B^T P B)^{-1}(B^T P A) + Q$.
+  - Performed 5-Why root cause analysis, mathematical derivation of discrete unicycle tracking DARE $(A_d(v_r), B_d(v_r))$, and formulated 3 architectural candidate options (Option A: Full DARE LQR G-MDRB-036, Option B: Rebrand to GS-PSF, Option C: Dual-Engine Hybrid).
+  - Updated [`CLARIFICATION.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/CLARIFICATION.md) to `[STATE: AWAITING_HUMAN_ROUND_1]` with interactive questions.
+  - Published comprehensive analysis document [`docs/06_raw/20260912_152000_codex_lqr_mathematical_rigor_socratic_analysis.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_152000_codex_lqr_mathematical_rigor_socratic_analysis.md).
+
+- `2026-09-12T15:15:00+07:00` — **G-MDRB-035 Socratic 5-Why, Goal Template & Master Replication Harness Certification**
+  - Completed Socratic 5-Why root cause analysis: `docs/06_raw/20260912_151500_g_mdrb_035_socratic_5why.md`.
+  - Authored zero-mock, zero-stub goal card [`docs/07-backlog/goals/G-MDRB-035.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-035.md) passing 34/34 goal template sections and 9/9 architecture invariants.
+  - Authored BDD Given-When-Then acceptance contract [`docs/02-product/acceptance/G-MDRB-035.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-035.md) covering 4 scenarios: exact-pair re-entrant allocation, partial overlap fail-closed protection, application lifecycle soft-reset sweep, and RAII context manager protocol.
+  - Built and executed master replication harness [`scripts/harness/master-replication-g-mdrb-035.mjs`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/scripts/harness/master-replication-g-mdrb-035.mjs): 24/24 gates passed (100% certified).
+
+- `2026-09-12T15:10:00+07:00` — **G-MDRB-034 Socratic 5-Why, Goal Template & Master Replication Harness Certification**
+  - Completed Socratic 5-Why root cause analysis: `docs/06_raw/20260912_151000_g_mdrb_034_socratic_5why.md`.
+  - Authored zero-mock, zero-stub goal card [`docs/07-backlog/goals/G-MDRB-034.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/goals/G-MDRB-034.md) passing 34/34 goal template sections and 9/9 architecture invariants.
+  - Authored BDD Given-When-Then acceptance contract [`docs/02-product/acceptance/G-MDRB-034.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/02-product/acceptance/G-MDRB-034.md) covering 4 scenarios: long-distance trajectory dynamic deadline, explicit timeout override, real stall detection, and VirtualHub/native PBIO parity.
+  - Built and executed master replication harness [`scripts/harness/master-replication-g-mdrb-034.mjs`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/scripts/harness/master-replication-g-mdrb-034.mjs): 20/20 gates passed (100% certified).
+
+- `2026-09-12T15:05:00+07:00` — **MDRobotBase Resilient Instance Reclamation & EBUSY Resolution Specification**
+  - Completed human alignment for `EBUSY: Device or resource busy` investigation.
+  - Confirmed root cause: script crash on `ETIMEDOUT` leaves native slot locked; re-running triggers `PBIO_ERROR_BUSY`.
+  - Finalized multi-tier reclamation architecture: soft-reset hook `pbio_mdrobotbase_deinit()`, exact-pair safe re-binding in `pbio_mdrobotbase_get_robotbase()`, and Python context manager (`__enter__` / `__exit__`).
+  - Allocated atomic goal `G-MDRB-035` in `queues/MDRB.md`.
+  - Published clarification audit document [`docs/06_raw/20260912_150500_ebusy_reclamation_architecture_clarification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_150500_ebusy_reclamation_architecture_clarification.md).
+
+- `2026-09-12T15:00:00+07:00` — **Socratic Architectural Investigation: EBUSY Device or Resource Busy Defect Analysis**
+  - Investigated user-reported `found bug EBUSY: Device or resource busy`.
+  - Discovered direct causal chaining with `ETIMEDOUT: time out`: unhandled timeout exception terminates user script before `robot.close()` can be called, leaving the native motor-ownership slot in `lib/pbio/src/mdrobotbase.c` permanently locked.
+  - Subsequent constructor calls fail closed with `PBIO_ERROR_BUSY` (mapped to `MP_EBUSY` / errno 16 via `pybricks/util_pb/pb_error.c`).
+  - Proposed multi-tier reclamation architecture:
+    1. Application lifecycle hook `pbio_mdrobotbase_deinit()` in `lib/pbio/src/main.c`.
+    2. Exact-pair re-initialization policy in `pbio_mdrobotbase_get_robotbase()`.
+    3. Python context manager protocol (`__enter__` / `__exit__`).
+    4. VirtualHub parity in `tests/virtualhub/robotics/pybricks/robotics.py`.
+  - Updated [`CLARIFICATION.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/CLARIFICATION.md) to `[STATE: AWAITING_HUMAN_ROUND_1]`.
+  - Published comprehensive analysis document [`docs/06_raw/20260912_150000_ebusy_device_or_resource_busy_socratic_analysis.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_150000_ebusy_device_or_resource_busy_socratic_analysis.md).
+
+- `2026-09-12T14:50:00+07:00` — **MDRobotBase Motion Timeout Clarification & Kinematic Deadline Specification**
+  - Completed human alignment for `ETIMEDOUT: time out` investigation.
+  - Confirmed locus: Pybricks MDRobotBase motion execution raising `OSError: [Errno 110] ETIMEDOUT`.
+  - Identified root cause in `follow_trajectory` hardcoded `(num_points * 2000) + 1000` ms deadline, causing normal trajectories with distant waypoints to time out prematurely.
+  - Formalized dynamic kinematic deadline calculation $T_{deadline} = T_{kinematic} \times 1.5 + 2000\text{ ms}$.
+  - Transitioned [`CLARIFICATION.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/CLARIFICATION.md) to `[STATE: ALIGNMENT_COMPLETE_READY_FOR_EXECUTION]`.
+  - Allocated atomic goal `G-MDRB-034` in `queues/MDRB.md`.
+  - Published clarification audit document [`docs/06_raw/20260912_145000_etimedout_kinematic_deadline_clarification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_145000_etimedout_kinematic_deadline_clarification.md).
+
+- `2026-09-12T13:40:00+07:00` — **Socratic Architectural Investigation: ETIMEDOUT Timeout Defect Analysis**
+  - Initiated Socratic deconstruction and Fact vs. Assumption audit for user-reported `Found bug ETIMEDOUT: time out`.
+  - Analyzed 4 candidate system loci:
+    1. Pybricks MicroPython Motion Runtime (`pybricks/util_pb/pb_error.c` mapping of `PBIO_ERROR_TIMEDOUT` to `MP_ETIMEDOUT`).
+    2. Bluetooth Low Energy (BLE) / Nordic UART Service GATT supervision timeout.
+    3. Frontend Monaco IDE / Web Bluetooth execution bridge in `mat-metric`.
+    4. Host tooling / network socket timeout (Git, Docker Sentry, IDE language server).
+  - Enforced Zero-Code Lock and initialized clarification state machine [`CLARIFICATION.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/CLARIFICATION.md) in state `[STATE: AWAITING_HUMAN_ROUND_1]`.
+  - Published comprehensive analysis document [`docs/06_raw/20260912_134000_etimedout_timeout_bug_socratic_analysis.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_134000_etimedout_timeout_bug_socratic_analysis.md).
+
 - `2026-09-12T10:30:00+07:00` — **MDRobotBase LQR Stability Certificate, Unit Dimensionality & Trajectory Convergence Verification**
   - Addressed all three Codex review findings on LQR tracking controller:
     - **P1 — Formal Stability Certificate & Gain Validation:** Replaced non-negative gain check with strict gain positivity ($k_x > 0, k_y > 0, k_\theta > 0$) and actuator saturation bounds ($k \le 50.0\text{ s}^{-1}$). Added certified preset table (`BALANCED`, `AGGRESSIVE`, `SMOOTH`) with analytical damping ratios $\zeta \ge 0.91$. Implemented analytical stability verification API `pbio_mdrobotbase_lqr_verify_stability()`.

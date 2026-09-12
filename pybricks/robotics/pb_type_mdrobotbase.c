@@ -1077,6 +1077,60 @@ static mp_obj_t pb_type_MDRobotBase_get_gear_ratio(mp_obj_t self_in) {
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_gear_ratio_obj,
                                  pb_type_MDRobotBase_get_gear_ratio);
 
+// Documented standard angular speed for trajectory and navigation heading changes (G-MDRB-034)
+#define MDROBOTBASE_DEFAULT_WAYPOINT_TURN_RATE_DPS 200.0f
+
+// Centralized kinematic motion deadline calculation adhering to G-MDRB-034
+static uint32_t mdrobotbase_calculate_motion_deadline_ms(
+    float distance_mm,
+    float angle_deg,
+    float speed_linear,
+    float turn_rate_dps,
+    float accel_linear,
+    float decel_linear,
+    float accel_angular,
+    float decel_angular,
+    mp_obj_t timeout_ms_obj) {
+
+  if (timeout_ms_obj != mp_const_none) {
+    int32_t t_arg = pb_obj_get_int(timeout_ms_obj);
+    if (t_arg < 0) {
+      mp_raise_ValueError(MP_ERROR_TEXT("timeout_ms must be non-negative"));
+    }
+    return (uint32_t)t_arg;
+  }
+
+  float t_linear = 0.0f;
+  float abs_dist = fabsf(distance_mm);
+  if (abs_dist > 1e-3f) {
+    float v_eff = fabsf(speed_linear) > 1e-3f ? fabsf(speed_linear) : 100.0f;
+    float a_acc = fabsf(accel_linear) > 1e-3f ? fabsf(accel_linear) : 200.0f;
+    float a_dec = fabsf(decel_linear) > 1e-3f ? fabsf(decel_linear) : 200.0f;
+    float t_cruise = abs_dist / v_eff;
+    float t_ramp = (v_eff / a_acc) + (v_eff / a_dec);
+    t_linear = t_cruise + t_ramp;
+  }
+
+  float t_angular = 0.0f;
+  float abs_angle = fabsf(angle_deg);
+  if (abs_angle > 1e-3f) {
+    float omega_eff = fabsf(turn_rate_dps) > 1e-3f ? fabsf(turn_rate_dps) : MDROBOTBASE_DEFAULT_WAYPOINT_TURN_RATE_DPS;
+    float alpha_acc = fabsf(accel_angular) > 1e-3f ? fabsf(accel_angular) : 400.0f;
+    float alpha_dec = fabsf(decel_angular) > 1e-3f ? fabsf(decel_angular) : 400.0f;
+    float t_rot = abs_angle / omega_eff;
+    float t_ramp_rot = (omega_eff / alpha_acc) + (omega_eff / alpha_dec);
+    t_angular = t_rot + t_ramp_rot;
+  }
+
+  float t_kinematic = t_linear + t_angular;
+  // Strict integer floor per G-MDRB-034 contract with floating-point epsilon guard
+  uint32_t deadline = (uint32_t)floorf((t_kinematic * 1.5f * 1000.0f) + 1e-4f) + 2000;
+  if (deadline < 1500) {
+    deadline = 1500;
+  }
+  return deadline;
+}
+
 // pybricks.robotics.MDRobotBase.navigate_to_goal
 static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
                                                      const mp_obj_t *pos_args,
@@ -1232,27 +1286,25 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
     }
   }
 
-  float turn_speed = self->rb->max_turn_speed > 10.0f ? self->rb->max_turn_speed : 200.0f;
+  float turn_speed = MDROBOTBASE_DEFAULT_WAYPOINT_TURN_RATE_DPS;
+  float total_turn_angle = 0.0f;
   if (total_dist > 5.0f) {
     float path_theta_init = atan2f(dy_init, dx_init) * (180.0f / 3.14159265f);
     if (back) path_theta_init += 180.0f;
     float init_turn_diff = fabsf(mdrobotbase_wrap_degrees(path_theta_init - cur_theta));
-    t_expected += (init_turn_diff / turn_speed);
+    total_turn_angle += init_turn_diff;
   }
   if (goal_theta_obj != mp_const_none) {
     float gt_val = mp_obj_get_float(goal_theta_obj);
     float path_theta_init = atan2f(dy_init, dx_init) * (180.0f / 3.14159265f);
     if (back) path_theta_init += 180.0f;
     float final_turn_diff = fabsf(mdrobotbase_wrap_degrees(gt_val - path_theta_init));
-    t_expected += (final_turn_diff / turn_speed);
+    total_turn_angle += final_turn_diff;
   }
 
-  uint32_t timeout;
-  if (timeout_ms_obj == mp_const_none) {
-    timeout = (uint32_t)(t_expected * 1300.0f) + 800;
-  } else {
-    timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
-  }
+  uint32_t timeout = mdrobotbase_calculate_motion_deadline_ms(
+      total_dist, total_turn_angle, speed, turn_speed,
+      accel_d, decel_d, 400.0f, 400.0f, timeout_ms_obj);
 
   float gt = 0.0f;
   if (goal_theta_obj == mp_const_none) {
@@ -1545,27 +1597,9 @@ static mp_obj_t pb_type_MDRobotBase_turn_to_angle(size_t n_args,
   float e_theta_init = mdrobotbase_wrap_degrees(target_angle - cur_theta);
   float turn_angle = fabsf(e_theta_init);
 
-  uint32_t timeout;
-  if (timeout_ms_obj == mp_const_none) {
-    float v_cruise = speed_deg_s < self->rb->max_turn_speed ? speed_deg_s : self->rb->max_turn_speed;
-    if (v_cruise < 10.0f) v_cruise = 150.0f;
-    float v_start = start_speed < v_cruise ? start_speed : v_cruise;
-    float v_end = end_speed < v_cruise ? end_speed : v_cruise;
-
-    float t_accel = (accel_angle > 0.0f && (v_start + v_cruise) > 0.0f) ? (2.0f * accel_angle) / (v_start + v_cruise) : 0.0f;
-    float t_decel = (decel_angle > 0.0f && (v_cruise + v_end) > 0.0f) ? (2.0f * decel_angle) / (v_cruise + v_end) : 0.0f;
-    float t_cruise = 0.0f;
-    if (turn_angle > (accel_angle + decel_angle)) {
-      t_cruise = (turn_angle - (accel_angle + decel_angle)) / v_cruise;
-    } else {
-      t_accel *= 0.5f;
-      t_decel *= 0.5f;
-    }
-    float t_total = t_accel + t_cruise + t_decel;
-    timeout = (uint32_t)(t_total * 1000.0f * 1.6f) + 1200;
-  } else {
-    timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
-  }
+  uint32_t timeout = mdrobotbase_calculate_motion_deadline_ms(
+      0.0f, turn_angle, 0.0f, speed_deg_s,
+      200.0f, 200.0f, 400.0f, 400.0f, timeout_ms_obj);
 
   pb_type_mdrobotbase_cancel_active_motion(self);
   pb_type_mdrobotbase_motion_reset(self);
@@ -1721,28 +1755,9 @@ static mp_obj_t pb_type_MDRobotBase_pivot_turn_to_angle(size_t n_args,
     }
   }
 
-  uint32_t timeout;
-  if (timeout_ms_obj == mp_const_none) {
-    float v_cruise = speed_deg_s < self->rb->max_pivot_speed ? speed_deg_s : self->rb->max_pivot_speed;
-    if (v_cruise < 10.0f) v_cruise = 100.0f;
-    float v_start = start_speed < v_cruise ? start_speed : v_cruise;
-    float v_end = end_speed < v_cruise ? end_speed : v_cruise;
-
-    float t_accel = (accel_angle > 0.0f && (v_start + v_cruise) > 0.0f) ? (2.0f * accel_angle) / (v_start + v_cruise) : 0.0f;
-    float t_decel = (decel_angle > 0.0f && (v_cruise + v_end) > 0.0f) ? (2.0f * decel_angle) / (v_cruise + v_end) : 0.0f;
-    float t_cruise = 0.0f;
-    if (turn_angle > (accel_angle + decel_angle)) {
-      t_cruise = (turn_angle - (accel_angle + decel_angle)) / v_cruise;
-    } else {
-      t_accel *= 0.5f;
-      t_decel *= 0.5f;
-    }
-    float t_total = t_accel + t_cruise + t_decel;
-    // Pivot turns scale by 2.0x for double turn radius inertia + 1500ms padding
-    timeout = (uint32_t)(t_total * 1000.0f * 2.0f) + 1500;
-  } else {
-    timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
-  }
+  uint32_t timeout = mdrobotbase_calculate_motion_deadline_ms(
+      0.0f, turn_angle, 0.0f, speed_deg_s,
+      200.0f, 200.0f, 400.0f, 400.0f, timeout_ms_obj);
 
   pb_type_mdrobotbase_cancel_active_motion(self);
   pb_type_mdrobotbase_motion_reset(self);
@@ -1943,12 +1958,31 @@ static mp_obj_t pb_type_MDRobotBase_follow_trajectory(size_t n_args,
     temp_y[i] = py;
   }
 
-  uint32_t timeout;
-  if (timeout_ms_obj == mp_const_none) {
-    timeout = (uint32_t)(num_points * 2000) + 1000;
-  } else {
-    timeout = (uint32_t)pb_obj_get_int(timeout_ms_obj);
+  float total_dist = 0.0f;
+  float total_turn_angle = 0.0f;
+  float prev_seg_theta = self->rb->theta;
+
+  for (size_t i = 0; i < num_points - 1; i++) {
+    float dx = temp_x[i + 1] - temp_x[i];
+    float dy = temp_y[i + 1] - temp_y[i];
+    float seg_dist = sqrtf(dx * dx + dy * dy);
+    total_dist += seg_dist;
+
+    if (seg_dist > 1e-2f) {
+      float seg_theta = atan2f(dy, dx) * (180.0f / 3.14159265f);
+      if (back) {
+        seg_theta += 180.0f;
+      }
+      float diff = fabsf(mdrobotbase_wrap_degrees(seg_theta - prev_seg_theta));
+      total_turn_angle += diff;
+      prev_seg_theta = seg_theta;
+    }
   }
+
+  float turn_speed = MDROBOTBASE_DEFAULT_WAYPOINT_TURN_RATE_DPS;
+  uint32_t timeout = mdrobotbase_calculate_motion_deadline_ms(
+      total_dist, total_turn_angle, speed, turn_speed,
+      accel_d, decel_d, 400.0f, 400.0f, timeout_ms_obj);
 
   pb_type_mdrobotbase_cancel_active_motion(self);
   pb_type_mdrobotbase_motion_reset(self);

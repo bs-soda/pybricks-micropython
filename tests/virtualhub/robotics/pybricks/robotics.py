@@ -11,6 +11,7 @@ and fail-closed lifecycle safety.
 import asyncio
 import functools
 import math
+import time
 from typing import Any, List, Optional, Tuple
 from .parameters import Stop
 from .pupdevices import Motor
@@ -87,6 +88,7 @@ class MDRobotBase:
         self._theta = 0.0
         self._motion_in_progress = False
         self._status = 0  # 0: NONE/IDLE, 1: MOVING, 2: COMPLETED
+        self._last_calculated_deadline_ms = 1500
         self._current_task: Optional[asyncio.Task] = None
 
         # Control gains & limits
@@ -181,12 +183,16 @@ class MDRobotBase:
         self._status = 3
         self._motion_in_progress = False
         self._stalled = True
+        self.left_motor.stop()
+        self.right_motor.stop()
 
     @_require_open
     def motion_timeout(self):
         """FSM Semantic helper: marks motion timed out."""
         self._status = 4
         self._motion_in_progress = False
+        self.left_motor.stop()
+        self.right_motor.stop()
 
     @_require_open
     def motion_reset(self):
@@ -217,6 +223,110 @@ class MDRobotBase:
     def get_gear_ratio(self) -> float:
         """Returns current motor gear ratio."""
         return self._gear_ratio
+
+    @_require_open
+    def get_last_deadline_ms(self) -> int:
+        """Returns the most recent motion deadline in milliseconds."""
+        return getattr(self, "_last_calculated_deadline_ms", 1500)
+
+    # Documented standard angular speed for trajectory and navigation heading changes (G-MDRB-034)
+    DEFAULT_WAYPOINT_TURN_RATE_DPS: float = 200.0
+
+    @_require_open
+    def calculate_motion_deadline_ms(
+        self,
+        distance_mm: float = 0.0,
+        angle_deg: float = 0.0,
+        speed_linear: float = 150.0,
+        turn_rate_dps: float = 200.0,
+        accel_linear: float = 200.0,
+        decel_linear: float = 200.0,
+        accel_angular: float = 400.0,
+        decel_angular: float = 400.0,
+        timeout_ms: Optional[int] = None,
+    ) -> int:
+        """Centralized kinematic motion deadline calculation adhering to G-MDRB-034."""
+        if timeout_ms is not None:
+            if not isinstance(timeout_ms, int) or timeout_ms < 0:
+                raise ValueError("timeout_ms must be a non-negative integer")
+            self._last_calculated_deadline_ms = int(timeout_ms)
+            return int(timeout_ms)
+
+        t_linear = 0.0
+        abs_dist = abs(float(distance_mm))
+        if abs_dist > 1e-3:
+            v_eff = abs(float(speed_linear)) if abs(float(speed_linear)) > 1e-3 else 100.0
+            a_acc = abs(float(accel_linear)) if abs(float(accel_linear)) > 1e-3 else 200.0
+            a_dec = abs(float(decel_linear)) if abs(float(decel_linear)) > 1e-3 else 200.0
+            t_cruise = abs_dist / v_eff
+            t_ramp = (v_eff / a_acc) + (v_eff / a_dec)
+            t_linear = t_cruise + t_ramp
+
+        t_angular = 0.0
+        abs_angle = abs(float(angle_deg))
+        if abs_angle > 1e-3:
+            omega_eff = abs(float(turn_rate_dps)) if abs(float(turn_rate_dps)) > 1e-3 else self.DEFAULT_WAYPOINT_TURN_RATE_DPS
+            alpha_acc = abs(float(accel_angular)) if abs(float(accel_angular)) > 1e-3 else 400.0
+            alpha_dec = abs(float(decel_angular)) if abs(float(decel_angular)) > 1e-3 else 400.0
+            t_rot = abs_angle / omega_eff
+            t_ramp_rot = (omega_eff / alpha_acc) + (omega_eff / alpha_dec)
+            t_angular = t_rot + t_ramp_rot
+
+        t_kinematic = t_linear + t_angular
+        # Strict integer floor per G-MDRB-034 contract with floating-point epsilon guard
+        deadline = max(1500, int(math.floor(t_kinematic * 1.5 * 1000.0 + 1e-6)) + 2000)
+        self._last_calculated_deadline_ms = deadline
+        return deadline
+
+    @_require_open
+    def calculate_trajectory_deadline_ms(
+        self,
+        points: List[Any],
+        speed_mm_s: float = 150.0,
+        accel_mm_s2: float = 200.0,
+        decel_mm_s2: float = 200.0,
+        timeout_ms: Optional[int] = None,
+        back: bool = False,
+    ) -> int:
+        """Calculates kinematic deadline for trajectory including segment distances and heading changes."""
+        if timeout_ms is not None:
+            return self.calculate_motion_deadline_ms(timeout_ms=timeout_ms)
+
+        total_dist = 0.0
+        total_turn_angle = 0.0
+        prev_theta = getattr(self, "_theta", 0.0)
+
+        for i in range(len(points) - 1):
+            dx = float(points[i + 1][0]) - float(points[i][0])
+            dy = float(points[i + 1][1]) - float(points[i][1])
+            dist = math.hypot(dx, dy)
+            total_dist += dist
+            if dist > 1e-2:
+                seg_theta = math.degrees(math.atan2(dy, dx))
+                if back:
+                    seg_theta += 180.0
+                diff = abs((seg_theta - prev_theta + 180.0) % 360.0 - 180.0)
+                total_turn_angle += diff
+                prev_theta = seg_theta
+
+        return self.calculate_motion_deadline_ms(
+            distance_mm=total_dist,
+            angle_deg=total_turn_angle,
+            speed_linear=speed_mm_s,
+            turn_rate_dps=self.DEFAULT_WAYPOINT_TURN_RATE_DPS,
+            accel_linear=accel_mm_s2,
+            decel_linear=decel_mm_s2,
+            accel_angular=400.0,
+            decel_angular=400.0,
+            timeout_ms=timeout_ms,
+        )
+
+    def __check_motion_timeout(self, started_ms: float, resolved_timeout_ms: int) -> None:
+        """Enforces deadline expiration based on actual elapsed monotonic clock time."""
+        now_ms = time.monotonic() * 1000.0
+        if (now_ms - started_ms) >= resolved_timeout_ms:
+            self.motion_timeout()
+            raise OSError(110, "ETIMEDOUT: time out")
 
     @_require_open
     def set_wheel_diameters(self, left: float, right: float):
@@ -276,7 +386,14 @@ class MDRobotBase:
         self._motion_in_progress = False
 
     @_require_open
-    def straight(self, distance: float, speed_mm_s: float = 200.0):
+    def straight(
+        self,
+        distance: float,
+        speed_mm_s: float = 200.0,
+        timeout_ms: Optional[int] = None,
+        accel_mm_s2: float = 200.0,
+        decel_mm_s2: float = 200.0,
+    ):
         """Drives straight for distance mm at specified velocity."""
         dist = float(distance)
         spd = float(speed_mm_s)
@@ -285,12 +402,21 @@ class MDRobotBase:
         if not math.isfinite(spd) or spd <= 0.0:
             raise ValueError("speed must be positive")
 
+        resolved_timeout_ms = self.calculate_motion_deadline_ms(
+            distance_mm=dist,
+            speed_linear=spd,
+            accel_linear=accel_mm_s2,
+            decel_linear=decel_mm_s2,
+            timeout_ms=timeout_ms,
+        )
+
         async def _motion():
             self.__cancel_active_motion()
             self._motion_in_progress = True
             self._status = 1
+            started_ms = time.monotonic() * 1000.0
             try:
-                steps = 10
+                steps = max(10, min(60, int(abs(dist) / 20.0)))
                 rad = math.radians(self._theta)
                 step_dist = dist / steps
                 dx = step_dist * math.cos(rad)
@@ -299,16 +425,18 @@ class MDRobotBase:
                 motor_deg_right = (dist / (math.pi * self._wheel_diameter_right)) * 360.0 * self._gear_ratio
 
                 for _ in range(steps):
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     if self.stalled():
-                        self._status = 3
+                        self.motion_stall()
                         break
                     await asyncio.sleep(0.01)
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     self._x += dx
                     self._y += dy
                     self.left_motor._angle += motor_deg_left / steps
                     self.right_motor._angle += motor_deg_right / steps
 
-                if self._status != 3:
+                if self._status != 3 and self._status != 4:
                     self._status = 2
             except asyncio.CancelledError:
                 pass
@@ -328,7 +456,13 @@ class MDRobotBase:
         return self.straight(-distance, speed_mm_s)
 
     @_require_open
-    def turn_to_angle(self, target_angle: float, speed_deg_s: float = 200.0, tolerance: float = 1.0):
+    def turn_to_angle(
+        self,
+        target_angle: float,
+        speed_deg_s: float = 200.0,
+        tolerance: float = 1.0,
+        timeout_ms: Optional[int] = None,
+    ):
         """Turns in-place to an absolute heading angle in degrees."""
         if not isinstance(target_angle, (int, float)) or not math.isfinite(target_angle):
             raise ValueError("target angle must be finite")
@@ -337,31 +471,43 @@ class MDRobotBase:
         if not isinstance(tolerance, (int, float)) or tolerance <= 0.0 or not math.isfinite(tolerance):
             raise ValueError("tolerance must be positive")
 
+        delta_theta = abs(float(target_angle) - self._theta)
+        resolved_timeout_ms = self.calculate_motion_deadline_ms(
+            angle_deg=delta_theta,
+            turn_rate_dps=float(speed_deg_s),
+            accel_angular=400.0,
+            decel_angular=400.0,
+            timeout_ms=timeout_ms,
+        )
+
         async def _motion():
             self.__cancel_active_motion()
             self._motion_in_progress = True
             self._status = 1
+            started_ms = time.monotonic() * 1000.0
             try:
-                steps = 5
+                steps = max(5, min(40, int(delta_theta / 10.0)))
                 start_theta = self._theta
                 target = float(target_angle)
-                delta_theta = target - start_theta
-                step_angle = delta_theta / steps
+                delta_th = target - start_theta
+                step_angle = delta_th / steps
 
-                arc_wheel = math.radians(delta_theta) * (self._axle_track / 2.0)
+                arc_wheel = math.radians(delta_th) * (self._axle_track / 2.0)
                 motor_deg_left = (-arc_wheel / (math.pi * self._wheel_diameter_left)) * 360.0 * self._gear_ratio
                 motor_deg_right = (arc_wheel / (math.pi * self._wheel_diameter_right)) * 360.0 * self._gear_ratio
 
                 for _ in range(steps):
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     if self.stalled():
-                        self._status = 3
+                        self.motion_stall()
                         break
                     await asyncio.sleep(0.01)
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     self._theta += step_angle
                     self.left_motor._angle += motor_deg_left / steps
                     self.right_motor._angle += motor_deg_right / steps
 
-                if self._status != 3:
+                if self._status != 3 and self._status != 4:
                     self._theta = target
                     self._status = 2
             except asyncio.CancelledError:
@@ -372,16 +518,27 @@ class MDRobotBase:
         return _motion()
 
     @_require_open
-    def turn_angle(self, delta_angle: float, speed_deg_s: float = 200.0, tolerance: float = 1.0):
+    def turn_angle(
+        self,
+        delta_angle: float,
+        speed_deg_s: float = 200.0,
+        tolerance: float = 1.0,
+        timeout_ms: Optional[int] = None,
+    ):
         """Turns in-place by a relative angle in degrees."""
         if not isinstance(delta_angle, (int, float)) or not math.isfinite(delta_angle):
             raise ValueError("delta angle must be finite")
         target = self._theta + float(delta_angle)
-        return self.turn_to_angle(target, speed_deg_s, tolerance)
+        return self.turn_to_angle(target, speed_deg_s, tolerance, timeout_ms=timeout_ms)
 
     @_require_open
     def pivot_turn_to_angle(
-        self, target_angle: float, speed_deg_s: float = 150.0, tolerance: float = 1.0, pivot_side: str = "left"
+        self,
+        target_angle: float,
+        speed_deg_s: float = 150.0,
+        tolerance: float = 1.0,
+        pivot_side: str = "left",
+        timeout_ms: Optional[int] = None,
     ):
         """Pivot turns around one wheel to an absolute heading."""
         if not isinstance(target_angle, (int, float)) or not math.isfinite(target_angle):
@@ -389,18 +546,28 @@ class MDRobotBase:
         if not isinstance(speed_deg_s, (int, float)) or speed_deg_s <= 0.0 or not math.isfinite(speed_deg_s):
             raise ValueError("speed must be positive")
 
+        delta_theta = abs(float(target_angle) - self._theta)
+        resolved_timeout_ms = self.calculate_motion_deadline_ms(
+            angle_deg=delta_theta,
+            turn_rate_dps=float(speed_deg_s),
+            accel_angular=400.0,
+            decel_angular=400.0,
+            timeout_ms=timeout_ms,
+        )
+
         async def _motion():
             self.__cancel_active_motion()
             self._motion_in_progress = True
             self._status = 1
+            started_ms = time.monotonic() * 1000.0
             try:
-                steps = 5
+                steps = max(5, min(40, int(delta_theta / 10.0)))
                 start_theta = self._theta
                 target = float(target_angle)
-                delta_theta = target - start_theta
-                step_angle = delta_theta / steps
+                delta_th = target - start_theta
+                step_angle = delta_th / steps
 
-                arc_pivot = math.radians(delta_theta) * self._axle_track
+                arc_pivot = math.radians(delta_th) * self._axle_track
                 if pivot_side.lower() == "left":
                     motor_deg_left = 0.0
                     motor_deg_right = (arc_pivot / (math.pi * self._wheel_diameter_right)) * 360.0 * self._gear_ratio
@@ -409,15 +576,17 @@ class MDRobotBase:
                     motor_deg_right = 0.0
 
                 for _ in range(steps):
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     if self.stalled():
-                        self._status = 3
+                        self.motion_stall()
                         break
                     await asyncio.sleep(0.01)
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     self._theta += step_angle
                     self.left_motor._angle += motor_deg_left / steps
                     self.right_motor._angle += motor_deg_right / steps
 
-                if self._status != 3:
+                if self._status != 3 and self._status != 4:
                     self._theta = target
                     self._status = 2
             except asyncio.CancelledError:
@@ -438,14 +607,64 @@ class MDRobotBase:
         return self.pivot_turn_to_angle(target, speed_deg_s, tolerance, pivot_side)
 
     @_require_open
-    def navigate_to_goal(self, x: Any, y: Any, speed_mm_s: float = 200.0):
+    def navigate_to_goal(
+        self,
+        x: Any,
+        y: Any,
+        speed_mm_s: float = 200.0,
+        timeout_ms: Optional[int] = None,
+        accel_mm_s2: float = 200.0,
+        decel_mm_s2: float = 200.0,
+    ):
         """Dispatches navigation to target Cartesian coordinates."""
         if not isinstance(x, (int, float)) or not math.isfinite(x):
             raise TypeError("x coordinate must be a finite number")
         if not isinstance(y, (int, float)) or not math.isfinite(y):
             raise TypeError("y coordinate must be a finite number")
-        self._x = float(x)
-        self._y = float(y)
+
+        dx = float(x) - self._x
+        dy = float(y) - self._y
+        dist = math.hypot(dx, dy)
+        heading_diff = 0.0
+        if dist > 5.0:
+            target_heading = math.degrees(math.atan2(dy, dx))
+            heading_diff = abs((target_heading - self._theta + 180.0) % 360.0 - 180.0)
+
+        resolved_timeout_ms = self.calculate_motion_deadline_ms(
+            distance_mm=dist,
+            angle_deg=heading_diff,
+            speed_linear=speed_mm_s,
+            turn_rate_dps=self.DEFAULT_WAYPOINT_TURN_RATE_DPS,
+            accel_linear=accel_mm_s2,
+            decel_linear=decel_mm_s2,
+            timeout_ms=timeout_ms,
+        )
+
+        async def _motion():
+            self.__cancel_active_motion()
+            self._motion_in_progress = True
+            self._status = 1
+            started_ms = time.monotonic() * 1000.0
+            try:
+                steps = max(5, min(50, int(dist / 20.0)))
+                for _ in range(steps):
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
+                    if self.stalled():
+                        self.motion_stall()
+                        break
+                    await asyncio.sleep(0.01)
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
+
+                if self._status != 3 and self._status != 4:
+                    self._x = float(x)
+                    self._y = float(y)
+                    self._status = 2
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._motion_in_progress = False
+
+        return _motion()
 
     @_require_open
     def follow_trajectory(
@@ -454,6 +673,10 @@ class MDRobotBase:
         speed_mm_s: float = 150.0,
         tolerance: float = 2.0,
         speed: Optional[float] = None,
+        timeout_ms: Optional[int] = None,
+        accel_mm_s2: float = 200.0,
+        decel_mm_s2: float = 200.0,
+        back: bool = False,
     ):
         """Executes multi-waypoint path tracking with strict boundary validation."""
         if speed is not None:
@@ -482,17 +705,33 @@ class MDRobotBase:
         if not math.isfinite(tol) or tol <= 0.0:
             raise ValueError("tolerance must be positive")
 
+        resolved_timeout_ms = self.calculate_trajectory_deadline_ms(
+            points=points,
+            speed_mm_s=spd,
+            accel_mm_s2=accel_mm_s2,
+            decel_mm_s2=decel_mm_s2,
+            timeout_ms=timeout_ms,
+            back=back,
+        )
+
         async def _motion():
             self.__cancel_active_motion()
             self._motion_in_progress = True
             self._status = 1
+            started_ms = time.monotonic() * 1000.0
             try:
                 for pt in points[1:]:
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
+                    if self.stalled():
+                        self.motion_stall()
+                        break
                     tx, ty = float(pt[0]), float(pt[1])
                     await asyncio.sleep(0.01)
+                    self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     self._x = tx
                     self._y = ty
-                self._status = 2
+                if self._status != 3 and self._status != 4:
+                    self._status = 2
             except asyncio.CancelledError:
                 pass
             finally:

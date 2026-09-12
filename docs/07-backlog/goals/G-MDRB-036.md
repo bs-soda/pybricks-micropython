@@ -1,6 +1,6 @@
 # G-MDRB-036: Discrete Algebraic Riccati Equation (DARE) & Mathematically Derived Optimal LQR Tracking Controller
 
-**Status:** review
+**Status:** approved
 **Kind:** feature
 **Atomic outcome:** Implement mathematically derived optimal LQR tracking controller via Discrete Algebraic Riccati Equation (DARE) with state/control cost matrices (Q, R), discrete closed-loop eigenvalue stability verification, 8 Codex validation test scenarios, and empirical PID comparison benchmark.
 **Epic:** MDRB

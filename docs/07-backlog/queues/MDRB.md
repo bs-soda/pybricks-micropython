@@ -19,7 +19,6 @@
 | G-MDRB-032 | feature | P1 | review | REVIEW | G-MDRB-031 | [../goals/G-MDRB-032.md](../goals/G-MDRB-032.md) |
 | G-MDRB-033 | qa | P1 | review | REVIEW | G-MDRB-032 | [../goals/G-MDRB-033.md](../goals/G-MDRB-033.md) |
 | G-MDRB-034 | feature | P1 | review | REVIEW | G-MDRB-033 | [../goals/G-MDRB-034.md](../goals/G-MDRB-034.md) |
-| G-MDRB-035 | feature | P1 | review | REVIEW | G-MDRB-034 | [../goals/G-MDRB-035.md](../goals/G-MDRB-035.md) |
 
 ## Archived
 
@@ -52,3 +51,4 @@
 | G-MDRB-025 | Motion Dispatcher Modularization & Sub-Controller Decomposition | 2026-09-08 | [../goals/_archived/G-MDRB-025.md](../goals/_archived/G-MDRB-025.md) |
 | G-MDRB-026 | Submodule Provenance, License Attestation & CI Reproducibility Certification | 2026-09-08 | [../goals/_archived/G-MDRB-026.md](../goals/_archived/G-MDRB-026.md) |
 | G-MDRB-027 | Multi-Environment Runtime Test Execution Matrix, Compiler Warning Audit & Final Scorecard Attestation | 2026-09-08 | [../goals/_archived/G-MDRB-027.md](../goals/_archived/G-MDRB-027.md) |
+| G-MDRB-035 | Resilient Multi-Tier Instance Reclamation & RAII Lifecycle Management | 2026-09-12 | [../goals/_archived/G-MDRB-035.md](../goals/_archived/G-MDRB-035.md) |

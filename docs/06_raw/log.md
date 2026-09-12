@@ -4,6 +4,15 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-12
 
+- `2026-09-12T17:30:00+07:00` — **G-MDRB-035 Shipping & Archival Certification**
+  - Explicit human approval received: "approve and ship 035".
+  - Scorecard elevated to **10.0 / 10.0** following scope and process cleanup.
+  - Archived goal contract from `docs/07-backlog/goals/G-MDRB-035.md` to `docs/07-backlog/goals/_archived/G-MDRB-035.md` with status `done` and collaboration phase `SHIP`.
+  - Updated [`docs/07-backlog/queues/MDRB.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/07-backlog/queues/MDRB.md) moving `G-MDRB-035` to the Archived table.
+  - Published shipping & archival certification report [`docs/06_raw/20260912_173000_g_mdrb_035_shipping_and_archival_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_173000_g_mdrb_035_shipping_and_archival_certification.md).
+  - All 28 master replication release gates certified on exact commit `2ae6816a`.
+  - Feature branch `feature/mdrobotbase-enhancement` pushed to origin.
+
 - `2026-09-12T16:45:00+07:00` — **G-MDRB-035 Master Replication & Release Gate Certification**
   - Completed all 12 required execution steps for `G-MDRB-035`: Resilient Multi-Tier Instance Reclamation & RAII Lifecycle Management.
   - Baseline freeze and replication blocker recorded at exact-HEAD `6edb975` in [`docs/06_raw/20260912_162500_g_mdrb_035_baseline_freeze_and_replication_blocker.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_162500_g_mdrb_035_baseline_freeze_and_replication_blocker.md).

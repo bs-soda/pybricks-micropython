@@ -1,6 +1,6 @@
 # G-MDRB-035: Resilient Multi-Tier Instance Reclamation & RAII Lifecycle Management
 
-**Status:** review
+**Status:** done
 **Kind:** feature
 **Atomic outcome:** Eliminate orphaned EBUSY lockouts on script restart by implementing system lifecycle de-initialization hooks, re-entrant exact-pair motor re-binding, and Python RAII context managers while preserving fail-closed duplicate motor protection.
 **Epic:** MDRB
@@ -10,11 +10,11 @@
 
 #### Plan
 
-**Collaboration phase:** REVIEW
+**Collaboration phase:** SHIP
 
 | DEFINE | PLAN | EXECUTE | REVIEW | SHIP |
 |:------:|:----:|:-------:|:------:|:----:|
-| ○ | ○ | ○ | **●** | ○ |
+| ○ | ○ | ○ | ○ | **●** |
 
 | # | Step | Status |
 |---|------|--------|

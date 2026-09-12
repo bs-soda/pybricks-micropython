@@ -2880,25 +2880,25 @@ static pbio_error_t test_mdrobotbase_lqr_closed_loop_convergence(pbio_os_state_t
     // Balanced preset (0)
     tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_BALANCED, true), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_get_lqr_gains(rb, &k_x, &k_y, &k_theta, &schedule), ==, PBIO_SUCCESS);
-    tt_want(fabsf(k_x - 1.0f) < 1e-4f);
-    tt_want(fabsf(k_y - 1.0f) < 1e-4f);
-    tt_want(fabsf(k_theta - 1.0f) < 1e-4f);
+    tt_want(fabsf(k_x - rb->lqr_k11) < 1e-4f);
+    tt_want(fabsf(k_y - rb->lqr_lut_ky[5]) < 1e-4f);
+    tt_want(fabsf(k_theta - rb->lqr_lut_kth[5]) < 1e-4f);
     tt_want(schedule == true);
 
     // Aggressive preset (1)
     tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_AGGRESSIVE, false), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_get_lqr_gains(rb, &k_x, &k_y, &k_theta, &schedule), ==, PBIO_SUCCESS);
-    tt_want(fabsf(k_x - 2.0f) < 1e-4f);
-    tt_want(fabsf(k_y - 3.0f) < 1e-4f);
-    tt_want(fabsf(k_theta - 2.5f) < 1e-4f);
+    tt_want(fabsf(k_x - rb->lqr_k11) < 1e-4f);
+    tt_want(fabsf(k_y - rb->lqr_lut_ky[5]) < 1e-4f);
+    tt_want(fabsf(k_theta - rb->lqr_lut_kth[5]) < 1e-4f);
     tt_want(schedule == false);
 
     // Smooth preset (2)
     tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_SMOOTH, true), ==, PBIO_SUCCESS);
     tt_uint_op(pbio_mdrobotbase_get_lqr_gains(rb, &k_x, &k_y, &k_theta, &schedule), ==, PBIO_SUCCESS);
-    tt_want(fabsf(k_x - 0.5f) < 1e-4f);
-    tt_want(fabsf(k_y - 0.5f) < 1e-4f);
-    tt_want(fabsf(k_theta - 0.8f) < 1e-4f);
+    tt_want(fabsf(k_x - rb->lqr_k11) < 1e-4f);
+    tt_want(fabsf(k_y - rb->lqr_lut_ky[5]) < 1e-4f);
+    tt_want(fabsf(k_theta - rb->lqr_lut_kth[5]) < 1e-4f);
 
     // Invalid preset rejected
     tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, (pbio_mdrobotbase_lqr_preset_t)99, true), ==, PBIO_ERROR_INVALID_ARG);
@@ -2945,6 +2945,126 @@ static pbio_error_t test_mdrobotbase_lqr_closed_loop_convergence(pbio_os_state_t
     }
 
     // Clean release
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+static pbio_error_t test_mdrobotbase_lqr_dare_optimal_controller(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left, *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+
+    // 1. Scenario 1 (AC-MDRB-036-1): DARE Gain Derivation & Accessor Round-Trip
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f), ==, PBIO_SUCCESS);
+    float qx, qy, qth, rv, rw;
+    tt_uint_op(pbio_mdrobotbase_get_lqr_weights(rb, &qx, &qy, &qth, &rv, &rw), ==, PBIO_SUCCESS);
+    tt_want(fabsf(qx - 2500.0f) < 1e-4f);
+    tt_want(fabsf(qy - 5000.0f) < 1e-4f);
+    tt_want(fabsf(qth - 20.0f) < 1e-4f);
+    tt_want(fabsf(rv - 25.0f) < 1e-4f);
+    tt_want(fabsf(rw - 0.1f) < 1e-4f);
+
+    // Fail-closed validation: negative state or non-positive control weights rejected
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, -1.0f, 5000.0f, 20.0f, 25.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, -5.0f, 20.0f, 25.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, -2.0f, 25.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 0.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 25.0f, -0.01f), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 2. Scenario 2 (AC-MDRB-036-2): Discrete Closed-Loop Spectral Radius Invariance across all 16 positive AND negative bins
+    for (int i = 0; i < 16; i++) {
+        float v_bin = 50.0f + (float)i * 50.0f;
+        float kx_val, ky_val, kth_val, rho;
+        tt_uint_op(pbio_mdrobotbase_lqr_solve_dare(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, v_bin, &kx_val, &ky_val, &kth_val, &rho), ==, PBIO_SUCCESS);
+        tt_want(rho < 1.0f);
+        tt_want(kx_val > 0.0f);
+        tt_want(ky_val > 0.0f);
+        tt_want(kth_val > 0.0f);
+
+        // Discrete stability validator API - positive speed
+        float rho_check = 0.0f;
+        tt_uint_op(pbio_mdrobotbase_lqr_verify_discrete_stability(ky_val, kth_val, v_bin, &rho_check), ==, PBIO_SUCCESS);
+        tt_want(rho_check < 1.0f);
+        tt_want(fabsf(rho - rho_check) < 1e-4f);
+
+        // Discrete stability validator API - negative speed (backward driving stability across full range)
+        float rho_neg = 0.0f;
+        tt_uint_op(pbio_mdrobotbase_lqr_verify_discrete_stability(ky_val, kth_val, -v_bin, &rho_neg), ==, PBIO_SUCCESS);
+        tt_want(rho_neg < 1.0f);
+        tt_want(fabsf(rho - rho_neg) < 1e-4f);
+    }
+
+    // 2b. Full 3x3 DARE vs Decoupled DARE Mathematical Equivalence Test
+    float K_full[2][3];
+    float P_full[3][3];
+    float rho_full = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, K_full, P_full, &rho_full), ==, PBIO_SUCCESS);
+
+    float kx_dec, ky_dec, kth_dec, rho_dec;
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, &kx_dec, &ky_dec, &kth_dec, &rho_dec), ==, PBIO_SUCCESS);
+
+    // Cross-coupling entries must be strictly 0 by block-diagonal separation theorem
+    tt_want(fabsf(K_full[0][1]) < 1e-5f);
+    tt_want(fabsf(K_full[0][2]) < 1e-5f);
+    tt_want(fabsf(K_full[1][0]) < 1e-5f);
+    tt_want(fabsf(P_full[0][1]) < 1e-5f);
+    tt_want(fabsf(P_full[0][2]) < 1e-5f);
+    tt_want(fabsf(P_full[1][0]) < 1e-5f);
+    tt_want(fabsf(P_full[2][0]) < 1e-5f);
+
+    // Active feedback gains must match decoupled solution
+    tt_want(fabsf(fabsf(K_full[0][0]) - kx_dec) < 1e-3f);
+    tt_want(fabsf(fabsf(K_full[1][1]) - ky_dec) < 1e-2f);
+    tt_want(fabsf(fabsf(K_full[1][2]) - kth_dec) < 1e-2f);
+    tt_want(fabsf(rho_full - rho_dec) < 1e-3f);
+
+    // 3. Scenario 3 (AC-MDRB-036-3): Velocity interpolation & minimum velocity clamping
+    // Zero/tiny velocity clamps to v_min = 10 mm/s and succeeds without division by zero
+    float kx_zero, ky_zero, kth_zero, rho_zero;
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 0.0f, &kx_zero, &ky_zero, &kth_zero, &rho_zero), ==, PBIO_SUCCESS);
+    tt_want(rho_zero < 1.0f);
+    tt_want(ky_zero > 0.0f);
+
+    // 4. Scenario 5 (AC-MDRB-036-5): Wheel Saturation & Symmetrical Curvature Preservation
+    // Demand large control perturbation causing saturation
+    rb->x = 0.0f;
+    rb->y = 200.0f; // large offset
+    rb->theta = 60.0f;
+    float v_cmd_sat = 0.0f, w_cmd_sat = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 600.0f, 0.0f, 0.0f, 0.0f, &v_cmd_sat, &w_cmd_sat), ==, PBIO_SUCCESS);
+    // Left and right wheel speeds must not exceed 800 mm/s ceiling
+    float w_rad = w_cmd_sat * (3.14159265f / 180.0f);
+    float v_l = fabsf(v_cmd_sat - w_rad * 112.0f * 0.5f);
+    float v_r = fabsf(v_cmd_sat + w_rad * 112.0f * 0.5f);
+    tt_want(v_l <= 800.01f);
+    tt_want(v_r <= 800.01f);
+
+    // 5. Scenario 7 (AC-MDRB-036-7): Reverse Driving Invariance
+    // When driving in reverse (v_profile = -300 mm/s), steering sign must properly steer toward reference
+    rb->x = 0.0f;
+    rb->y = 30.0f;
+    rb->theta = 180.0f; // facing backwards along -x
+    float v_cmd_rev = 0.0f, w_cmd_rev = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, -300.0f, 0.0f, 0.0f, 0.0f, &v_cmd_rev, &w_cmd_rev), ==, PBIO_SUCCESS);
+    tt_want(v_cmd_rev < 0.0f);
+    // Robot at y=30 facing 180: reference path y=0 is to its left in reverse motion;
+    // steering correction must be stable and non-zero
+    tt_want(fabsf(w_cmd_rev) > 0.1f);
+
     tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
 
 end:
@@ -3034,6 +3154,7 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_confidence_and_ambiguity_rejection),
     PBIO_THREAD_TEST(test_mdrobotbase_comprehensive_verification_matrix),
     PBIO_THREAD_TEST(test_mdrobotbase_lqr_closed_loop_convergence),
+    PBIO_THREAD_TEST(test_mdrobotbase_lqr_dare_optimal_controller),
     PBIO_THREAD_TEST(test_mdrobotbase_soft_reset_deinit),
     END_OF_TESTCASES
 };

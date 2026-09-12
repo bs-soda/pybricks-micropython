@@ -66,6 +66,9 @@ graph TD
 | [`G-MDRB-031`](../goals/G-MDRB-031.md) | **P2** | Statistical Prototype Model | 4/10 → 9.8/10 | Multi-sample prototype modeling (`color_class_t`) with online Welford mean, variance, and outlier filtering. |
 | [`G-MDRB-032`](../goals/G-MDRB-032.md) | **P1** | Ambiguity & Margin Engine | 3/10 → 9.8/10 | Second-best candidate margin evaluation ($D_2 - D_1$), confidence metric, and fail-safe `Color.NONE` rejection. |
 | [`G-MDRB-033`](../goals/G-MDRB-033.md) | **P1** | Color Verification Matrix | 4.2/10 → 9.8+/10 | Multi-condition empirical matrix across illumination ($10-2000\text{ lux}$), similar colors, noise, and final 9.8+ attestation. |
+| [`G-MDRB-034`](../goals/G-MDRB-034.md) | **P1** | Dynamic Kinematic Deadlines | 7.0/10 → 10/10 | Centralized dynamic kinematic deadline calculation replacing 2-second per waypoint heuristic, preventing premature ETIMEDOUT. |
+| [`G-MDRB-035`](../goals/_archived/G-MDRB-035.md) | **P0** | Multi-Tier Instance Reclamation | 4.0/10 → 10/10 | Resilient 3-tier motor reclamation: soft-reset hook, re-entrant exact-pair binding, and Python RAII context manager eliminating EBUSY. |
+| [`G-MDRB-036`](../goals/G-MDRB-036.md) | **P1** | DARE Optimal LQR Controller | 7.8/10 → 10/10 | Formally optimal LQR tracking controller derived from Discrete Algebraic Riccati Equation (DARE), discrete spectral radius $\rho < 1.0$, and PID benchmark. |
 
 ## Out of this epic
 

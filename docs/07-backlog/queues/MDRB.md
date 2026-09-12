@@ -19,6 +19,8 @@
 | G-MDRB-032 | feature | P1 | review | REVIEW | G-MDRB-031 | [../goals/G-MDRB-032.md](../goals/G-MDRB-032.md) |
 | G-MDRB-033 | qa | P1 | review | REVIEW | G-MDRB-032 | [../goals/G-MDRB-033.md](../goals/G-MDRB-033.md) |
 | G-MDRB-034 | feature | P1 | review | REVIEW | G-MDRB-033 | [../goals/G-MDRB-034.md](../goals/G-MDRB-034.md) |
+| G-MDRB-036 | feature | P1 | review | REVIEW | G-MDRB-035 | [../goals/G-MDRB-036.md](../goals/G-MDRB-036.md) |
+
 
 ## Archived
 

@@ -72,7 +72,10 @@ const TARGET_GOALS = [
   'G-MDRB-030',
   'G-MDRB-031',
   'G-MDRB-032',
-  'G-MDRB-033'
+  'G-MDRB-033',
+  'G-MDRB-034',
+  'G-MDRB-035',
+  'G-MDRB-036'
 ];
 
 // -----------------------------------------------------------------------------
@@ -100,7 +103,7 @@ if (existsSync(epicsPath)) {
 if (existsSync(registryPath)) {
   const registryContent = readFileSync(registryPath, 'utf8');
   assertCheck('goal-id-registry.yaml contains MDRB sequence entry', registryContent.includes('MDRB:'));
-  assertCheck('goal-id-registry.yaml reserves sequence through 33', registryContent.includes('33'));
+  assertCheck('goal-id-registry.yaml reserves sequence through 36', registryContent.includes('36'));
 }
 
 if (existsSync(goalsDashboardPath)) {
@@ -233,7 +236,7 @@ console.log(`📊 Epic Conformance Summary: ${passedChecks} Passed, ${failedChec
 console.log("================================================================================\n");
 
 if (failedChecks === 0) {
-  console.log("🏆 100% GREEN ATTESTATION: MDRobotBase Epic (G-MDRB-001 to G-MDRB-033) Fully Compliant!\n");
+  console.log("🏆 100% GREEN ATTESTATION: MDRobotBase Epic (G-MDRB-001 to G-MDRB-036) Fully Compliant!\n");
   process.exit(0);
 } else {
   console.error(`❌ FAILED: ${failedChecks} checks failed. See errors above.\n`);

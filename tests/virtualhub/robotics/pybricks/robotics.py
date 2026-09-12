@@ -126,6 +126,9 @@ class MDRobotBase:
         # Control gains & limits
         self._lqr_gains = (1.0, 1.0, 1.0)
         self._lqr_schedule_enabled = True
+        self._lqr_weights = (2500.0, 5000.0, 20.0, 25.0, 0.1)
+        self._lqr_k11 = 9.7531
+        self._lqr_lut = []
         self._pid_gains = (1.0, 0.0, 0.1)
         self._turn_pid_gains = (1.2, 0.0, 0.15)
         self._pivot_pid_gains = (1.1, 0.0, 0.12)
@@ -822,6 +825,11 @@ class MDRobotBase:
 
         self._lqr_gains = (float(k_x), float(k_y), float(k_theta))
         self._lqr_schedule_enabled = bool(schedule)
+        self._lqr_k11 = float(k_x)
+        self._lqr_lut = []
+        for i in range(16):
+            v_bin = 50.0 + i * 50.0
+            self._lqr_lut.append((v_bin, float(k_y), float(k_theta), 0.98))
 
     @_require_open
     def get_lqr_gains(self):
@@ -829,52 +837,314 @@ class MDRobotBase:
         return self._lqr_gains
 
     @_require_open
+    def solve_dare(self, q_x: float = 1.0, q_y: float = 1.0, q_theta: float = 1.0, r_v: float = 1.0, r_omega: float = 1.0, v_profile: float = 100.0, Ts: float = 0.005):
+        """
+        Solves discrete algebraic Riccati equation (DARE) for unicycle kinematics at sampling period Ts.
+        Returns (k_x, k_y, k_theta, spectral_radius).
+        """
+        qx, qy, qth = float(q_x), float(q_y), float(q_theta)
+        rv, rw = float(r_v), float(r_omega)
+        for val in (qx, qy, qth, rv, rw, float(v_profile)):
+            if not math.isfinite(val):
+                raise ValueError("All DARE parameters must be finite numbers")
+        if qx < 0.0 or qy < 0.0 or qth < 0.0 or rv <= 0.0 or rw <= 0.0:
+            raise ValueError("State weights must be non-negative and control weights strictly positive")
+
+        # 1. Scalar along-track DARE solution
+        disc_x = qx * qx + 4.0 * qx * rv / (Ts * Ts)
+        p11 = (qx + math.sqrt(disc_x)) * 0.5
+        k11 = (Ts * p11) / (rv + Ts * Ts * p11)
+
+        # 2. Lateral & Heading 2x2 discrete unicycle DARE solution
+        v_abs = max(10.0, abs(float(v_profile))) # Clamp to v_min = 10 mm/s to prevent singularity
+        vr = v_abs / 1000.0 # mm/s to m/s
+        vTs = vr * Ts
+        b0 = -0.5 * vr * Ts * Ts
+        b1 = -Ts
+
+        p00 = qy
+        p01 = 0.0
+        p11_lat = qth
+
+        for _ in range(100):
+            pb0 = p00 * b0 + p01 * b1
+            pb1 = p01 * b0 + p11_lat * b1
+            d = rw + b0 * pb0 + b1 * pb1
+            if d <= 0.0:
+                raise ValueError("Singular Riccati denominator")
+
+            m0 = pb0
+            m1 = vTs * pb0 + pb1
+            pa01 = p00 * vTs + p01
+            pa11 = p01 * vTs + p11_lat
+            atpa00 = p00
+            atpa01 = pa01
+            atpa11 = vTs * pa01 + pa11
+
+            p00_next = atpa00 - (m0 * m0) / d + qy
+            p01_next = atpa01 - (m0 * m1) / d
+            p11_next = atpa11 - (m1 * m1) / d + qth
+
+            if abs(p00_next - p00) + abs(p01_next - p01) + abs(p11_next - p11_lat) < 1e-4:
+                p00, p01, p11_lat = p00_next, p01_next, p11_next
+                break
+            p00, p01, p11_lat = p00_next, p01_next, p11_next
+
+        pa01 = p00 * vTs + p01
+        pa11 = p01 * vTs + p11_lat
+        pb0 = p00 * b0 + p01 * b1
+        pb1 = p01 * b0 + p11_lat * b1
+        d = rw + b0 * pb0 + b1 * pb1
+
+        ky = -(b0 * p00 + b1 * p01) / d
+        kth = -(b0 * pa01 + b1 * pa11) / d
+
+        # Discrete closed-loop spectral radius
+        acl00 = 1.0 + b0 * ky
+        acl01 = vTs + b0 * kth
+        acl10 = b1 * ky
+        acl11 = 1.0 + b1 * kth
+
+        tr = acl00 + acl11
+        det = acl00 * acl11 - acl01 * acl10
+        disc = tr * tr - 4.0 * det
+        if disc < 0.0:
+            rho = math.sqrt(det)
+        else:
+            sqrt_d = math.sqrt(disc)
+            rho = max(abs((tr + sqrt_d) * 0.5), abs((tr - sqrt_d) * 0.5))
+
+        lambda1 = abs(1.0 - Ts * k11)
+        rho = max(lambda1, rho)
+
+        if rho >= 1.0:
+            raise ValueError(f"Closed-loop system unstable: spectral radius {rho:.4f} >= 1.0")
+
+        return k11, ky, kth, rho
+
+    @_require_open
+    def solve_dare_full(self, q_x: float = 1.0, q_y: float = 1.0, q_theta: float = 1.0, r_v: float = 1.0, r_omega: float = 1.0, v_profile: float = 100.0, Ts: float = 0.005):
+        """
+        Solves full 3x3 Discrete Algebraic Riccati Equation (DARE) for the complete 3-state unicycle system.
+        Returns (K [2x3], P [3x3], spectral_radius).
+        """
+        qx, qy, qth = float(q_x), float(q_y), float(q_theta)
+        rv, rw = float(r_v), float(r_omega)
+        for val in (qx, qy, qth, rv, rw, float(v_profile)):
+            if not math.isfinite(val):
+                raise ValueError("All DARE parameters must be finite numbers")
+        if qx < 0.0 or qy < 0.0 or qth < 0.0 or rv <= 0.0 or rw <= 0.0:
+            raise ValueError("State weights must be non-negative and control weights strictly positive")
+
+        v_abs = max(10.0, abs(float(v_profile)))
+        vr = v_abs / 1000.0
+        vTs = vr * Ts
+        b0 = -0.5 * vr * Ts * Ts
+        b1 = -Ts
+
+        P = [
+            [qx, 0.0, 0.0],
+            [0.0, qy, 0.0],
+            [0.0, 0.0, qth]
+        ]
+
+        for _ in range(100):
+            S = [
+                [P[0][0], P[0][1], vTs * P[0][1] + P[0][2]],
+                [P[1][0], P[1][1], vTs * P[1][1] + P[1][2]],
+                [vTs * P[1][0] + P[2][0], vTs * P[1][1] + P[2][1], vTs * (vTs * P[1][1] + P[1][2]) + (vTs * P[2][1] + P[2][2])]
+            ]
+
+            M1 = [
+                [-Ts * P[0][0], b0 * P[0][1] + b1 * P[0][2]],
+                [-Ts * P[1][0], b0 * P[1][1] + b1 * P[1][2]],
+                [-Ts * (vTs * P[1][0] + P[2][0]), vTs * (b0 * P[1][1] + b1 * P[1][2]) + (b0 * P[2][1] + b1 * P[2][2])]
+            ]
+
+            W00 = rv + Ts * Ts * P[0][0]
+            W01 = -Ts * (b0 * P[0][1] + b1 * P[0][2])
+            W10 = W01
+            W11 = rw + b0 * (b0 * P[1][1] + b1 * P[1][2]) + b1 * (b0 * P[2][1] + b1 * P[2][2])
+
+            detW = W00 * W11 - W01 * W10
+            if detW <= 1e-12:
+                raise ValueError("Singular Riccati denominator in full DARE")
+
+            invW = [
+                [W11 / detW, -W01 / detW],
+                [-W10 / detW, W00 / detW]
+            ]
+
+            G = [
+                [M1[r][0] * invW[0][0] + M1[r][1] * invW[1][0], M1[r][0] * invW[0][1] + M1[r][1] * invW[1][1]]
+                for r in range(3)
+            ]
+
+            P_next = [[0.0]*3 for _ in range(3)]
+            diff = 0.0
+            for r in range(3):
+                for c in range(3):
+                    q_val = qx if (r == c == 0) else (qy if (r == c == 1) else (qth if (r == c == 2) else 0.0))
+                    P_next[r][c] = S[r][c] - (G[r][0] * M1[c][0] + G[r][1] * M1[c][1]) + q_val
+                    diff += abs(P_next[r][c] - P[r][c])
+
+            P = P_next
+            if diff < 1e-4:
+                break
+
+        M1 = [
+            [-Ts * P[0][0], b0 * P[0][1] + b1 * P[0][2]],
+            [-Ts * P[1][0], b0 * P[1][1] + b1 * P[1][2]],
+            [-Ts * (vTs * P[1][0] + P[2][0]), vTs * (b0 * P[1][1] + b1 * P[1][2]) + (b0 * P[2][1] + b1 * P[2][2])]
+        ]
+
+        W00 = rv + Ts * Ts * P[0][0]
+        W01 = -Ts * (b0 * P[0][1] + b1 * P[0][2])
+        W10 = W01
+        W11 = rw + b0 * (b0 * P[1][1] + b1 * P[1][2]) + b1 * (b0 * P[2][1] + b1 * P[2][2])
+        detW = W00 * W11 - W01 * W10
+        invW = [
+            [W11 / detW, -W01 / detW],
+            [-W10 / detW, W00 / detW]
+        ]
+
+        K = [
+            [invW[r][0] * M1[c][0] + invW[r][1] * M1[c][1] for c in range(3)]
+            for r in range(2)
+        ]
+
+        lambda1 = abs(1.0 + Ts * K[0][0])
+        acl11 = 1.0 - b0 * K[1][1]
+        acl12 = vTs - b0 * K[1][2]
+        acl21 = -b1 * K[1][1]
+        acl22 = 1.0 - b1 * K[1][2]
+
+        tr = acl11 + acl22
+        det = acl11 * acl22 - acl12 * acl21
+        disc = tr * tr - 4.0 * det
+        if disc < 0.0:
+            rho_lat = math.sqrt(det)
+        else:
+            sqrt_d = math.sqrt(disc)
+            rho_lat = max(abs((tr + sqrt_d) * 0.5), abs((tr - sqrt_d) * 0.5))
+
+        rho_full = max(lambda1, rho_lat)
+        if rho_full >= 1.0:
+            raise ValueError(f"Full closed-loop system unstable: rho={rho_full:.4f} >= 1.0")
+
+        return K, P, rho_full
+
+    @_require_open
+    def set_lqr_weights(self, q_x: float, q_y: float, q_theta: float, r_v: float, r_omega: float):
+        """Sets state and control cost weights and solves DARE across 16 operating velocity bins."""
+        qx, qy, qth = float(q_x), float(q_y), float(q_theta)
+        rv, rw = float(r_v), float(r_omega)
+        for val in (qx, qy, qth, rv, rw):
+            if not math.isfinite(val):
+                raise ValueError("LQR weights must be finite numbers")
+        if qx < 0.0 or qy < 0.0 or qth < 0.0 or rv <= 0.0 or rw <= 0.0:
+            raise ValueError("State weights must be non-negative and control weights strictly positive")
+
+        lut = []
+        k11 = 0.0
+        for i in range(16):
+            v_bin = 50.0 + i * 50.0
+            kx_i, ky_i, kth_i, rho_i = self.solve_dare(qx, qy, qth, rv, rw, v_bin)
+            if rho_i >= 1.0:
+                raise ValueError(f"Closed loop unstable at {v_bin} mm/s: rho={rho_i:.4f} >= 1.0")
+            if i == 0:
+                k11 = kx_i
+            lut.append((v_bin, ky_i, kth_i, rho_i))
+
+        self._lqr_weights = (qx, qy, qth, rv, rw)
+        self._lqr_k11 = k11
+        self._lqr_lut = lut
+        self._lqr_schedule_enabled = True
+        self._lqr_gains = (k11, lut[5][1], lut[5][2])
+
+    @_require_open
+    def get_lqr_weights(self):
+        """Returns tuple of (q_x, q_y, q_theta, r_v, r_omega)."""
+        return self._lqr_weights
+
+    @_require_open
+    def verify_discrete_stability(self, k_y: float, k_theta: float, v_nominal: float = 0.3, k_x: float = None) -> dict:
+        """Verifies discrete closed-loop spectral radius for given gains across positive and negative speeds."""
+        ky, kth, v_nom = float(k_y), float(k_theta), float(v_nominal)
+        if abs(v_nom) > 5.0:
+            v_nom = v_nom / 1000.0
+        Ts = 0.005
+        vTs = v_nom * Ts
+        b0 = -0.5 * v_nom * Ts * Ts
+        b1 = -Ts
+
+        dir_sign = 1.0 if v_nom >= 0.0 else -1.0
+        acl00 = 1.0 + b0 * dir_sign * ky
+        acl01 = vTs + b0 * kth
+        acl10 = b1 * dir_sign * ky
+        acl11 = 1.0 + b1 * kth
+
+        tr = acl00 + acl11
+        det = acl00 * acl11 - acl01 * acl10
+        disc = tr * tr - 4.0 * det
+        if disc < 0.0:
+            rho = math.sqrt(det)
+        else:
+            sqrt_d = math.sqrt(disc)
+            rho = max(abs((tr + sqrt_d) * 0.5), abs((tr - sqrt_d) * 0.5))
+
+        if k_x is not None:
+            lambda1 = abs(1.0 - Ts * float(k_x))
+            rho = max(lambda1, rho)
+
+        return {
+            "is_stable": rho < 1.0,
+            "spectral_radius": rho,
+            "trace": tr,
+            "det": det
+        }
+
+    @_require_open
     def set_lqr_preset(self, preset: int, schedule: bool = True):
         """
-        Applies a certified LQR gain preset.
-
-        Presets:
-            0 (BALANCED):   k_x=1.0 s^-1, k_y=1.0 rad/(m*s), k_theta=1.0 s^-1 (damping ~0.91)
-            1 (AGGRESSIVE): k_x=2.0 s^-1, k_y=3.0 rad/(m*s), k_theta=2.5 s^-1 (damping ~1.32)
-            2 (SMOOTH):     k_x=0.5 s^-1, k_y=0.5 rad/(m*s), k_theta=0.8 s^-1 (damping ~1.03)
+        Configures certified DARE cost matrix weights (Q, R) and precomputes
+        discrete optimal Riccati solution across 16 velocity bins.
         """
         p = int(preset)
-        if p == 0:
-            self.set_lqr_gains(1.0, 1.0, 1.0, schedule=schedule)
-        elif p == 1:
-            self.set_lqr_gains(2.0, 3.0, 2.5, schedule=schedule)
-        elif p == 2:
-            self.set_lqr_gains(0.5, 0.5, 0.8, schedule=schedule)
+        if p == 0:  # BALANCED
+            self.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, 0.1)
+        elif p == 1:  # AGGRESSIVE
+            self.set_lqr_weights(5000.0, 10000.0, 40.0, 15.0, 0.05)
+        elif p == 2:  # SMOOTH
+            self.set_lqr_weights(1000.0, 2000.0, 15.0, 50.0, 0.25)
         else:
             raise ValueError(f"Invalid LQR preset {preset}. Expected 0 (BALANCED), 1 (AGGRESSIVE), or 2 (SMOOTH).")
+        self._lqr_schedule_enabled = bool(schedule)
 
     @_require_open
     def check_lqr_stability(self, v_nominal: float = 0.3) -> dict:
-        """
-        Analytically checks closed-loop stability and calculates damping ratio.
-        Characteristic equation: det(sI - A_cl) = (s + k_x)(s^2 + k_theta*s + v_nominal*k_y) = 0
-        Natural frequency: omega_n = sqrt(v_nominal * k_y)
-        Damping ratio:     zeta = k_theta / (2 * omega_n)
-        """
+        """Analytically checks continuous damping ratio and discrete spectral radius."""
         v_nom = float(v_nominal)
-        if not math.isfinite(v_nom) or v_nom <= 0.0:
-            raise ValueError("Nominal velocity must be strictly positive and finite")
+        if not math.isfinite(v_nom) or abs(v_nom) < 1e-4:
+            raise ValueError("Nominal velocity must be non-zero and finite")
         k_x, k_y, k_theta = self._lqr_gains
-        omega_n = math.sqrt(v_nom * k_y)
+        omega_n = math.sqrt(abs(v_nom) * k_y)
         zeta = k_theta / (2.0 * omega_n)
         if zeta < 0.05:
             raise ValueError(f"LQR gain configuration is underdamped (zeta = {zeta:.4f} < 0.05)")
+        disc_stab = self.verify_discrete_stability(k_y, k_theta, v_nom, k_x=k_x)
         return {
             "is_stable": True,
             "damping_ratio": zeta,
             "natural_frequency": omega_n,
+            "spectral_radius": disc_stab["spectral_radius"],
             "eigenvalues": (-k_x, complex(-0.5 * k_theta, math.sqrt(abs(omega_n**2 - 0.25 * k_theta**2))))
         }
 
     @_require_open
     def lqr_step(self, v_profile: float, x_ref: float, y_ref: float, path_theta_deg: float):
         """
-        Computes a single LQR tracking control step.
+        Computes a single optimal DARE LQR tracking control step.
         Returns (v_cmd [mm/s], w_cmd [deg/s]).
         """
         dx_ref = float(x_ref) - self._x
@@ -887,32 +1157,55 @@ class MDRobotBase:
         e_x_local = cos_th * dx_ref + sin_th * dy_ref
         e_y_local = -sin_th * dx_ref + cos_th * dy_ref
 
-        cross_steer_gain = 0.35
-        dir_sign = 1.0
-        cross_corr = max(-30.0, min(30.0, cross_steer_gain * e_y_local * dir_sign))
-
-        ref_theta_lqr = self.wrap_degrees(path_theta_deg + cross_corr)
-        e_theta_deg = self.wrap_degrees(ref_theta_lqr - self._theta)
+        reverse = (v_profile < 0.0 or getattr(self, "_is_backward", False))
+        target_path_theta = path_theta_deg + (180.0 if reverse else 0.0)
+        e_theta_deg = self.wrap_degrees(target_path_theta - self._theta)
 
         e_x = e_x_local / 1000.0
         e_y = e_y_local / 1000.0
         e_theta = math.radians(e_theta_deg)
 
-        sched_scale = 1.0
-        if getattr(self, "_lqr_schedule_enabled", True):
-            v_abs = abs(float(v_profile))
-            sched_scale = max(0.2, math.sqrt(v_abs / 300.0))
+        v_abs = max(10.0, min(800.0, abs(float(v_profile)))) # clamp to v_min = 10 mm/s
 
-        k_x, k_y, k_theta = self._lqr_gains
-        scheduled_k_y = k_y * sched_scale
-        scheduled_k_theta = k_theta * sched_scale
+        kx = getattr(self, "_lqr_k11", self._lqr_gains[0])
+        ky = self._lqr_gains[1]
+        kth = self._lqr_gains[2]
 
-        u_v = -(k_x * e_x)
-        u_w = -(scheduled_k_y * e_y + scheduled_k_theta * e_theta)
+        if getattr(self, "_lqr_schedule_enabled", True) and hasattr(self, "_lqr_lut") and len(self._lqr_lut) == 16:
+            bin_f = (v_abs - 50.0) / 50.0
+            idx = int(bin_f)
+            if idx < 0:
+                idx = 0
+                bin_f = 0.0
+            elif idx >= 15:
+                idx = 14
+                bin_f = 15.0
+            frac = max(0.0, min(1.0, bin_f - idx))
+            ky = self._lqr_lut[idx][1] + frac * (self._lqr_lut[idx + 1][1] - self._lqr_lut[idx][1])
+            kth = self._lqr_lut[idx][2] + frac * (self._lqr_lut[idx + 1][2] - self._lqr_lut[idx][2])
 
-        v_cmd = float(v_profile) - u_v * 1000.0
-        w_cmd = 0.0 - math.degrees(u_w)
-        return (v_cmd, w_cmd)
+        dir_sign = -1.0 if reverse else 1.0
+
+        u_v = -(kx * e_x)
+        u_w = -(ky * e_y * dir_sign + kth * e_theta)
+
+        v_cmd_raw = float(v_profile) - u_v * 1000.0
+        w_cmd_raw = 0.0 - math.degrees(u_w)
+
+        # Symmetrical actuator velocity saturation anti-windup
+        axle_b = self._axle_track if hasattr(self, "_axle_track") and self._axle_track > 0 else 112.0
+        w_rad_s = math.radians(w_cmd_raw)
+        v_left = v_cmd_raw - (w_rad_s * axle_b * 0.5)
+        v_right = v_cmd_raw + (w_rad_s * axle_b * 0.5)
+
+        v_wheel_max = 800.0
+        peak_v = max(abs(v_left), abs(v_right))
+        if peak_v > v_wheel_max and peak_v > 1e-4:
+            scale = v_wheel_max / peak_v
+            v_cmd_raw *= scale
+            w_cmd_raw *= scale
+
+        return (v_cmd_raw, w_cmd_raw)
 
     @_require_open
     def set_pid_gains(self, *args):

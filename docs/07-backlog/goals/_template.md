@@ -106,38 +106,77 @@
 
 Ordered execution contract for **this card only** — Antigravity or another agent executes the same list. Do not label steps as "human" vs "AI". Every implementation step must be atomic and include its allowed files, ordered actions, completion gate, and failure/stop condition. Do not use broad instructions such as “implement the feature” or “run tests”.
 
-### Step 1 — [Observable objective]
+### Step 1 — Clarification, Socratic 5-Why Dialectic & BDD Specification
 
-**Allowed files:** `path/to/file`
+**Allowed files:** `docs/02-product/acceptance/G-xxx.md` · `docs/06_raw/`
 **Actions:**
 
-1. [One concrete action]
-2. [One concrete action]
+1. Execute anti-hallucination clarification and resolve all open ambiguities.
+2. Conduct Socratic 5-Why dialectic root cause analysis across 5 branches down to Level 5.
+3. Formulate Given-When-Then BDD acceptance scenarios defining exact quantitative bounds.
 
-**Completion gate:** [Exact test, invariant, or artifact that must pass]
-**Stop condition:** [Failure that blocks the next step]
+**Completion gate:** Acceptance contract and Level-5 Socratic 5-Why report created and linked.
+**Stop condition:** Any unverified assumption or unresolved `[NEEDS CLARIFICATION]`.
 
-### Step 2 — [Observable objective]
+### Step 2 — Baseline Freeze & Blocker Replication Proof
 
-**Allowed files:** `path/to/file`
+**Allowed files:** `docs/06_raw/` · `tests/`
 **Actions:**
 
-1. [One concrete action]
-2. [One concrete action]
+1. Record pre-implementation Git HEAD SHA provenance.
+2. Construct deterministic failing test case reproducing the defect or unhandled edge condition.
+3. Capture empirical command output and verify fail-closed behavior before any code modification.
 
-**Completion gate:** [Exact test, invariant, or artifact that must pass]
-**Stop condition:** [Failure that blocks the next step]
+**Completion gate:** Deterministic replication artifact recorded in `docs/06_raw/` with failing test proof.
+**Stop condition:** Inability to reliably reproduce the defect against the frozen baseline.
 
-### Step 3 — [Verification objective]
+### Step 3 — Exact-HEAD Provenance & Isolated Mutation Sensitivity Testing
 
-**Allowed files:** `path/to/test-or-report`
+**Allowed files:** `scripts/harness/`
 **Actions:**
 
-1. [Run the scoped verification command]
-2. [Record output and exit code]
+1. Author isolated mutation test harness validating mathematical, state, and boundary invariants.
+2. Introduce controlled fault mutations (e.g., inverted checks, missing clamp floors, scale errors).
+3. Verify that 100% of mutation vectors are caught by the invariant test suite.
 
-**Completion gate:** [Exact green result required]
-**Stop condition:** [Failure or human approval requirement]
+**Completion gate:** 100% mutation detection rate certified in isolated mutation testing harness.
+**Stop condition:** Any mutation test false negative or undetected fault injection.
+
+### Step 4 — Concrete Implementation (Zero Mocks, Zero Stubs, Zero Fallbacks)
+
+**Allowed files:** `pybricks/robotics/` · `lib/pbio/` · `tests/virtualhub/`
+**Actions:**
+
+1. Implement production domain logic, state machines, and driver bindings strictly within the touch map.
+2. Mirror full functionality in the simulator/virtual runtime ensuring complete architectural parity.
+3. Enforce fail-closed error handling and disarm actuators on failure.
+
+**Completion gate:** Code compiles with zero warnings; all unit tests pass with zero mocks or stubs.
+**Stop condition:** Any compiler warning, mock object leak, or runtime failure.
+
+### Step 5 — Real-World Episode Oracle & Measured Raw-Trial Execution
+
+**Allowed files:** `tests/` · `docs/06_raw/`
+**Actions:**
+
+1. Execute $N \ge 10$ real kernel episodes or physical hardware trials under varying operating conditions.
+2. Record raw per-trial JSON/CSV metrics (trial ID, elapsed wall time, completion state, error).
+3. Compute Wilson score 95% confidence interval and verify non-overlapping rejection thresholds.
+
+**Completion gate:** Empirical raw-trial schema validated with 100% success rate and Wilson 95% CI $\ge 0.85$.
+**Stop condition:** Any trial failure or empirical confidence interval falling below safety threshold.
+
+### Step 6 — Master Replication Gate Verification & Release Certification
+
+**Allowed files:** `scripts/harness/` · `docs/06_raw/` · `docs/07-backlog/`
+**Actions:**
+
+1. Build and execute automated master replication harness verifying all release gates.
+2. Run full test discovery, clean native builds, whitespace audit, and CI governance checks.
+3. Publish release gate certification report and transition goal status to `review`.
+
+**Completion gate:** Master replication harness passes 100% of gates; governance check passes.
+**Stop condition:** Any failing gate, whitespace violation, or governance discrepancy.
 
 ## In
 

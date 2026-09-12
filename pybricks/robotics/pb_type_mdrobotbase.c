@@ -368,53 +368,8 @@ static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
   if (self->rb->controller_type == PBIO_MDROBOTBASE_CONTROLLER_LQR) {
     float x_ref = self->rb->start_x + self->rb->dist_ref * cosf(self->rb->path_theta);
     float y_ref = self->rb->start_y + self->rb->dist_ref * sinf(self->rb->path_theta);
-
-    float dx_ref = x_ref - self->rb->x;
-    float dy_ref = y_ref - self->rb->y;
-
-    float theta_rad = self->rb->theta * (3.14159265f / 180.0f);
-    float cos_theta = cosf(theta_rad);
-    float sin_theta = sinf(theta_rad);
-
-    float e_x_local = cos_theta * dx_ref + sin_theta * dy_ref;
-    float e_y_local = -sin_theta * dx_ref + cos_theta * dy_ref;
-
-    float path_theta_deg = mdrobotbase_wrap_degrees(self->rb->path_theta * (180.0f / 3.14159265f) + (self->rb->is_backward ? 180.0f : 0.0f));
-
-    float cross_steer_gain = 0.35f;
-    float dir_sign = self->rb->is_backward ? -1.0f : 1.0f;
-    float cross_corr = cross_steer_gain * e_y_local * dir_sign;
-    if (cross_corr > 30.0f) cross_corr = 30.0f;
-    if (cross_corr < -30.0f) cross_corr = -30.0f;
-
-    float ref_theta_lqr = path_theta_deg + cross_corr;
-    if (self->rb->has_goal_theta && dist_remaining < self->rb->decel_d && self->rb->decel_d > 0.0f) {
-      float ratio = dist_remaining / self->rb->decel_d;
-      float diff = mdrobotbase_wrap_degrees(self->rb->gt - ref_theta_lqr);
-      ref_theta_lqr = ref_theta_lqr + diff * (1.0f - ratio);
-    }
-
-    float e_theta_deg = mdrobotbase_wrap_degrees(ref_theta_lqr - self->rb->theta);
-
-    float e_x = e_x_local / 1000.0f;
-    float e_y = e_y_local / 1000.0f;
-    float e_theta = e_theta_deg * (3.14159265f / 180.0f);
-
-    float sched_scale = 1.0f;
-    if (self->rb->lqr_schedule_enabled) {
-      float v_abs = fabsf(v_profile);
-      sched_scale = sqrtf(v_abs / 300.0f);
-      if (sched_scale < 0.2f) sched_scale = 0.2f;
-    }
-
-    float scheduled_k_y = self->rb->k_y * sched_scale;
-    float scheduled_k_theta = self->rb->k_theta * sched_scale;
-
-    float u_v = -((self->rb->k_x * comp) * e_x);
-    float u_w = -((scheduled_k_y * comp) * e_y + (scheduled_k_theta * comp) * e_theta);
-
-    v_cmd = v_profile - u_v * 1000.0f;
-    w_cmd = 0.0f - u_w * (180.0f / 3.14159265f);
+    float path_theta_deg = mdrobotbase_wrap_degrees(self->rb->path_theta * (180.0f / 3.14159265f));
+    pbio_mdrobotbase_lqr_step(self->rb, v_profile, x_ref, y_ref, path_theta_deg, &v_cmd, &w_cmd);
   } else {
     float e_theta = mdrobotbase_wrap_degrees(ref_theta - self->rb->theta);
 
@@ -790,6 +745,46 @@ static mp_obj_t pb_type_MDRobotBase_get_lqr_gains(mp_obj_t self_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_lqr_gains_obj,
                                  pb_type_MDRobotBase_get_lqr_gains);
+
+// pybricks.robotics.MDRobotBase.set_lqr_weights
+static mp_obj_t pb_type_MDRobotBase_set_lqr_weights(size_t n_args,
+                                                    const mp_obj_t *pos_args,
+                                                    mp_map_t *kw_args) {
+  PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
+                       self, PB_ARG_REQUIRED(q_x), PB_ARG_REQUIRED(q_y),
+                       PB_ARG_REQUIRED(q_theta), PB_ARG_REQUIRED(r_v),
+                       PB_ARG_REQUIRED(r_omega));
+  pb_type_mdrobotbase_require_open(self);
+
+  float qx = mp_obj_get_float(q_x_in);
+  float qy = mp_obj_get_float(q_y_in);
+  float qth = mp_obj_get_float(q_theta_in);
+  float rv = mp_obj_get_float(r_v_in);
+  float rw = mp_obj_get_float(r_omega_in);
+
+  pb_assert(pbio_mdrobotbase_set_lqr_weights(self->rb, qx, qy, qth, rv, rw));
+
+  return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_lqr_weights_obj, 1,
+                                  pb_type_MDRobotBase_set_lqr_weights);
+
+// pybricks.robotics.MDRobotBase.get_lqr_weights
+static mp_obj_t pb_type_MDRobotBase_get_lqr_weights(mp_obj_t self_in) {
+  pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
+  float qx, qy, qth, rv, rw;
+  pb_assert(pbio_mdrobotbase_get_lqr_weights(self->rb, &qx, &qy, &qth, &rv, &rw));
+  mp_obj_t weights[5];
+  weights[0] = mp_obj_new_float_from_f(qx);
+  weights[1] = mp_obj_new_float_from_f(qy);
+  weights[2] = mp_obj_new_float_from_f(qth);
+  weights[3] = mp_obj_new_float_from_f(rv);
+  weights[4] = mp_obj_new_float_from_f(rw);
+  return mp_obj_new_tuple(5, weights);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_lqr_weights_obj,
+                                 pb_type_MDRobotBase_get_lqr_weights);
 
 // pybricks.robotics.MDRobotBase.set_lqr_preset
 static mp_obj_t pb_type_MDRobotBase_set_lqr_preset(size_t n_args,
@@ -2488,6 +2483,10 @@ static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
      MP_ROM_PTR(&pb_type_MDRobotBase_set_lqr_gains_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_lqr_gains),
      MP_ROM_PTR(&pb_type_MDRobotBase_get_lqr_gains_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_lqr_weights),
+     MP_ROM_PTR(&pb_type_MDRobotBase_set_lqr_weights_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_lqr_weights),
+     MP_ROM_PTR(&pb_type_MDRobotBase_get_lqr_weights_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_lqr_preset),
      MP_ROM_PTR(&pb_type_MDRobotBase_set_lqr_preset_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_controller),

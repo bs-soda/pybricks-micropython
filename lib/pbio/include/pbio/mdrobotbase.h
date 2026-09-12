@@ -57,6 +57,26 @@ typedef enum {
     PBIO_MDROBOTBASE_LQR_PRESET_SMOOTH = 2,
 } pbio_mdrobotbase_lqr_preset_t;
 
+/**
+ * Linear Quadratic Regulator (LQR) Weight Configuration:
+ *
+ * State Penalty Q = diag(q_x, q_y, q_theta) >= 0:
+ * - q_x: Along-track position error penalty [(m/s)^2 / m^2]
+ * - q_y: Cross-track position error penalty [(rad/s)^2 / m^2]
+ * - q_theta: Heading orientation error penalty [(rad/s)^2 / rad^2]
+ *
+ * Control Penalty R = diag(r_v, r_omega) > 0:
+ * - r_v: Linear velocity effort penalty [1 / (m/s)^2]
+ * - r_omega: Angular yaw rate effort penalty [1 / (rad/s)^2]
+ */
+typedef struct {
+    float q_x;
+    float q_y;
+    float q_theta;
+    float r_v;
+    float r_omega;
+} pbio_mdrobotbase_lqr_weights_t;
+
 typedef enum {
     PBIO_MDROBOTBASE_MOTION_NONE = 0,
     PBIO_MDROBOTBASE_MOTION_NAVIGATE,
@@ -153,6 +173,12 @@ typedef struct _pbio_mdrobotbase_t {
     float k_y;
     float k_theta;
     bool lqr_schedule_enabled;
+    pbio_mdrobotbase_lqr_weights_t lqr_weights;
+    float lqr_k11;
+    float lqr_lut_v[16];
+    float lqr_lut_ky[16];
+    float lqr_lut_kth[16];
+    float lqr_lut_rho[16];
     float kp;
     float ki;
     float kd;
@@ -262,6 +288,11 @@ pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, p
 pbio_error_t pbio_mdrobotbase_motion_reset(pbio_mdrobotbase_t *rb);
 pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, float k_y, float k_theta, bool schedule);
 pbio_error_t pbio_mdrobotbase_get_lqr_gains(const pbio_mdrobotbase_t *rb, float *k_x, float *k_y, float *k_theta, bool *schedule);
+pbio_error_t pbio_mdrobotbase_set_lqr_weights(pbio_mdrobotbase_t *rb, float q_x, float q_y, float q_theta, float r_v, float r_omega);
+pbio_error_t pbio_mdrobotbase_get_lqr_weights(const pbio_mdrobotbase_t *rb, float *q_x, float *q_y, float *q_theta, float *r_v, float *r_omega);
+pbio_error_t pbio_mdrobotbase_lqr_solve_dare(float q_x, float q_y, float q_theta, float r_v, float r_omega, float v_profile, float *k_x, float *k_y, float *k_theta, float *spectral_radius);
+pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(float q_x, float q_y, float q_theta, float r_v, float r_omega, float v_profile, float K[2][3], float P[3][3], float *spectral_radius);
+pbio_error_t pbio_mdrobotbase_lqr_verify_discrete_stability(float k_y, float k_theta, float v_nominal, float *spectral_radius);
 pbio_error_t pbio_mdrobotbase_set_lqr_preset(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_lqr_preset_t preset, bool schedule);
 pbio_error_t pbio_mdrobotbase_lqr_verify_stability(float k_x, float k_y, float k_theta, float v_nominal, float *damping_ratio, float *natural_freq);
 pbio_error_t pbio_mdrobotbase_lqr_step(const pbio_mdrobotbase_t *rb, float v_profile, float x_ref, float y_ref, float path_theta_deg, float *v_cmd, float *w_cmd);

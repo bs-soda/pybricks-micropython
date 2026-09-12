@@ -257,6 +257,7 @@ typedef struct _pbio_mdrobotbase_t {
 
 pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track);
 pbio_error_t pbio_mdrobotbase_put_robotbase(pbio_mdrobotbase_t *rb);
+void pbio_mdrobotbase_deinit(void);
 pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track);
 pbio_error_t pbio_mdrobotbase_motion_reset(pbio_mdrobotbase_t *rb);
 pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, float k_y, float k_theta, bool schedule);

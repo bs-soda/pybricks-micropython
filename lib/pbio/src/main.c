@@ -11,6 +11,7 @@
 #include <pbio/image.h>
 #include <pbio/imu.h>
 #include <pbio/light_animation.h>
+#include <pbio/mdrobotbase.h>
 #include <pbio/motor_process.h>
 #include <pbio/port_interface.h>
 
@@ -68,6 +69,7 @@ void pbio_main_start_application_resources(void) {
     // Reset IMU heading to zero at the start of each application for
     // consistency, so that absolute drive base headings are the same each time.
     pbio_imu_set_heading(0.0f);
+    pbio_mdrobotbase_deinit();
 }
 
 /**
@@ -83,6 +85,7 @@ pbio_error_t pbio_main_stop_application_resources(void) {
 
     pbio_port_stop_user_actions(true);
     pbio_main_soft_stop();
+    pbio_mdrobotbase_deinit();
 
     pbio_error_t err;
     pbio_os_state_t state = 0;

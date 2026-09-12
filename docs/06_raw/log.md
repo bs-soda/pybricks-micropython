@@ -4,6 +4,22 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-12
 
+- `2026-09-12T16:45:00+07:00` — **G-MDRB-035 Master Replication & Release Gate Certification**
+  - Completed all 12 required execution steps for `G-MDRB-035`: Resilient Multi-Tier Instance Reclamation & RAII Lifecycle Management.
+  - Baseline freeze and replication blocker recorded at exact-HEAD `6edb975` in [`docs/06_raw/20260912_162500_g_mdrb_035_baseline_freeze_and_replication_blocker.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_162500_g_mdrb_035_baseline_freeze_and_replication_blocker.md).
+  - Executed Socratic Agentic Loop across 5 branches to Level 5: 25/25 dialectic nodes verified green.
+  - Implemented 3-Tier Instance Reclamation Architecture:
+    - Tier 1: Soft-reset deinit hook `pbio_mdrobotbase_deinit()` in `lib/pbio/src/main.c` on application start and stop.
+    - Tier 2: Re-entrant exact-pair motor re-binding in `lib/pbio/src/mdrobotbase.c` and `tests/virtualhub/robotics/pybricks/robotics.py` with motion cancellation and state reset. Partial or reversed motor overlaps strictly fail closed with `PBIO_ERROR_BUSY` (`OSError: [Errno 16] EBUSY`).
+    - Tier 3: Scoped RAII context manager protocol (`__enter__` / `__exit__`) in `pybricks/robotics/pb_type_mdrobotbase.c` and `tests/virtualhub/robotics/pybricks/robotics.py`.
+  - Implemented episode oracle and 25 measured restart cycles in [`tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/tests/virtualhub/robotics/test_mdrobotbase_lifecycle.py): 75/75 test cases green.
+  - Wilson score 95% confidence interval computed: $[0.8668, 1.0000]$ with 100% empirical success rate ($25/25$ restart cycles).
+  - Isolated mutation testing verified: 8/8 mutations caught 100%.
+  - Native PBIO MDRobotBase test suite verified: 30/30 tests passed (0 skipped).
+  - Master replication gate verified: 28/28 gates passed.
+  - Published master replication & release gate report [`docs/06_raw/20260912_164500_g_mdrb_035_master_replication_and_release_gate_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_164500_g_mdrb_035_master_replication_and_release_gate_report.md).
+  - Transitioned `G-MDRB-035` status to `review` in `goals/G-MDRB-035.md` and `queues/MDRB.md`.
+
 - `2026-09-12T15:45:00+07:00` — **G-MDRB-034 Master Replication & Release Gate Certification**
   - Completed all 12 required execution steps for `G-MDRB-034`: Dynamic Kinematic Motion Timeout Scaling & Trajectory Deadline Hardening.
   - Baseline freeze and replication blocker recorded at exact-HEAD `439f51e` in [`docs/06_raw/20260912_153000_g_mdrb_034_baseline_freeze_and_replication_blocker.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_153000_g_mdrb_034_baseline_freeze_and_replication_blocker.md).

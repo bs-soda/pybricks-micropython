@@ -11,6 +11,7 @@ Tests lifecycle transitions:
 - Proper release and cleanup
 """
 
+import math
 import os
 import sys
 import time
@@ -265,7 +266,7 @@ async def test_closed_object_exhaustive_audit():
     all_attrs = dir(audit_bot)
     operational_methods = [
         m for m in all_attrs
-        if not m.startswith("__") and m != "close" and callable(getattr(audit_bot, m))
+        if not m.startswith("__") and m not in ("close", "deinit_all") and callable(getattr(audit_bot, m))
     ]
     assert len(operational_methods) >= 47, f"Expected >=47 operational methods, found {len(operational_methods)}"
 
@@ -675,6 +676,126 @@ async def test_episode_oracle_raw_trial_schema_and_statistics():
 
     print(f"Episode oracle verified: {num_episodes} trials, 100% pass, Wilson 95% CI: [{ci_lower:.4f}, {ci_upper:.4f}].")
 
+
+async def test_g_mdrb_035_context_manager_clean_and_exception_exit():
+    print("Testing G-MDRB-035 context manager clean and exception exit...")
+    m_left = Motor(Port.E)
+    m_right = Motor(Port.F)
+
+    # 1. Normal exit from with-block
+    with MDRobotBase(m_left, m_right, wheel_diameter=56.0, axle_track=112.0) as bot:
+        assert not bot._is_closed
+        assert bot.done()
+    assert bot._is_closed, "MDRobotBase instance must be closed after normal with-block exit"
+
+    # 2. Re-allocation on same motors succeeds immediately with zero EBUSY
+    bot_re = MDRobotBase(m_left, m_right, wheel_diameter=56.0, axle_track=112.0)
+    assert not bot_re._is_closed
+    bot_re.close()
+
+    # 3. Exception exit from with-block
+    exception_caught = False
+    try:
+        with MDRobotBase(m_left, m_right, wheel_diameter=56.0, axle_track=112.0) as bot_exc:
+            assert not bot_exc._is_closed
+            raise ValueError("Simulated script failure inside with block")
+    except ValueError as e:
+        if str(e) == "Simulated script failure inside with block":
+            exception_caught = True
+    assert exception_caught, "Expected simulated exception to be propagated"
+    assert bot_exc._is_closed, "MDRobotBase instance must be closed after exception with-block exit"
+
+    # 4. Immediate re-allocation after exception succeeds
+    bot_re2 = MDRobotBase(m_left, m_right, wheel_diameter=56.0, axle_track=112.0)
+    assert not bot_re2._is_closed
+    bot_re2.close()
+    print("G-MDRB-035 context manager clean and exception exit passed.")
+
+
+async def test_g_mdrb_035_exact_pair_rebinding_and_partial_overlap_failclosed():
+    print("Testing G-MDRB-035 exact-pair re-binding and partial overlap fail-closed protection...")
+    m_a = Motor(Port.C)
+    m_b = Motor(Port.D)
+    m_c = Motor(Port.F)
+
+    # 1. Allocate initial base
+    base1 = MDRobotBase(m_a, m_b, wheel_diameter=56.0, axle_track=112.0)
+    assert not base1._is_closed
+
+    # 2. Re-allocate exact same pair without calling base1.close()
+    # Must cleanly re-claim the slot and close base1
+    base2 = MDRobotBase(m_a, m_b, wheel_diameter=56.0, axle_track=112.0)
+    assert not base2._is_closed
+    assert base1._is_closed, "Previous exact-pair instance must be reclaimed on re-binding"
+
+    # 3. Attempt partial overlap (sharing m_a with conflicting m_c)
+    # Must strictly fail closed with OSError(16, EBUSY)
+    partial_overlap_rejected = False
+    try:
+        MDRobotBase(m_a, m_c, wheel_diameter=56.0, axle_track=112.0)
+    except OSError as err:
+        if err.errno == 16:
+            partial_overlap_rejected = True
+    assert partial_overlap_rejected, "Partial motor overlap across bases must fail closed with EBUSY"
+
+    # 4. Attempt reversed pair (m_b, m_a)
+    # Must strictly fail closed with OSError(16, EBUSY)
+    reversed_rejected = False
+    try:
+        MDRobotBase(m_b, m_a, wheel_diameter=56.0, axle_track=112.0)
+    except OSError as err:
+        if err.errno == 16:
+            reversed_rejected = True
+    assert reversed_rejected, "Reversed motor allocation must fail closed with EBUSY"
+
+    base2.close()
+    print("G-MDRB-035 exact-pair re-binding and partial overlap fail-closed passed.")
+
+
+async def test_g_mdrb_035_episode_oracle_script_restart_trials():
+    print("Testing G-MDRB-035 episode oracle: 25 script restart reclamation cycles...")
+    m_left = Motor(Port.A)
+    m_right = Motor(Port.B)
+
+    num_episodes = 25
+    successes = 0
+    trial_records = []
+
+    for trial_id in range(1, num_episodes + 1):
+        t_start = time.perf_counter()
+        try:
+            # Simulate a script crash by allocating without closing
+            bot = MDRobotBase(m_left, m_right, wheel_diameter=56.0, axle_track=112.0)
+            assert not bot._is_closed
+            # Re-running next script: allocating again on same motors
+            bot_next = MDRobotBase(m_left, m_right, wheel_diameter=56.0, axle_track=112.0)
+            assert not bot_next._is_closed
+            assert bot._is_closed
+            bot_next.close()
+            t_elapsed = time.perf_counter() - t_start
+            trial_records.append({"trial_id": trial_id, "elapsed_s": t_elapsed, "status": "PASS"})
+            successes += 1
+        except Exception as err:
+            trial_records.append({"trial_id": trial_id, "status": "FAIL", "error": str(err)})
+
+    assert successes == num_episodes, f"Expected {num_episodes} successes, got {successes}"
+
+    # Wilson 95% confidence interval
+    def calc_wilson(k, n, z=1.95996):
+        if n <= 0 or k < 0 or k > n:
+            raise ValueError("Invalid sample parameters")
+        p = float(k) / float(n)
+        denom = 1.0 + (z * z) / n
+        ctr = (p + (z * z) / (2.0 * n)) / denom
+        spr = (z / denom) * math.sqrt((p * (1.0 - p) / n) + (z * z) / (4.0 * n * n))
+        return max(0.0, ctr - spr), min(1.0, ctr + spr)
+
+    ci_lower, ci_upper = calc_wilson(successes, num_episodes)
+    assert ci_lower > 0.85, f"Expected Wilson 95% CI lower bound > 0.85, got {ci_lower:.4f}"
+    assert ci_upper <= 1.0, f"Expected Wilson 95% CI upper bound <= 1.0, got {ci_upper:.4f}"
+    print(f"G-MDRB-035 episode oracle verified: {num_episodes} restart trials, 100% pass, Wilson 95% CI: [{ci_lower:.4f}, {ci_upper:.4f}].")
+
+
 async def main():
     await test_idle_stop_idempotence()
     await test_motion_preemption()
@@ -691,11 +812,15 @@ async def main():
     await test_table_driven_motion_deadline_parity()
     await test_real_monotonic_clock_timeout_enforcement()
     await test_episode_oracle_raw_trial_schema_and_statistics()
+    await test_g_mdrb_035_context_manager_clean_and_exception_exit()
+    await test_g_mdrb_035_exact_pair_rebinding_and_partial_overlap_failclosed()
+    await test_g_mdrb_035_episode_oracle_script_restart_trials()
     print("All MDRobotBase async lifecycle regression tests passed!")
 
 class TestMDRobotBaseLifecycle(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         global robot, left_motor, right_motor
+        MDRobotBase.deinit_all()
         left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
         right_motor = Motor(Port.B)
         robot = MDRobotBase(left_motor, right_motor, wheel_diameter=56.0, axle_track=112.0)
@@ -744,6 +869,15 @@ class TestMDRobotBaseLifecycle(unittest.IsolatedAsyncioTestCase):
 
     async def test_episode_oracle_raw_trial_schema_and_statistics(self):
         await test_episode_oracle_raw_trial_schema_and_statistics()
+
+    async def test_g_mdrb_035_context_manager_clean_and_exception_exit(self):
+        await test_g_mdrb_035_context_manager_clean_and_exception_exit()
+
+    async def test_g_mdrb_035_exact_pair_rebinding_and_partial_overlap_failclosed(self):
+        await test_g_mdrb_035_exact_pair_rebinding_and_partial_overlap_failclosed()
+
+    async def test_g_mdrb_035_episode_oracle_script_restart_trials(self):
+        await test_g_mdrb_035_episode_oracle_script_restart_trials()
 
 if __name__ == "__main__":
     unittest.main()

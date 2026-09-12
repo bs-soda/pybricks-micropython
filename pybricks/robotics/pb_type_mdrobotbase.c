@@ -2417,6 +2417,24 @@ static mp_obj_t pb_type_MDRobotBase_close(mp_obj_t self_in) {
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_close_obj,
                                  pb_type_MDRobotBase_close);
 
+// pybricks.robotics.MDRobotBase.__enter__
+static mp_obj_t pb_type_MDRobotBase___enter__(mp_obj_t self_in) {
+  pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
+  return self_in;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase___enter___obj,
+                                 pb_type_MDRobotBase___enter__);
+
+// pybricks.robotics.MDRobotBase.__exit__
+static mp_obj_t pb_type_MDRobotBase___exit__(size_t n_args, const mp_obj_t *args) {
+  (void)n_args;
+  pb_type_MDRobotBase_close(args[0]);
+  return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(pb_type_MDRobotBase___exit___obj, 4, 4,
+                                           pb_type_MDRobotBase___exit__);
+
 // pybricks.robotics.MDRobotBase.stalled
 static mp_obj_t pb_type_MDRobotBase_stalled(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
@@ -2454,6 +2472,10 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_status_obj,
 static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
     {MP_ROM_QSTR(MP_QSTR___del__),
      MP_ROM_PTR(&pb_type_MDRobotBase_close_obj)},
+    {MP_ROM_QSTR(MP_QSTR___enter__),
+     MP_ROM_PTR(&pb_type_MDRobotBase___enter___obj)},
+    {MP_ROM_QSTR(MP_QSTR___exit__),
+     MP_ROM_PTR(&pb_type_MDRobotBase___exit___obj)},
     {MP_ROM_QSTR(MP_QSTR_close),
      MP_ROM_PTR(&pb_type_MDRobotBase_close_obj)},
     {MP_ROM_QSTR(MP_QSTR_stalled),

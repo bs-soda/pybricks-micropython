@@ -52,6 +52,15 @@ class MDRobotBase:
     and safe preemption.
     """
 
+    _active_instances: List["MDRobotBase"] = []
+
+    @classmethod
+    def deinit_all(cls):
+        """De-initializes all active instances, releasing all motor slots."""
+        for inst in list(cls._active_instances):
+            inst.close()
+        cls._active_instances.clear()
+
     def __init__(
         self,
         left_motor: Motor,
@@ -63,6 +72,32 @@ class MDRobotBase:
         self.left_motor = left_motor
         self.right_motor = right_motor
         self._is_closed = False
+        self._current_task: Optional[asyncio.Task] = None
+        self._motion_in_progress = False
+        self._status = 0  # 0: NONE/IDLE, 1: MOVING, 2: COMPLETED
+
+        # Multi-tier reclamation: Check active instances for exact re-binding or partial overlap conflict
+        for inst in list(MDRobotBase._active_instances):
+            if inst._is_closed:
+                MDRobotBase._active_instances.remove(inst)
+                continue
+
+            p_inst_left = getattr(inst.left_motor, "port", inst.left_motor)
+            p_inst_right = getattr(inst.right_motor, "port", inst.right_motor)
+            p_req_left = getattr(left_motor, "port", left_motor)
+            p_req_right = getattr(right_motor, "port", right_motor)
+
+            if p_inst_left == p_req_left and p_inst_right == p_req_right:
+                # Exact identical pair: re-bind cleanly
+                inst.close()
+                if inst in MDRobotBase._active_instances:
+                    MDRobotBase._active_instances.remove(inst)
+            elif (p_inst_left in (p_req_left, p_req_right) or
+                  p_inst_right in (p_req_left, p_req_right)):
+                # Partial or conflicting overlap: fail closed with EBUSY
+                raise OSError(16, "EBUSY: Device or resource busy")
+
+        MDRobotBase._active_instances.append(self)
 
         if len(args) == 3:
             self._wheel_diameter_left = float(args[0])
@@ -86,10 +121,7 @@ class MDRobotBase:
         self._x = 0.0
         self._y = 0.0
         self._theta = 0.0
-        self._motion_in_progress = False
-        self._status = 0  # 0: NONE/IDLE, 1: MOVING, 2: COMPLETED
         self._last_calculated_deadline_ms = 1500
-        self._current_task: Optional[asyncio.Task] = None
 
         # Control gains & limits
         self._lqr_gains = (1.0, 1.0, 1.0)
@@ -116,11 +148,25 @@ class MDRobotBase:
         self._white_reference = None
         self._gain = (0.01, 0.01, 0.01)
 
+    def __enter__(self):
+        """RAII Context Manager entry."""
+        if self._is_closed:
+            raise RuntimeError("MDRobotBase instance is closed")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """RAII Context Manager exit: unconditionally releases handle and motor slots."""
+        self.close()
+        return False
+
     def close(self):
         """Idempotently terminates all robot tasks and marks handle as closed."""
         self._is_closed = True
-        if self._current_task and not self._current_task.done():
-            self._current_task.cancel()
+        if self in MDRobotBase._active_instances:
+            MDRobotBase._active_instances.remove(self)
+        task = getattr(self, "_current_task", None)
+        if task and not task.done():
+            task.cancel()
         self._motion_in_progress = False
         self._status = 0
 

@@ -316,10 +316,10 @@ static pbio_error_t test_mdrobotbase_instance_ownership(pbio_os_state_t *state, 
     tt_want_int_op((int)rb2->x, ==, 0);
     tt_want_int_op((int)rb2->y, ==, 0);
 
-    // 3. Duplicate Motor-Pair Rejection (identical servos fail with PBIO_ERROR_BUSY)
+    // 3. Duplicate Motor-Pair Re-binding (identical servos re-bind cleanly under G-MDRB-035)
     rb1_re = NULL;
-    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb1_re, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_ERROR_BUSY);
-    tt_ptr_op(rb1_re, ==, NULL);
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb1_re, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb1_re, ==, rb1);
 
     // 3b. Partial Motor Overlap Rejection (cross-pair sharing fails with PBIO_ERROR_BUSY)
     rb3 = NULL;
@@ -992,10 +992,10 @@ static pbio_error_t test_mdrobotbase_duplicate_motor_rejection(pbio_os_state_t *
     tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb1, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
     tt_ptr_op(rb1, !=, NULL);
 
-    // 2. Exact duplicate allocation (A, B) must return PBIO_ERROR_BUSY and leave target NULL
+    // 2. Exact duplicate allocation (A, B) re-binds cleanly under G-MDRB-035
     rb_dup = NULL;
-    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb_dup, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_ERROR_BUSY);
-    tt_ptr_op(rb_dup, ==, NULL);
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb_dup, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb_dup, ==, rb1);
 
     // 3. Reversed duplicate allocation (B, A) must also return PBIO_ERROR_BUSY
     rb_dup = NULL;
@@ -2951,6 +2951,59 @@ end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }
 
+static pbio_error_t test_mdrobotbase_soft_reset_deinit(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_a, *srv_b, *srv_c, *srv_d;
+    static pbio_mdrobotbase_t *rb1, *rb2;
+    static pbio_port_t *port;
+    static lego_device_type_id_t id;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_a), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_a, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_b), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_b, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_C, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_c), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_c, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_E, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_d), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_d, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    // 1. Allocate two robotbases concurrently
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb1, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb1, !=, NULL);
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb2, srv_c, srv_d, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb2, !=, NULL);
+
+    // 2. Invoke soft-reset deinit hook
+    pbio_mdrobotbase_deinit();
+
+    // 3. Verify all pool slots were reclaimed and can be re-allocated afresh
+    rb1 = NULL;
+    rb2 = NULL;
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb1, srv_b, srv_a, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb1, !=, NULL);
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb2, srv_d, srv_c, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb2, !=, NULL);
+
+    // 4. Cleanup
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb1), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb2), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
 struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_basics),
     PBIO_THREAD_TEST(test_mdrobotbase_motion_state),
@@ -2981,5 +3034,6 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_confidence_and_ambiguity_rejection),
     PBIO_THREAD_TEST(test_mdrobotbase_comprehensive_verification_matrix),
     PBIO_THREAD_TEST(test_mdrobotbase_lqr_closed_loop_convergence),
+    PBIO_THREAD_TEST(test_mdrobotbase_soft_reset_deinit),
     END_OF_TESTCASES
 };

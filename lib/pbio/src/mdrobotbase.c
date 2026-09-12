@@ -150,22 +150,39 @@ pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbi
         return PBIO_ERROR_INVALID_ARG;
     }
 
-    // Reject duplicate or overlapping motor allocations
+    // Check for exact-match re-binding or partial/conflicting overlap
+    int exact_slot = -1;
     for (int i = 0; i < PBIO_CONFIG_NUM_MDROBOTBASES; i++) {
         pbio_mdrobotbase_t *rb = &mdrobotbases[i];
-        if (mdrobotbase_in_use[i] &&
-            (rb->left == left || rb->left == right ||
-             rb->right == left || rb->right == right)) {
-            return PBIO_ERROR_BUSY;
+        if (mdrobotbase_in_use[i]) {
+            if (rb->left == left && rb->right == right) {
+                // Exact identical motor pair: re-bind cleanly
+                exact_slot = i;
+            } else if (rb->left == left || rb->left == right ||
+                       rb->right == left || rb->right == right) {
+                // Conflicting partial or reversed overlap: strictly fail closed
+                return PBIO_ERROR_BUSY;
+            }
         }
     }
 
-    // Scan for the first free pool slot
     int slot = -1;
-    for (int i = 0; i < PBIO_CONFIG_NUM_MDROBOTBASES; i++) {
-        if (!mdrobotbase_in_use[i]) {
-            slot = i;
-            break;
+    if (exact_slot >= 0) {
+        slot = exact_slot;
+        // Cancel any pending motion on the re-bound slot
+        if (mdrobotbases[slot].left) {
+            pbio_servo_stop(mdrobotbases[slot].left, PBIO_CONTROL_ON_COMPLETION_COAST);
+        }
+        if (mdrobotbases[slot].right) {
+            pbio_servo_stop(mdrobotbases[slot].right, PBIO_CONTROL_ON_COMPLETION_COAST);
+        }
+    } else {
+        // Scan for the first free pool slot
+        for (int i = 0; i < PBIO_CONFIG_NUM_MDROBOTBASES; i++) {
+            if (!mdrobotbase_in_use[i]) {
+                slot = i;
+                break;
+            }
         }
     }
 
@@ -225,6 +242,26 @@ pbio_error_t pbio_mdrobotbase_put_robotbase(pbio_mdrobotbase_t *rb) {
 
     mdrobotbase_in_use[slot] = false;
     return PBIO_SUCCESS;
+}
+
+void pbio_mdrobotbase_deinit(void) {
+    for (int i = 0; i < PBIO_CONFIG_NUM_MDROBOTBASES; i++) {
+        if (mdrobotbase_in_use[i]) {
+            pbio_mdrobotbase_t *rb = &mdrobotbases[i];
+            if (rb->left) {
+                pbio_servo_stop(rb->left, PBIO_CONTROL_ON_COMPLETION_COAST);
+            }
+            if (rb->right) {
+                pbio_servo_stop(rb->right, PBIO_CONTROL_ON_COMPLETION_COAST);
+            }
+            rb->left = NULL;
+            rb->right = NULL;
+            rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+            rb->motion_in_progress = false;
+            rb->motion_status = PBIO_MDROBOTBASE_STATUS_NONE;
+            mdrobotbase_in_use[i] = false;
+        }
+    }
 }
 
 pbio_error_t pbio_mdrobotbase_set_lqr_gains(pbio_mdrobotbase_t *rb, float k_x, float k_y, float k_theta, bool schedule) {

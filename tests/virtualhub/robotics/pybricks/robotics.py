@@ -124,15 +124,10 @@ class MDRobotBase:
         self._last_calculated_deadline_ms = 1500
 
         # Control gains & limits
-        self._lqr_gains = (1.0, 1.0, 1.0)
-        self._lqr_schedule_enabled = True
-        self._lqr_weights = (2500.0, 5000.0, 20.0, 25.0, 0.1)
-        self._lqr_k11 = 9.7531
-        self._lqr_lut = []
-        self._lqr_lut_kx = []
         self._pid_gains = (1.0, 0.0, 0.1)
         self._turn_pid_gains = (1.2, 0.0, 0.15)
         self._pivot_pid_gains = (1.1, 0.0, 0.12)
+        self.set_lqr_preset(0, True)
         self._fusion_alpha = 0.98
         self._backlash_filter = True
         self._backlash_limits = (-5.0, 5.0)
@@ -856,6 +851,10 @@ class MDRobotBase:
                 raise ValueError("All DARE parameters must be finite numbers")
         if qx < 0.0 or qy < 0.0 or qth < 0.0 or rv <= 0.0 or rw <= 0.0:
             raise ValueError("State weights must be non-negative and control weights strictly positive")
+        if qx > 1e7 or qy > 1e7 or qth > 1e7 or rv < 1e-6 or rw < 1e-6 or rv > 1e7 or rw > 1e7:
+            raise ValueError("DARE parameters exceed safe numerical bounds")
+        if (qx / rv > 1e8) or (qy / rw > 1e8) or (qth / rw > 1e8):
+            raise ValueError("DARE weight ratios exceed safe numerical conditioning limits")
 
         v_abs = max(10.0, abs(float(v_profile)))
         vr = v_abs / 1000.0
@@ -886,11 +885,13 @@ class MDRobotBase:
         for _ in range(30):
             GH = mat_mul3(G, H)
             W = [[GH[r][c] + (1.0 if r == c else 0.0) for c in range(3)] for r in range(3)]
+            if not all(math.isfinite(W[r][c]) for r in range(3) for c in range(3)):
+                raise ValueError("Non-finite intermediate in DARE SDA matrix W")
 
-            if abs(W[0][0]) < 1e-12:
+            if not math.isfinite(W[0][0]) or abs(W[0][0]) < 1e-12:
                 raise ValueError("Singular block denominator in SDA")
             detW2 = W[1][1] * W[2][2] - W[1][2] * W[2][1]
-            if abs(detW2) < 1e-12:
+            if not math.isfinite(detW2) or abs(detW2) < 1e-12:
                 raise ValueError("Singular lateral block determinant in SDA")
 
             invW = [
@@ -898,6 +899,8 @@ class MDRobotBase:
                 [0.0, W[2][2] / detW2, -W[1][2] / detW2],
                 [0.0, -W[2][1] / detW2, W[1][1] / detW2]
             ]
+            if not all(math.isfinite(invW[r][c]) for r in range(3) for c in range(3)):
+                raise ValueError("Non-finite intermediate in DARE SDA invW")
 
             T1 = mat_mul3(invW, E)
             E_next = mat_mul3(E, T1)
@@ -912,6 +915,8 @@ class MDRobotBase:
             T6 = mat_mul3(T5, E)
             T7 = mat_mul3(ET, T6)
             H_next = [[H[r][c] + T7[r][c] for c in range(3)] for r in range(3)]
+            if not all(math.isfinite(H_next[r][c]) and math.isfinite(E_next[r][c]) and math.isfinite(G_next[r][c]) for r in range(3) for c in range(3)):
+                raise ValueError("Non-finite intermediate in DARE SDA iteration")
 
             diff = max(abs(H_next[r][c] - H[r][c]) for r in range(3) for c in range(3))
             E, G, H = E_next, G_next, H_next
@@ -919,6 +924,8 @@ class MDRobotBase:
                 break
 
         P = H
+        if not all(math.isfinite(P[r][c]) for r in range(3) for c in range(3)):
+            raise ValueError("Non-finite Riccati matrix P")
 
         # Optimal gain derivation: K = (R + Bd^T * P * Bd)^-1 * Bd^T * P * Ad
         M1 = [
@@ -932,24 +939,30 @@ class MDRobotBase:
         W10 = W01
         W11 = rw + b0 * (b0 * P[1][1] + b1 * P[1][2]) + b1 * (b0 * P[2][1] + b1 * P[2][2])
         detW = W00 * W11 - W01 * W10
-        if abs(detW) <= 1e-12:
+        if not math.isfinite(detW) or abs(detW) <= 1e-12:
             raise ValueError("Singular Riccati denominator in full DARE")
 
         invW = [
             [W11 / detW, -W01 / detW],
             [-W10 / detW, W00 / detW]
         ]
+        if not all(math.isfinite(invW[r][c]) for r in range(2) for c in range(2)):
+            raise ValueError("Non-finite intermediate in DARE invW")
 
         K = [
             [invW[r][0] * M1[c][0] + invW[r][1] * M1[c][1] for c in range(3)]
             for r in range(2)
         ]
+        if not all(math.isfinite(K[r][c]) for r in range(2) for c in range(3)):
+            raise ValueError("Non-finite gain matrix K in DARE")
 
         lambda1 = abs(1.0 + Ts * K[0][0])
         acl11 = 1.0 - b0 * K[1][1]
         acl12 = vTs - b0 * K[1][2]
         acl21 = -b1 * K[1][1]
         acl22 = 1.0 - b1 * K[1][2]
+        if not all(math.isfinite(x) for x in (lambda1, acl11, acl12, acl21, acl22)):
+            raise ValueError("Non-finite closed-loop entries in DARE")
 
         tr = acl11 + acl22
         det = acl11 * acl22 - acl12 * acl21
@@ -961,7 +974,7 @@ class MDRobotBase:
             rho_lat = max(abs((tr + sqrt_d) * 0.5), abs((tr - sqrt_d) * 0.5))
 
         rho_full = max(lambda1, rho_lat)
-        if rho_full >= 1.0:
+        if not math.isfinite(rho_full) or rho_full >= 1.0:
             raise ValueError(f"Full closed-loop system unstable: rho={rho_full:.4f} >= 1.0")
 
         return K, P, rho_full
@@ -1026,13 +1039,17 @@ class MDRobotBase:
                 raise ValueError("LQR weights must be finite numbers")
         if qx < 0.0 or qy < 0.0 or qth < 0.0 or rv <= 0.0 or rw <= 0.0:
             raise ValueError("State weights must be non-negative and control weights strictly positive")
+        if qx > 1e7 or qy > 1e7 or qth > 1e7 or rv < 1e-6 or rw < 1e-6 or rv > 1e7 or rw > 1e7:
+            raise ValueError("LQR weights exceed safe numerical bounds")
+        if (qx / rv > 1e8) or (qy / rw > 1e8) or (qth / rw > 1e8):
+            raise ValueError("LQR weight ratios exceed safe numerical conditioning limits")
 
         lut = []
         lut_kx = []
         for i in range(16):
             v_bin = 50.0 + i * 50.0
             K_full, P_full, rho_i = self.solve_dare_full(qx, qy, qth, rv, rw, v_bin)
-            if rho_i >= 1.0:
+            if not math.isfinite(rho_i) or rho_i >= 1.0:
                 raise ValueError(f"Closed loop unstable at {v_bin} mm/s: rho={rho_i:.4f} >= 1.0")
             kx_i = abs(K_full[0][0])
             ky_i = abs(K_full[1][1])

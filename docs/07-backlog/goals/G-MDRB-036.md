@@ -31,9 +31,14 @@ Codex static code review identified that while the MDRobotBase tracking controll
 
 ### Scorecard & Baseline Evidence
 - **Current score:** 10.0/10 · **Remediated from:** 8.9/10 (Codex Review)
-- **Exact evidence:** [`lib/pbio/src/mdrobotbase.c:265-710`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/src/mdrobotbase.c#L265-L710)
+- **Exact evidence:** [`lib/pbio/src/mdrobotbase.c:23-825`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/src/mdrobotbase.c#L23-L825)
 - **Mathematical validation:** Structured Doubling Algorithm (SDA) solving full 3x3 unicycle DARE in 10–13 iterations; Riccati residual $< 5\times 10^{-4}$ in float32 and $< 10^{-9}$ in double precision; $\rho < 1.0$ across $v \in [-800, 800]$ mm/s.
-- **Verification report:** [`docs/06_raw/20260912_204000_g_mdrb_036_full_dare_production_integration_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_204000_g_mdrb_036_full_dare_production_integration_report.md)
+- **Memory safety & stack measurements:** Peak solver stack reduced from 1,912 B to 344 B (-82.0%); compact 760-byte static `.bss` workspace with SDA union; 0 bytes heap allocation; 0 bytes net memory growth over 100 repeated 16-bin solver updates; serialized `lqr_workspace_busy` concurrency guard; deterministic `ValueError` and `RuntimeError` eliminating opaque "Unknown Error".
+- **Verification reports:**
+  - Memory safety & error remediation: [`docs/06_raw/20260913_090000_g_mdrb_036_cortex_m4_memory_safety_and_unknown_error_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260913_090000_g_mdrb_036_cortex_m4_memory_safety_and_unknown_error_certification.md)
+  - Memory optimization analysis: [`docs/06_raw/20260913_081500_g_mdrb_036_dare_memory_usage_optimization.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260913_081500_g_mdrb_036_dare_memory_usage_optimization.md)
+  - Full DARE production integration: [`docs/06_raw/20260912_204000_g_mdrb_036_full_dare_production_integration_report.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_204000_g_mdrb_036_full_dare_production_integration_report.md)
+
 
 ## Intent
 

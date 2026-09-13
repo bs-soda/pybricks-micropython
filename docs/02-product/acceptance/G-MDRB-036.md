@@ -86,3 +86,17 @@ with diagonal cost matrices $Q = \text{diag}(q_x, q_y, q_\theta) \succeq 0$ and 
 **And** the full matrix Riccati residual $\|P - (A_d^T P A_d - A_d^T P B_d (R + B_d^T P B_d)^{-1} B_d^T P A_d + Q)\|_\infty$ must be strictly $< 5\times 10^{-4}$ for float32 storage and $< 10^{-9}$ for double precision across all 16 bins,
 **And** the optimal gain matrix must strictly satisfy $K(v_r) = (R + B_d^T P B_d)^{-1} B_d^T P A_d$ within numerical tolerance $< 10^{-6}$,
 **And** `set_lqr_gains()` is labeled and guarded as legacy manual mode without DARE optimality guarantees.
+
+---
+
+### Scenario 11: Cortex-M4 Memory Safety, Allocation-Free Workspace & Deterministic Error Reporting (AC-MDRB-036-11)
+**Given** constrained ARM Cortex-M4 bare-metal microcontrollers (`primehub_f4`, 320 KB SRAM),
+**When** the DARE solver and LQR gain scheduler execute during robot initialization or dynamic updates,
+**Then** the solver must operate with strictly zero heap allocation (`malloc`/`calloc`/`realloc`/`free` absent),
+**And** peak solver call stack depth must not exceed 400 bytes (measured $\le 344\text{ B}$ vs. 11,264 B MicroPython stack guard limit),
+**And** static workspace must be compact and union-optimized with `sizeof(pbio_mdrobotbase_lqr_workspace_t) \le 800\text{ B}$ (measured 760 B),
+**And** 100 consecutive 16-bin solver updates must exhibit exactly 0 bytes net memory growth,
+**And** re-entrant or concurrent invocations must fail closed with `PBIO_ERROR_BUSY` (`RuntimeError: LQR solver workspace busy`) without corrupting workspace buffers,
+**And** soft-reset deinitialization must unconditionally reset the busy state,
+**And** invalid or ill-conditioned weights ($Q \nsucceq 0, R \nsucc 0, \det(W) \le 10^{-12}, q/r > 10^8$) must raise `ValueError` and preserve prior LUT/weights atomically,
+**And** numerical convergence failures must raise descriptive `RuntimeError("DARE numerical solver failed to converge")` without emitting generic "Unknown Error".

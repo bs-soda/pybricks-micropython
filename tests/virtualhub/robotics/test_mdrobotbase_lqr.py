@@ -767,6 +767,7 @@ class TestMDRobotBaseLQR(unittest.TestCase):
         prev_weights = self.robot.get_lqr_weights()
         prev_lut = list(self.robot._lqr_lut)
         prev_lut_kx = list(self.robot._lqr_lut_kx)
+        prev_gains = self.robot.get_lqr_gains()
 
         # Negative Q rejected
         with self.assertRaises(ValueError):
@@ -777,10 +778,71 @@ class TestMDRobotBaseLQR(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, -0.01)
 
-        # State must remain identical to prior state
+        # Non-finite values rejected
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(float('nan'), 5000.0, 20.0, 25.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, float('inf'), 20.0, 25.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, float('-inf'), 0.1)
+
+        # Numerically unsafe magnitudes (> 1e7 or < 1e-6) rejected
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(1e9, 5000.0, 20.0, 25.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 1e-12, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, 1e-12)
+
+        # Extreme ratios (> 1e8) rejected
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(1e7, 5000.0, 20.0, 1e-3, 0.1)
+
+        # Direct solver validation for invalid, singular, extreme, and non-finite inputs
+        with self.assertRaises(ValueError):
+            self.robot.solve_dare_full(float('nan'), 5000.0, 20.0, 25.0, 0.1, 100.0)
+        with self.assertRaises(ValueError):
+            self.robot.solve_dare_full(2500.0, float('inf'), 20.0, 25.0, 0.1, 100.0)
+        with self.assertRaises(ValueError):
+            self.robot.solve_dare_full(-1.0, 5000.0, 20.0, 25.0, 0.1, 100.0)
+        with self.assertRaises(ValueError):
+            self.robot.solve_dare_full(2500.0, 5000.0, 20.0, 0.0, 0.1, 100.0)
+        with self.assertRaises(ValueError):
+            self.robot.solve_dare_full(2500.0, 5000.0, 20.0, 1e-12, 0.1, 100.0)
+        with self.assertRaises(ValueError):
+            self.robot.solve_dare_full(1e9, 5000.0, 20.0, 25.0, 0.1, 100.0)
+        with self.assertRaises(ValueError):
+            self.robot.solve_dare_full(1e7, 5000.0, 20.0, 1e-3, 0.1, 100.0)
+
+        # Regression test: state must remain 100% identical to prior state
         self.assertEqual(self.robot.get_lqr_weights(), prev_weights)
+        self.assertEqual(self.robot.get_lqr_gains(), prev_gains)
         self.assertEqual(self.robot._lqr_lut, prev_lut)
         self.assertEqual(self.robot._lqr_lut_kx, prev_lut_kx)
+
+    def test_default_initialization_balanced_preset_no_unknown_error(self):
+        """Verify default MDRobotBase initialization uses BALANCED preset and never emits Unknown Error."""
+        left = Motor(Port.C)
+        right = Motor(Port.D)
+        new_robot = MDRobotBase(left, right, wheel_diameter=56.0, axle_track=112.0)
+        try:
+            weights = new_robot.get_lqr_weights()
+            self.assertEqual(weights, (2500.0, 5000.0, 20.0, 25.0, 0.1))
+            gains = new_robot.get_lqr_gains()
+            self.assertGreater(gains[0], 0.0)
+            self.assertGreater(gains[1], 0.0)
+            self.assertGreater(gains[2], 0.0)
+            # Active LUT populated with 16 bins
+            self.assertEqual(len(new_robot._lqr_lut), 16)
+            self.assertEqual(len(new_robot._lqr_lut_kx), 16)
+            for i, entry in enumerate(new_robot._lqr_lut):
+                v_bin, ky, kth, rho = entry
+                self.assertLess(rho, 1.0)
+                self.assertGreater(ky, 0.0)
+                self.assertGreater(kth, 0.0)
+                self.assertGreater(new_robot._lqr_lut_kx[i], 0.0)
+        finally:
+            new_robot.close()
 
     def test_preset_getters_return_actual_active_dare_gains(self):
         """Verify certified presets populate active LUT with mathematically derived DARE gains."""
@@ -809,6 +871,80 @@ class TestMDRobotBaseLQR(unittest.TestCase):
         self.assertLess(kx, 11.0)
         # Spectral radius < 1.0
         self.assertLess(rho, 1.0)
+
+    def test_100_repeated_solver_calls_deterministic_and_stable(self):
+        """Verify 100 repeated solver calls are deterministic and show no growth or drift."""
+        K0, P0, rho0 = self.robot.solve_dare_full(2500.0, 5000.0, 20.0, 25.0, 0.1, 300.0)
+        for _ in range(100):
+            K, P, rho = self.robot.solve_dare_full(2500.0, 5000.0, 20.0, 25.0, 0.1, 300.0)
+            self.assertEqual(K, K0)
+            self.assertEqual(P, P0)
+            self.assertEqual(rho, rho0)
+
+    def test_two_concurrent_mdrobotbase_instances_isolation(self):
+        """Verify two MDRobotBase instances maintain independent LQR configurations without cross-talk."""
+        m_left1 = Motor(Port.A)
+        m_right1 = Motor(Port.B)
+        m_left2 = Motor(Port.C)
+        m_right2 = Motor(Port.D)
+        rb1 = MDRobotBase(m_left1, m_right1, wheel_diameter=56.0, axle_track=112.0)
+        rb2 = MDRobotBase(m_left2, m_right2, wheel_diameter=56.0, axle_track=112.0)
+        try:
+            rb1.set_lqr_preset(0) # BALANCED
+            rb2.set_lqr_preset(1) # AGGRESSIVE
+            w1 = rb1.get_lqr_weights()
+            w2 = rb2.get_lqr_weights()
+            self.assertEqual(w1, (2500.0, 5000.0, 20.0, 25.0, 0.1))
+            self.assertEqual(w2, (5000.0, 15000.0, 30.0, 15.0, 0.05))
+            self.assertNotEqual(rb1._lqr_lut_kx[0], rb2._lqr_lut_kx[0])
+            self.assertNotEqual(rb1._lqr_lut[0][1], rb2._lqr_lut[0][1])
+        finally:
+            rb1.close()
+            rb2.close()
+
+    def test_repeated_initialization_deinitialization_cycles(self):
+        """Verify repeated initialization and deinitialization cycles succeed cleanly."""
+        for _ in range(20):
+            m_left = Motor(Port.E)
+            m_right = Motor(Port.F)
+            rb = MDRobotBase(m_left, m_right, wheel_diameter=56.0, axle_track=112.0)
+            rb.set_lqr_preset(0)
+            rb.close()
+
+    def test_100_repeated_set_lqr_weights_zero_allocation_growth(self):
+        """Verify calling set_lqr_weights() and solving the 16-bin LUT repeatedly 100 times has zero memory growth."""
+        import tracemalloc
+        import gc
+        # Warmup and initial solve
+        self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, 0.1)
+        gc.collect()
+        tracemalloc.start()
+        # First 100-run baseline
+        for _ in range(100):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, 0.1)
+        gc.collect()
+        snapshot1 = tracemalloc.take_snapshot()
+        # Second 100-run verification
+        for _ in range(100):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, 0.1)
+        gc.collect()
+        snapshot2 = tracemalloc.take_snapshot()
+        tracemalloc.stop()
+
+        stats = snapshot2.compare_to(snapshot1, 'lineno')
+        growth_between_runs = sum(s.size_diff for s in stats if 'robotics.py' in s.traceback[0].filename)
+        # Net growth across consecutive 100 16-bin DARE solves must be exactly 0
+        self.assertEqual(growth_between_runs, 0)
+
+    def test_invalid_weights_leave_active_weights_intact(self):
+        """Verify invalid set_lqr_weights call fails with ValueError and leaves prior weights intact."""
+        self.robot.set_lqr_preset(0) # BALANCED
+        w_orig = self.robot.get_lqr_weights()
+        lut_orig = list(self.robot._lqr_lut)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(-1.0, 5000.0, 20.0, 25.0, 0.1)
+        self.assertEqual(self.robot.get_lqr_weights(), w_orig)
+        self.assertEqual(self.robot._lqr_lut, lut_orig)
 
 
 if __name__ == "__main__":

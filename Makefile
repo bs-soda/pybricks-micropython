@@ -65,6 +65,9 @@ clean-nxt: clean-mpy-cross
 primehub: mpy-cross
 	@$(MAKE) -C bricks/primehub
 
+primehub_f4: mpy-cross
+	@$(MAKE) -C bricks/primehub primehub_f4
+
 clean-primehub: clean-mpy-cross
 	@$(MAKE) -C bricks/primehub clean
 

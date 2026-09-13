@@ -2985,6 +2985,26 @@ static pbio_error_t test_mdrobotbase_lqr_dare_optimal_controller(pbio_os_state_t
     tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 0.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 25.0f, -0.01f), ==, PBIO_ERROR_INVALID_ARG);
 
+    // Non-finite values rejected
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, (float)NAN, 5000.0f, 20.0f, 25.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, (float)INFINITY, 20.0f, 25.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+
+    // Numerically unsafe magnitudes and extreme ratios rejected
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 1e9f, 5000.0f, 20.0f, 25.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 1e-8f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 25.0f, 1e-8f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 1e7f, 5000.0f, 20.0f, 1e-3f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+
+    // Direct solver validation for invalid, singular, extreme, and non-finite inputs
+    float dummy_K[2][3], dummy_P[3][3], dummy_rho;
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full((float)NAN, 5000.0f, 20.0f, 25.0f, 0.1f, 100.0f, dummy_K, dummy_P, &dummy_rho), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, (float)INFINITY, 20.0f, 25.0f, 0.1f, 100.0f, dummy_K, dummy_P, &dummy_rho), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(-1.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 100.0f, dummy_K, dummy_P, &dummy_rho), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 0.0f, 0.1f, 100.0f, dummy_K, dummy_P, &dummy_rho), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 1e-12f, 0.1f, 100.0f, dummy_K, dummy_P, &dummy_rho), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(1e9f, 5000.0f, 20.0f, 25.0f, 0.1f, 100.0f, dummy_K, dummy_P, &dummy_rho), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(1e7f, 5000.0f, 20.0f, 1e-3f, 0.1f, 100.0f, dummy_K, dummy_P, &dummy_rho), ==, PBIO_ERROR_INVALID_ARG);
+
     // Atomic guarantee: previous weights remain completely untouched after rejected updates
     tt_uint_op(pbio_mdrobotbase_get_lqr_weights(rb, &qx, &qy, &qth, &rv, &rw), ==, PBIO_SUCCESS);
     tt_want(fabsf(qx - 2500.0f) < 1e-4f);
@@ -3090,6 +3110,62 @@ static pbio_error_t test_mdrobotbase_lqr_dare_optimal_controller(pbio_os_state_t
     // steering correction must be stable and non-zero
     tt_want(fabsf(w_cmd_rev) > 0.1f);
 
+    // 6. 100 repeated solver calls: verify deterministic outputs and zero numerical drift
+    float K_ref[2][3], P_ref[3][3], rho_ref = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, K_ref, P_ref, &rho_ref), ==, PBIO_SUCCESS);
+    for (int rep = 0; rep < 100; rep++) {
+        float K_rep[2][3], P_rep[3][3], rho_rep = 0.0f;
+        tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, K_rep, P_rep, &rho_rep), ==, PBIO_SUCCESS);
+        tt_want(fabsf(rho_rep - rho_ref) < 1e-6f);
+        tt_want(fabsf(K_rep[0][0] - K_ref[0][0]) < 1e-6f);
+        tt_want(fabsf(K_rep[1][1] - K_ref[1][1]) < 1e-6f);
+        tt_want(fabsf(K_rep[1][2] - K_ref[1][2]) < 1e-6f);
+    }
+
+    // 7. Verify all certified presets populate distinct stable gains and LUTs
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_BALANCED, true), ==, PBIO_SUCCESS);
+    float kx_bal = rb->lqr_lut_kx[0];
+    tt_want(rb->lqr_weights.q_x == 2500.0f);
+    tt_want(rb->lqr_weights.q_y == 5000.0f);
+
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_AGGRESSIVE, true), ==, PBIO_SUCCESS);
+    float kx_agg = rb->lqr_lut_kx[0];
+    tt_want(rb->lqr_weights.q_x == 5000.0f);
+    tt_want(rb->lqr_weights.q_y == 15000.0f);
+    tt_want(kx_agg > kx_bal);
+
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_SMOOTH, true), ==, PBIO_SUCCESS);
+    float kx_sm = rb->lqr_lut_kx[0];
+    tt_want(rb->lqr_weights.q_x == 1000.0f);
+    tt_want(rb->lqr_weights.q_y == 2000.0f);
+    tt_want(kx_sm < kx_bal);
+
+    // 8. Scenario 8 (G-MDRB-036): Memory Footprint, Union Verification, and Busy State Safety
+    // Verify compact workspace struct size is exactly 760 bytes (0.74 KB, well below 1.1-1.3 KB limit)
+    tt_want(pbio_mdrobotbase_lqr_get_workspace_size() == 760);
+
+    // Verify busy state detection for nested/concurrent solver calls
+    tt_want(!pbio_mdrobotbase_lqr_is_busy());
+    pbio_mdrobotbase_lqr_set_busy_for_testing(true);
+    tt_want(pbio_mdrobotbase_lqr_is_busy());
+
+    float K_busy[2][3], P_busy[3][3], rho_busy = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, K_busy, P_busy, &rho_busy), ==, PBIO_ERROR_BUSY);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f), ==, PBIO_ERROR_BUSY);
+    float res_busy = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_compute_riccati_residual(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, P_ref, &res_busy), ==, PBIO_ERROR_BUSY);
+
+    // Releasing busy flag immediately restores normal solver execution
+    pbio_mdrobotbase_lqr_set_busy_for_testing(false);
+    tt_want(!pbio_mdrobotbase_lqr_is_busy());
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, K_busy, P_busy, &rho_busy), ==, PBIO_SUCCESS);
+
+    // Verify setting invalid weights fails with PBIO_ERROR_INVALID_ARG and preserves active configuration
+    tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, -1.0f, 5000.0f, 20.0f, 25.0f, 0.1f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_want(rb->lqr_weights.q_x == 1000.0f); // Preserved from SMOOTH preset
+    tt_want(rb->lqr_weights.q_y == 2000.0f);
+    tt_want(rb->lqr_lut_kx[0] == kx_sm);
+
     tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
 
 end:
@@ -3130,20 +3206,31 @@ static pbio_error_t test_mdrobotbase_soft_reset_deinit(pbio_os_state_t *state, v
     tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb2, srv_c, srv_d, 56000, 56000, 112000), ==, PBIO_SUCCESS);
     tt_ptr_op(rb2, !=, NULL);
 
+    // Verify multi-instance LQR preset isolation: rb1 and rb2 have distinct independent LUTs
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb1, PBIO_MDROBOTBASE_LQR_PRESET_BALANCED, true), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb2, PBIO_MDROBOTBASE_LQR_PRESET_AGGRESSIVE, true), ==, PBIO_SUCCESS);
+    tt_want(rb1->lqr_weights.q_x == 2500.0f);
+    tt_want(rb2->lqr_weights.q_x == 5000.0f);
+    tt_want(rb1->lqr_lut_kx[0] != rb2->lqr_lut_kx[0]);
+    tt_want(rb1->lqr_lut_ky[0] != rb2->lqr_lut_ky[0]);
+    tt_want(rb1->lqr_lut_kth[0] != rb2->lqr_lut_kth[0]);
+
     // 2. Invoke soft-reset deinit hook
     pbio_mdrobotbase_deinit();
 
-    // 3. Verify all pool slots were reclaimed and can be re-allocated afresh
-    rb1 = NULL;
-    rb2 = NULL;
-    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb1, srv_b, srv_a, 56000, 56000, 112000), ==, PBIO_SUCCESS);
-    tt_ptr_op(rb1, !=, NULL);
-    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb2, srv_d, srv_c, 56000, 56000, 112000), ==, PBIO_SUCCESS);
-    tt_ptr_op(rb2, !=, NULL);
+    // 3. Verify all pool slots were reclaimed and can be re-allocated afresh across 20 cycles
+    for (int cycle = 0; cycle < 20; cycle++) {
+        rb1 = NULL;
+        rb2 = NULL;
+        tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb1, srv_b, srv_a, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+        tt_ptr_op(rb1, !=, NULL);
+        tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb2, srv_d, srv_c, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+        tt_ptr_op(rb2, !=, NULL);
 
-    // 4. Cleanup
-    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb1), ==, PBIO_SUCCESS);
-    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb2), ==, PBIO_SUCCESS);
+        tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb1, PBIO_MDROBOTBASE_LQR_PRESET_SMOOTH, true), ==, PBIO_SUCCESS);
+        tt_uint_op(pbio_mdrobotbase_put_robotbase(rb1), ==, PBIO_SUCCESS);
+        tt_uint_op(pbio_mdrobotbase_put_robotbase(rb2), ==, PBIO_SUCCESS);
+    }
 
 end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);

@@ -20,6 +20,45 @@
 static pbio_mdrobotbase_t mdrobotbases[PBIO_CONFIG_NUM_MDROBOTBASES];
 static bool mdrobotbase_in_use[PBIO_CONFIG_NUM_MDROBOTBASES];
 
+typedef struct {
+    double E[3][3];
+    double G[3][3];
+    double H[3][3];
+    double T1[3][3];
+    union {
+        struct {
+            double invW[3][3];
+            double T2[3][3];
+            double T3[3][3];
+        } iter;
+        struct {
+            double M1[3][2];
+            double Wk[2][2];
+            double invWk[2][2];
+            double k_matrix[2][3];
+        } post;
+    } u;
+    float lut_kx[16];
+    float lut_ky[16];
+    float lut_kth[16];
+    float lut_rho[16];
+} pbio_mdrobotbase_lqr_workspace_t;
+
+static pbio_mdrobotbase_lqr_workspace_t lqr_workspace;
+
+/**
+ * @brief Threading & Concurrency Invariant:
+ * Pybricks MicroPython firmware execution is cooperative and single-threaded on bare-metal ARM Cortex-M.
+ * User scripts run sequentially on the main thread; peripheral interrupts (IMU, UART, motor drivers)
+ * do not invoke LQR matrix solver routines.
+ *
+ * However, to guarantee fail-closed robustness against nested invocations (e.g. coroutines/generators)
+ * or future multi-threaded runtimes, the shared static workspace is protected by lqr_workspace_busy.
+ * Any re-entrant or concurrent invocation immediately fails closed with PBIO_ERROR_BUSY.
+ * All return paths deterministically release lqr_workspace_busy, and pbio_mdrobotbase_deinit() resets it.
+ */
+static bool lqr_workspace_busy = false;
+
 pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track) {
     if (!rb || !left || !right || left == right ||
         wheel_diameter_left <= 0 || wheel_diameter_right <= 0 || axle_track <= 0 ||
@@ -40,7 +79,11 @@ pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, p
     rb->controller_type = PBIO_MDROBOTBASE_CONTROLLER_PID;
 
     // Set default LQR gains & weights via BALANCED preset
-    pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_BALANCED, true);
+    pbio_error_t lqr_preset_err = pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_BALANCED, true);
+    if (lqr_preset_err != PBIO_SUCCESS) {
+        memset(rb, 0, sizeof(pbio_mdrobotbase_t));
+        return lqr_preset_err;
+    }
 
     // Set default PID gains
     rb->kp = 1.0f;
@@ -192,6 +235,7 @@ pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbi
 
     pbio_error_t err = pbio_mdrobotbase_init(rb, left, right, wheel_diameter_left, wheel_diameter_right, axle_track);
     if (err != PBIO_SUCCESS) {
+        memset(rb, 0, sizeof(pbio_mdrobotbase_t));
         mdrobotbase_in_use[slot] = false;
         return err;
     }
@@ -259,12 +303,13 @@ void pbio_mdrobotbase_deinit(void) {
             mdrobotbase_in_use[i] = false;
         }
     }
+    lqr_workspace_busy = false;
 }
 
 static void mdrobotbase_mat_mul3(const double A[3][3], const double B[3][3], double C[3][3]) {
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
-            double sum = 0.0;
+            double sum = (double)0.0;
             for (int k = 0; k < 3; k++) {
                 sum += A[i][k] * B[k][j];
             }
@@ -273,7 +318,32 @@ static void mdrobotbase_mat_mul3(const double A[3][3], const double B[3][3], dou
     }
 }
 
-pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(
+static void mdrobotbase_mat_mul3_transa(const double A[3][3], const double B[3][3], double C[3][3]) {
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            double sum = (double)0.0;
+            for (int k = 0; k < 3; k++) {
+                sum += A[k][i] * B[k][j];
+            }
+            C[i][j] = sum;
+        }
+    }
+}
+
+static void mdrobotbase_mat_mul3_transb(const double A[3][3], const double B[3][3], double C[3][3]) {
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            double sum = (double)0.0;
+            for (int k = 0; k < 3; k++) {
+                sum += A[i][k] * B[j][k];
+            }
+            C[i][j] = sum;
+        }
+    }
+}
+
+static pbio_error_t pbio_mdrobotbase_lqr_solve_dare_internal(
+    pbio_mdrobotbase_lqr_workspace_t *ws,
     float q_x, float q_y, float q_theta,
     float r_v, float r_omega,
     float v_profile,
@@ -287,15 +357,23 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(
     if (q_x < 0.0f || q_y < 0.0f || q_theta < 0.0f || r_v <= 0.0f || r_omega <= 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
+    // Reject numerically unsafe magnitudes or extreme ratios
+    if (q_x > 1e7f || q_y > 1e7f || q_theta > 1e7f ||
+        r_v < 1e-6f || r_omega < 1e-6f || r_v > 1e7f || r_omega > 1e7f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if ((q_x / r_v > 1e8f) || (q_y / r_omega > 1e8f) || (q_theta / r_omega > 1e8f)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
 
-    const double Ts = 0.005;
+    const double Ts = (double)0.005;
     float v_abs = fabsf(v_profile);
     if (v_abs < 10.0f) {
         v_abs = 10.0f; // Clamp to v_min = 10 mm/s to prevent singularity
     }
-    double vr = (double)v_abs / 1000.0; // mm/s to m/s
+    double vr = (double)v_abs / (double)1000.0; // mm/s to m/s
     double vTs = vr * Ts;
-    double b0 = -0.5 * vr * Ts * Ts;
+    double b0 = -(double)0.5 * vr * Ts * Ts;
     double b1 = -Ts;
 
     // Structured Doubling Algorithm (SDA) for 3-state, 2-input unicycle DARE
@@ -303,172 +381,157 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(
     // A_d = [1, 0, 0; 0, 1, vTs; 0, 0, 1]
     // B_d = [-Ts, 0; 0, b0; 0, b1]
     // G_0 = B_d * R^-1 * B_d^T (symmetric positive semi-definite block-diagonal)
-    double G[3][3] = {0};
-    G[0][0] = (Ts * Ts) / (double)r_v;
-    G[1][1] = (b0 * b0) / (double)r_omega;
-    G[1][2] = (b0 * b1) / (double)r_omega;
-    G[2][1] = G[1][2];
-    G[2][2] = (b1 * b1) / (double)r_omega;
+    memset(ws->G, 0, sizeof(ws->G));
+    ws->G[0][0] = (Ts * Ts) / (double)r_v;
+    ws->G[1][1] = (b0 * b0) / (double)r_omega;
+    ws->G[1][2] = (b0 * b1) / (double)r_omega;
+    ws->G[2][1] = ws->G[1][2];
+    ws->G[2][2] = (b1 * b1) / (double)r_omega;
 
-    double H[3][3] = {0};
-    H[0][0] = (double)q_x;
-    H[1][1] = (double)q_y;
-    H[2][2] = (double)q_theta;
+    memset(ws->H, 0, sizeof(ws->H));
+    ws->H[0][0] = (double)q_x;
+    ws->H[1][1] = (double)q_y;
+    ws->H[2][2] = (double)q_theta;
 
-    double E[3][3] = {
-        {1.0, 0.0, 0.0},
-        {0.0, 1.0, vTs},
-        {0.0, 0.0, 1.0}
-    };
+    memset(ws->E, 0, sizeof(ws->E));
+    ws->E[0][0] = (double)1.0;
+    ws->E[1][1] = (double)1.0;
+    ws->E[1][2] = vTs;
+    ws->E[2][2] = (double)1.0;
 
     for (int it = 0; it < 30; it++) {
-        // W = I + G * H
-        double GH[3][3];
-        mdrobotbase_mat_mul3(G, H, GH);
-        double W[3][3];
-        for (int r = 0; r < 3; r++) {
-            for (int c = 0; c < 3; c++) {
-                W[r][c] = GH[r][c] + ((r == c) ? 1.0 : 0.0);
-            }
+        // T1 = G * H
+        mdrobotbase_mat_mul3(ws->G, ws->H, ws->T1);
+
+        double w00 = ws->T1[0][0] + (double)1.0;
+        double w11 = ws->T1[1][1] + (double)1.0;
+        double w12 = ws->T1[1][2];
+        double w21 = ws->T1[2][1];
+        double w22 = ws->T1[2][2] + (double)1.0;
+
+        if (!isfinite(w00) || !isfinite(w11) || !isfinite(w12) || !isfinite(w21) || !isfinite(w22) ||
+            fabs(w00) < (double)1e-12) {
+            return PBIO_ERROR_INVALID_ARG;
         }
 
-        // Invert block-diagonal W: (0,0) is 1x1, (1:3, 1:3) is 2x2
-        if (fabs(W[0][0]) < 1e-12) {
-            return PBIO_ERROR_FAILED;
+        double detW2 = w11 * w22 - w12 * w21;
+        if (!isfinite(detW2) || fabs(detW2) < (double)1e-12) {
+            return PBIO_ERROR_INVALID_ARG;
         }
-        double detW2 = W[1][1] * W[2][2] - W[1][2] * W[2][1];
-        if (fabs(detW2) < 1e-12) {
-            return PBIO_ERROR_FAILED;
-        }
-        double invW[3][3] = {0};
-        invW[0][0] = 1.0 / W[0][0];
-        invW[1][1] = W[2][2] / detW2;
-        invW[1][2] = -W[1][2] / detW2;
-        invW[2][1] = -W[2][1] / detW2;
-        invW[2][2] = W[1][1] / detW2;
 
-        // E_next = E * invW * E
-        double T1[3][3];
-        mdrobotbase_mat_mul3(invW, E, T1);
-        double E_next[3][3];
-        mdrobotbase_mat_mul3(E, T1, E_next);
+        memset(ws->u.iter.invW, 0, sizeof(ws->u.iter.invW));
+        ws->u.iter.invW[0][0] = (double)1.0 / w00;
+        ws->u.iter.invW[1][1] = w22 / detW2;
+        ws->u.iter.invW[1][2] = -w12 / detW2;
+        ws->u.iter.invW[2][1] = -w21 / detW2;
+        ws->u.iter.invW[2][2] = w11 / detW2;
+
+        // E_next = E * invW * E -> stored in T2
+        mdrobotbase_mat_mul3(ws->u.iter.invW, ws->E, ws->T1);
+        mdrobotbase_mat_mul3(ws->E, ws->T1, ws->u.iter.T2);
 
         // G_next = G + E * invW * G * E^T
-        double T2[3][3];
-        mdrobotbase_mat_mul3(invW, G, T2);
-        double T3[3][3];
-        mdrobotbase_mat_mul3(E, T2, T3);
-        double ET[3][3];
+        mdrobotbase_mat_mul3(ws->u.iter.invW, ws->G, ws->T1);
+        mdrobotbase_mat_mul3(ws->E, ws->T1, ws->u.iter.T3);
+        mdrobotbase_mat_mul3_transb(ws->u.iter.T3, ws->E, ws->T1);
         for (int r = 0; r < 3; r++) {
             for (int c = 0; c < 3; c++) {
-                ET[r][c] = E[c][r];
-            }
-        }
-        double T4[3][3];
-        mdrobotbase_mat_mul3(T3, ET, T4);
-        double G_next[3][3];
-        for (int r = 0; r < 3; r++) {
-            for (int c = 0; c < 3; c++) {
-                G_next[r][c] = G[r][c] + T4[r][c];
+                ws->G[r][c] += ws->T1[r][c];
             }
         }
 
         // H_next = H + E^T * H * invW * E
-        double T5[3][3];
-        mdrobotbase_mat_mul3(H, invW, T5);
-        double T6[3][3];
-        mdrobotbase_mat_mul3(T5, E, T6);
-        double T7[3][3];
-        mdrobotbase_mat_mul3(ET, T6, T7);
-        double H_next[3][3];
-        double diff = 0.0;
+        mdrobotbase_mat_mul3(ws->H, ws->u.iter.invW, ws->T1);
+        mdrobotbase_mat_mul3(ws->T1, ws->E, ws->u.iter.T3);
+        mdrobotbase_mat_mul3_transa(ws->E, ws->u.iter.T3, ws->T1);
+
+        double diff = (double)0.0;
         for (int r = 0; r < 3; r++) {
             for (int c = 0; c < 3; c++) {
-                H_next[r][c] = H[r][c] + T7[r][c];
-                double d = fabs(H_next[r][c] - H[r][c]);
+                double d = fabs(ws->T1[r][c]);
                 if (d > diff) {
                     diff = d;
+                }
+                ws->H[r][c] += ws->T1[r][c];
+                if (!isfinite(ws->H[r][c]) || !isfinite(ws->G[r][c]) || !isfinite(ws->u.iter.T2[r][c])) {
+                    return PBIO_ERROR_INVALID_ARG;
                 }
             }
         }
 
-        for (int r = 0; r < 3; r++) {
-            for (int c = 0; c < 3; c++) {
-                E[r][c] = E_next[r][c];
-                G[r][c] = G_next[r][c];
-                H[r][c] = H_next[r][c];
-            }
-        }
+        memcpy(ws->E, ws->u.iter.T2, sizeof(ws->E));
 
-        if (diff < 1e-7) {
+        if (diff < (double)1e-7) {
             break;
         }
     }
 
-    // P = H (symmetric 3x3 positive definite Riccati solution)
-    double p[3][3];
-    for (int r = 0; r < 3; r++) {
-        for (int c = 0; c < 3; c++) {
-            p[r][c] = H[r][c];
-            if (P) {
-                P[r][c] = (float)H[r][c];
+    if (P) {
+        for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) {
+                if (!isfinite(ws->H[r][c])) {
+                    return PBIO_ERROR_INVALID_ARG;
+                }
+                P[r][c] = (float)ws->H[r][c];
             }
         }
     }
 
     // Optimal gain derivation: K = (R + Bd^T * P * Bd)^-1 * Bd^T * P * Ad
-    double M1[3][2];
-    M1[0][0] = -Ts * p[0][0];
-    M1[0][1] = b0 * p[0][1] + b1 * p[0][2];
-    M1[1][0] = -Ts * p[1][0];
-    M1[1][1] = b0 * p[1][1] + b1 * p[1][2];
-    M1[2][0] = -Ts * (vTs * p[1][0] + p[2][0]);
-    M1[2][1] = vTs * (b0 * p[1][1] + b1 * p[1][2]) + (b0 * p[2][1] + b1 * p[2][2]);
+    ws->u.post.M1[0][0] = -Ts * ws->H[0][0];
+    ws->u.post.M1[0][1] = b0 * ws->H[0][1] + b1 * ws->H[0][2];
+    ws->u.post.M1[1][0] = -Ts * ws->H[1][0];
+    ws->u.post.M1[1][1] = b0 * ws->H[1][1] + b1 * ws->H[1][2];
+    ws->u.post.M1[2][0] = -Ts * (vTs * ws->H[1][0] + ws->H[2][0]);
+    ws->u.post.M1[2][1] = vTs * (b0 * ws->H[1][1] + b1 * ws->H[1][2]) + (b0 * ws->H[2][1] + b1 * ws->H[2][2]);
 
-    double Wk[2][2];
-    Wk[0][0] = (double)r_v + Ts * Ts * p[0][0];
-    Wk[0][1] = -Ts * (b0 * p[0][1] + b1 * p[0][2]);
-    Wk[1][0] = Wk[0][1];
-    Wk[1][1] = (double)r_omega + b0 * (b0 * p[1][1] + b1 * p[1][2]) + b1 * (b0 * p[2][1] + b1 * p[2][2]);
+    ws->u.post.Wk[0][0] = (double)r_v + Ts * Ts * ws->H[0][0];
+    ws->u.post.Wk[0][1] = -Ts * (b0 * ws->H[0][1] + b1 * ws->H[0][2]);
+    ws->u.post.Wk[1][0] = ws->u.post.Wk[0][1];
+    ws->u.post.Wk[1][1] = (double)r_omega + b0 * (b0 * ws->H[1][1] + b1 * ws->H[1][2]) + b1 * (b0 * ws->H[2][1] + b1 * ws->H[2][2]);
 
-    double detWk = Wk[0][0] * Wk[1][1] - Wk[0][1] * Wk[1][0];
-    if (fabs(detWk) <= 1e-12) {
-        return PBIO_ERROR_FAILED;
+    double detWk = ws->u.post.Wk[0][0] * ws->u.post.Wk[1][1] - ws->u.post.Wk[0][1] * ws->u.post.Wk[1][0];
+    if (!isfinite(detWk) || fabs(detWk) <= (double)1e-12) {
+        return PBIO_ERROR_INVALID_ARG;
     }
-    double invWk[2][2];
-    invWk[0][0] = Wk[1][1] / detWk;
-    invWk[0][1] = -Wk[0][1] / detWk;
-    invWk[1][0] = -Wk[1][0] / detWk;
-    invWk[1][1] = Wk[0][0] / detWk;
+    ws->u.post.invWk[0][0] = ws->u.post.Wk[1][1] / detWk;
+    ws->u.post.invWk[0][1] = -ws->u.post.Wk[0][1] / detWk;
+    ws->u.post.invWk[1][0] = -ws->u.post.Wk[0][1] / detWk;
+    ws->u.post.invWk[1][1] = ws->u.post.Wk[0][0] / detWk;
 
-    // K = invWk * Bd^T * P * Ad = invWk * M1^T (2x3 matrix)
-    double k_matrix[2][3];
     for (int r = 0; r < 2; r++) {
         for (int c = 0; c < 3; c++) {
-            k_matrix[r][c] = invWk[r][0] * M1[c][0] + invWk[r][1] * M1[c][1];
+            ws->u.post.k_matrix[r][c] = ws->u.post.invWk[r][0] * ws->u.post.M1[c][0] + ws->u.post.invWk[r][1] * ws->u.post.M1[c][1];
+            if (!isfinite(ws->u.post.k_matrix[r][c])) {
+                return PBIO_ERROR_INVALID_ARG;
+            }
             if (K) {
-                K[r][c] = (float)k_matrix[r][c];
+                K[r][c] = (float)ws->u.post.k_matrix[r][c];
             }
         }
     }
 
     // Closed-loop spectral radius: Acl = Ad - Bd * K
-    double lambda1 = fabs(1.0 + Ts * k_matrix[0][0]);
-    double acl11 = 1.0 - b0 * k_matrix[1][1];
-    double acl12 = vTs - b0 * k_matrix[1][2];
-    double acl21 = -b1 * k_matrix[1][1];
-    double acl22 = 1.0 - b1 * k_matrix[1][2];
+    double lambda1 = fabs((double)1.0 + Ts * ws->u.post.k_matrix[0][0]);
+    double acl11 = (double)1.0 - b0 * ws->u.post.k_matrix[1][1];
+    double acl12 = vTs - b0 * ws->u.post.k_matrix[1][2];
+    double acl21 = -b1 * ws->u.post.k_matrix[1][1];
+    double acl22 = (double)1.0 - b1 * ws->u.post.k_matrix[1][2];
+
+    if (!isfinite(lambda1) || !isfinite(acl11) || !isfinite(acl12) || !isfinite(acl21) || !isfinite(acl22)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
 
     double tr = acl11 + acl22;
     double det = acl11 * acl22 - acl12 * acl21;
-    double disc = tr * tr - 4.0 * det;
-    double rho_lat = 0.0;
-    if (disc < 0.0) {
-        rho_lat = sqrt(det);
+    double disc = tr * tr - (double)4.0 * det;
+    double rho_lat = (double)0.0;
+    if (disc < (double)0.0) {
+        rho_lat = (double)sqrtf((float)det);
     } else {
-        double sqrt_d = sqrt(disc);
-        double r1 = fabs((tr + sqrt_d) * 0.5);
-        double r2 = fabs((tr - sqrt_d) * 0.5);
+        double sqrt_d = (double)sqrtf((float)disc);
+        double r1 = fabs((tr + sqrt_d) * (double)0.5);
+        double r2 = fabs((tr - sqrt_d) * (double)0.5);
         rho_lat = (r1 > r2) ? r1 : r2;
     }
 
@@ -477,12 +540,45 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(
         *spectral_radius = (float)rho_full;
     }
 
-    if (rho_full >= 1.0) {
+    if (!isfinite(rho_full) || rho_full >= (double)1.0) {
         return PBIO_ERROR_INVALID_ARG;
     }
 
     return PBIO_SUCCESS;
 }
+
+pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(
+    float q_x, float q_y, float q_theta,
+    float r_v, float r_omega,
+    float v_profile,
+    float K[2][3], float P[3][3],
+    float *spectral_radius) {
+
+    if (lqr_workspace_busy) {
+        return PBIO_ERROR_BUSY;
+    }
+    lqr_workspace_busy = true;
+
+    pbio_error_t err = pbio_mdrobotbase_lqr_solve_dare_internal(
+        &lqr_workspace, q_x, q_y, q_theta, r_v, r_omega, v_profile, K, P, spectral_radius);
+
+    lqr_workspace_busy = false;
+    return err;
+}
+
+size_t pbio_mdrobotbase_lqr_get_workspace_size(void) {
+    return sizeof(pbio_mdrobotbase_lqr_workspace_t);
+}
+
+#if PBIO_TEST_BUILD
+bool pbio_mdrobotbase_lqr_is_busy(void) {
+    return lqr_workspace_busy;
+}
+
+void pbio_mdrobotbase_lqr_set_busy_for_testing(bool busy) {
+    lqr_workspace_busy = busy;
+}
+#endif
 
 pbio_error_t pbio_mdrobotbase_lqr_compute_riccati_residual(
     float q_x, float q_y, float q_theta,
@@ -496,83 +592,88 @@ pbio_error_t pbio_mdrobotbase_lqr_compute_riccati_residual(
         return PBIO_ERROR_INVALID_ARG;
     }
 
-    const double Ts = 0.005;
+    if (lqr_workspace_busy) {
+        return PBIO_ERROR_BUSY;
+    }
+    lqr_workspace_busy = true;
+    pbio_mdrobotbase_lqr_workspace_t *ws = &lqr_workspace;
+
+    const double Ts = (double)0.005;
     float v_abs = fabsf(v_profile);
     if (v_abs < 10.0f) {
         v_abs = 10.0f;
     }
-    double vr = (double)v_abs / 1000.0;
+    double vr = (double)v_abs / (double)1000.0;
     double vTs = vr * Ts;
-    double b0 = -0.5 * vr * Ts * Ts;
+    double b0 = -(double)0.5 * vr * Ts * Ts;
     double b1 = -Ts;
 
-    double p[3][3];
     for (int r = 0; r < 3; r++) {
         for (int c = 0; c < 3; c++) {
-            p[r][c] = (double)P[r][c];
+            ws->H[r][c] = (double)P[r][c];
         }
     }
 
-    // S = Ad^T * P * Ad
-    double S[3][3];
-    S[0][0] = p[0][0];
-    S[0][1] = p[0][1];
-    S[0][2] = vTs * p[0][1] + p[0][2];
-    S[1][0] = p[1][0];
-    S[1][1] = p[1][1];
-    S[1][2] = vTs * p[1][1] + p[1][2];
-    S[2][0] = vTs * p[1][0] + p[2][0];
-    S[2][1] = vTs * p[1][1] + p[2][1];
-    S[2][2] = vTs * (vTs * p[1][1] + p[1][2]) + (vTs * p[2][1] + p[2][2]);
+    // S = Ad^T * P * Ad -> stored in ws->E
+    ws->E[0][0] = ws->H[0][0];
+    ws->E[0][1] = ws->H[0][1];
+    ws->E[0][2] = vTs * ws->H[0][1] + ws->H[0][2];
+    ws->E[1][0] = ws->H[1][0];
+    ws->E[1][1] = ws->H[1][1];
+    ws->E[1][2] = vTs * ws->H[1][1] + ws->H[1][2];
+    ws->E[2][0] = vTs * ws->H[1][0] + ws->H[2][0];
+    ws->E[2][1] = vTs * ws->H[1][1] + ws->H[2][1];
+    ws->E[2][2] = vTs * (vTs * ws->H[1][1] + ws->H[1][2]) + (vTs * ws->H[2][1] + ws->H[2][2]);
 
-    // M1 = Ad^T * P * Bd (3x2)
-    double M1[3][2];
-    M1[0][0] = -Ts * p[0][0];
-    M1[0][1] = b0 * p[0][1] + b1 * p[0][2];
-    M1[1][0] = -Ts * p[1][0];
-    M1[1][1] = b0 * p[1][1] + b1 * p[1][2];
-    M1[2][0] = -Ts * (vTs * p[1][0] + p[2][0]);
-    M1[2][1] = vTs * (b0 * p[1][1] + b1 * p[1][2]) + (b0 * p[2][1] + b1 * p[2][2]);
+    // M1 = Ad^T * P * Bd (3x2) -> stored in ws->u.post.M1
+    ws->u.post.M1[0][0] = -Ts * ws->H[0][0];
+    ws->u.post.M1[0][1] = b0 * ws->H[0][1] + b1 * ws->H[0][2];
+    ws->u.post.M1[1][0] = -Ts * ws->H[1][0];
+    ws->u.post.M1[1][1] = b0 * ws->H[1][1] + b1 * ws->H[1][2];
+    ws->u.post.M1[2][0] = -Ts * (vTs * ws->H[1][0] + ws->H[2][0]);
+    ws->u.post.M1[2][1] = vTs * (b0 * ws->H[1][1] + b1 * ws->H[1][2]) + (b0 * ws->H[2][1] + b1 * ws->H[2][2]);
 
-    // Wk = R + Bd^T * P * Bd (2x2)
-    double Wk[2][2];
-    Wk[0][0] = (double)r_v + Ts * Ts * p[0][0];
-    Wk[0][1] = -Ts * (b0 * p[0][1] + b1 * p[0][2]);
-    Wk[1][0] = Wk[0][1];
-    Wk[1][1] = (double)r_omega + b0 * (b0 * p[1][1] + b1 * p[1][2]) + b1 * (b0 * p[2][1] + b1 * p[2][2]);
+    // Wk = R + Bd^T * P * Bd (2x2) -> stored in ws->u.post.Wk
+    ws->u.post.Wk[0][0] = (double)r_v + Ts * Ts * ws->H[0][0];
+    ws->u.post.Wk[0][1] = -Ts * (b0 * ws->H[0][1] + b1 * ws->H[0][2]);
+    ws->u.post.Wk[1][0] = ws->u.post.Wk[0][1];
+    ws->u.post.Wk[1][1] = (double)r_omega + b0 * (b0 * ws->H[1][1] + b1 * ws->H[1][2]) + b1 * (b0 * ws->H[2][1] + b1 * ws->H[2][2]);
 
-    double detWk = Wk[0][0] * Wk[1][1] - Wk[0][1] * Wk[1][0];
-    if (fabs(detWk) <= 1e-12) {
-        return PBIO_ERROR_FAILED;
+    pbio_error_t err = PBIO_SUCCESS;
+    double detWk = ws->u.post.Wk[0][0] * ws->u.post.Wk[1][1] - ws->u.post.Wk[0][1] * ws->u.post.Wk[1][0];
+    if (!isfinite(detWk) || fabs(detWk) <= (double)1e-12) {
+        err = PBIO_ERROR_INVALID_ARG;
+        goto cleanup;
     }
-    double invWk[2][2];
-    invWk[0][0] = Wk[1][1] / detWk;
-    invWk[0][1] = -Wk[0][1] / detWk;
-    invWk[1][0] = -Wk[1][0] / detWk;
-    invWk[1][1] = Wk[0][0] / detWk;
+    ws->u.post.invWk[0][0] = ws->u.post.Wk[1][1] / detWk;
+    ws->u.post.invWk[0][1] = -ws->u.post.Wk[0][1] / detWk;
+    ws->u.post.invWk[1][0] = -ws->u.post.Wk[0][1] / detWk;
+    ws->u.post.invWk[1][1] = ws->u.post.Wk[0][0] / detWk;
 
-    // G_term = M1 * invWk (3x2)
-    double G_term[3][2];
+    // G_term = M1 * invWk (3x2) -> stored in ws->T1
     for (int r = 0; r < 3; r++) {
-        G_term[r][0] = M1[r][0] * invWk[0][0] + M1[r][1] * invWk[1][0];
-        G_term[r][1] = M1[r][0] * invWk[0][1] + M1[r][1] * invWk[1][1];
+        ws->T1[r][0] = ws->u.post.M1[r][0] * ws->u.post.invWk[0][0] + ws->u.post.M1[r][1] * ws->u.post.invWk[1][0];
+        ws->T1[r][1] = ws->u.post.M1[r][0] * ws->u.post.invWk[0][1] + ws->u.post.M1[r][1] * ws->u.post.invWk[1][1];
     }
 
     // RHS = S - G_term * M1^T + Q
-    double max_err = 0.0;
+    double max_err = (double)0.0;
     for (int r = 0; r < 3; r++) {
         for (int c = 0; c < 3; c++) {
-            double q_val = (r == c) ? ((r == 0) ? (double)q_x : ((r == 1) ? (double)q_y : (double)q_theta)) : 0.0;
-            double rhs = S[r][c] - (G_term[r][0] * M1[c][0] + G_term[r][1] * M1[c][1]) + q_val;
-            double err = fabs(p[r][c] - rhs);
-            if (err > max_err) {
-                max_err = err;
+            double q_val = (r == c) ? ((r == 0) ? (double)q_x : ((r == 1) ? (double)q_y : (double)q_theta)) : (double)0.0;
+            double rhs = ws->E[r][c] - (ws->T1[r][0] * ws->u.post.M1[c][0] + ws->T1[r][1] * ws->u.post.M1[c][1]) + q_val;
+            double diff = fabs(ws->H[r][c] - rhs);
+            if (diff > max_err) {
+                max_err = diff;
             }
         }
     }
 
     *max_residual = (float)max_err;
-    return PBIO_SUCCESS;
+
+cleanup:
+    lqr_workspace_busy = false;
+    return err;
 }
 
 pbio_error_t pbio_mdrobotbase_lqr_solve_dare(
@@ -580,10 +681,9 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare(
     float v_profile, float *k_x, float *k_y, float *k_theta, float *spectral_radius) {
 
     float K[2][3];
-    float P[3][3];
     float rho = 0.0f;
     pbio_error_t err = pbio_mdrobotbase_lqr_solve_dare_full(
-        q_x, q_y, q_theta, r_v, r_omega, v_profile, K, P, &rho);
+        q_x, q_y, q_theta, r_v, r_omega, v_profile, K, NULL, &rho);
     if (err != PBIO_SUCCESS) {
         return err;
     }
@@ -657,27 +757,45 @@ pbio_error_t pbio_mdrobotbase_set_lqr_weights(pbio_mdrobotbase_t *rb, float q_x,
     if (q_x < 0.0f || q_y < 0.0f || q_theta < 0.0f || r_v <= 0.0f || r_omega <= 0.0f) {
         return PBIO_ERROR_INVALID_ARG;
     }
+    // Reject numerically unsafe magnitudes or extreme ratios
+    if (q_x > 1e7f || q_y > 1e7f || q_theta > 1e7f ||
+        r_v < 1e-6f || r_omega < 1e-6f || r_v > 1e7f || r_omega > 1e7f) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if ((q_x / r_v > 1e8f) || (q_y / r_omega > 1e8f) || (q_theta / r_omega > 1e8f)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    if (lqr_workspace_busy) {
+        return PBIO_ERROR_BUSY;
+    }
+    lqr_workspace_busy = true;
+    pbio_mdrobotbase_lqr_workspace_t *ws = &lqr_workspace;
 
     // Solve full 3-state, 2-input DARE across all 16 velocity bins: 50, 100, ..., 800 mm/s
-    float lut_kx[16];
-    float lut_ky[16];
-    float lut_kth[16];
-    float lut_rho[16];
-
+    // Staged into ws->lut_* arrays for atomic update with zero stack allocation
+    pbio_error_t err = PBIO_SUCCESS;
     for (int i = 0; i < 16; i++) {
         float v_bin = 50.0f + (float)i * 50.0f; // mm/s
-        float K_full[2][3];
-        float P_full[3][3];
         float rho_full = 0.0f;
-        pbio_error_t err = pbio_mdrobotbase_lqr_solve_dare_full(
-            q_x, q_y, q_theta, r_v, r_omega, v_bin, K_full, P_full, &rho_full);
-        if (err != PBIO_SUCCESS || rho_full >= 1.0f) {
-            return PBIO_ERROR_INVALID_ARG;
+        err = pbio_mdrobotbase_lqr_solve_dare_internal(
+            ws, q_x, q_y, q_theta, r_v, r_omega, v_bin, NULL, NULL, &rho_full);
+        if (err != PBIO_SUCCESS) {
+            break;
         }
-        lut_kx[i] = fabsf(K_full[0][0]);
-        lut_ky[i] = fabsf(K_full[1][1]);
-        lut_kth[i] = fabsf(K_full[1][2]);
-        lut_rho[i] = rho_full;
+        if (!isfinite(rho_full) || rho_full >= 1.0f) {
+            err = PBIO_ERROR_INVALID_ARG;
+            break;
+        }
+        ws->lut_kx[i] = fabsf((float)ws->u.post.k_matrix[0][0]);
+        ws->lut_ky[i] = fabsf((float)ws->u.post.k_matrix[1][1]);
+        ws->lut_kth[i] = fabsf((float)ws->u.post.k_matrix[1][2]);
+        ws->lut_rho[i] = rho_full;
+    }
+
+    if (err != PBIO_SUCCESS) {
+        lqr_workspace_busy = false;
+        return err;
     }
 
     // Atomic update of weights and lookup tables
@@ -687,20 +805,21 @@ pbio_error_t pbio_mdrobotbase_set_lqr_weights(pbio_mdrobotbase_t *rb, float q_x,
     rb->lqr_weights.r_v = r_v;
     rb->lqr_weights.r_omega = r_omega;
 
-    rb->lqr_k11 = lut_kx[0];
-    rb->k_x = lut_kx[0];
+    rb->lqr_k11 = ws->lut_kx[0];
+    rb->k_x = ws->lut_kx[0];
     for (int i = 0; i < 16; i++) {
         rb->lqr_lut_v[i] = 50.0f + (float)i * 50.0f;
-        rb->lqr_lut_kx[i] = lut_kx[i];
-        rb->lqr_lut_ky[i] = lut_ky[i];
-        rb->lqr_lut_kth[i] = lut_kth[i];
-        rb->lqr_lut_rho[i] = lut_rho[i];
+        rb->lqr_lut_kx[i] = ws->lut_kx[i];
+        rb->lqr_lut_ky[i] = ws->lut_ky[i];
+        rb->lqr_lut_kth[i] = ws->lut_kth[i];
+        rb->lqr_lut_rho[i] = ws->lut_rho[i];
     }
     // Set nominal k_y and k_theta to 300 mm/s bin (index 5)
     rb->k_y = rb->lqr_lut_ky[5];
     rb->k_theta = rb->lqr_lut_kth[5];
     rb->lqr_schedule_enabled = true;
 
+    lqr_workspace_busy = false;
     return PBIO_SUCCESS;
 }
 

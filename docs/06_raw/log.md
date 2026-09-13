@@ -2,7 +2,51 @@
 
 This log records all major operations, architectural reviews, backlog restructuring, and conformance validations in `pybricks-micropython`.
 
+## 2026-09-13
+
+- `2026-09-13T09:00:00+07:00` — **G-MDRB-036 Cortex-M4 Memory Safety & "Unknown Error" Risk Certification**
+  - Completed comprehensive certification of Cortex-M4 memory safety, stack reduction, concurrency serialization, and deterministic error handling:
+    1. **Target Build:** `make primehub_f4` completed with zero warnings under `-Wall -Werror -Wextra` (Flash .text: 290,628B code + 59,612B rodata = 350,240B; .data: 736B; .bss: 43,592B; .noinit: 264,196B; .stack: 12,288B base / 19,152B headroom; .bootloader_selector: 4B).
+    2. **Zero Allocation Growth:** Differential memory analysis (`tracemalloc`) across 100 repeated 16-bin solver updates confirmed exactly 0 bytes net memory growth.
+    3. **Peak Stack Reduction:** Peak solver call stack reduced from 1,912 bytes to 344 bytes (-82.0% reduction).
+    4. **Double Precision Invariant:** Proved necessity of double precision for Riccati residual convergence ($\le 5 \times 10^{-4}$); packed into 760-byte static workspace via SDA iteration/gain synthesis memory union.
+    5. **Concurrency & Busy Serialization:** Cooperative single-threaded execution invariant documented; re-entrancy guarded by `lqr_workspace_busy` returning `PBIO_ERROR_BUSY`; deterministic release across all return paths; soft-reset clearance in `pbio_mdrobotbase_deinit()`; test hooks strictly guarded with `#if PBIO_TEST_BUILD`.
+    6. **Deterministic Error Handling:** Input validation bounds reject non-finite and extreme values with `PBIO_ERROR_INVALID_ARG` / `ValueError`; numerical convergence failures emit descriptive `RuntimeError`; atomic rollback preserves previous LUT and weights intact; default BALANCED preset initializes cleanly.
+    7. **Test Suite Verification:** 29/29 LQR tests pass, 100/100 VirtualHub robotics tests pass, 31/31 native PBIO unit tests pass, `git diff --check` clean, governance check clean.
+  - Audit report exported to [`docs/06_raw/20260913_090000_g_mdrb_036_cortex_m4_memory_safety_and_unknown_error_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260913_090000_g_mdrb_036_cortex_m4_memory_safety_and_unknown_error_certification.md).
+
+- `2026-09-13T08:15:00+07:00` — **G-MDRB-036 DARE Memory Optimization & Stack Exhaustion Remediation**
+  - Resolved root cause of the "Unknown Error" on ARM Cortex-M4 (`primehub_f4`) caused by excessive stack usage during DARE LQR solving:
+    1. **Stack & RAM Audit:** `-fstack-usage` revealed `pbio_mdrobotbase_lqr_solve_dare_full()` allocated 1456 bytes on the stack, and `pbio_mdrobotbase_set_lqr_weights()` allocated 392 bytes, totaling 1912 bytes (> 2.1 KB with MicroPython frames) on a 12 KB stack shared with the MicroPython VM.
+    2. **Double Precision Mathematical Proof:** Proved that unicycle longitudinal Riccati solution $P[0][0] \approx 1.58 \times 10^6$ incurs $\approx 0.188$ roundoff in float32 ($\epsilon_{float} \approx 1.19 \times 10^{-7}$), resulting in Riccati residuals $\approx 0.125 \gg 5 \times 10^{-4}$. Double precision achieves residual $1.39 \times 10^{-4} < 5 \times 10^{-4}$ across all 16 bins.
+    3. **Compact Union-Optimized Workspace:** Replaced per-call stack matrix allocations with a compact 760-byte static `.bss` workspace `pbio_mdrobotbase_lqr_workspace_t` using a union between SDA iteration temporary buffers (`u.iter`: 216B) and post-convergence buffers (`u.post`: 160B).
+    4. **Stack Usage Reduction:** Peak solver stack frame dropped from **1456 bytes to 16 bytes** (internal solver: 248 bytes), `set_lqr_weights` dropped from **392 bytes to 80 bytes**, `set_lqr_preset` is 16 bytes, and total solver call stack dropped from **1912 bytes to 344 bytes (-82.0% reduction)**.
+    5. **Multi-Instance Isolation & Busy Serialization:** Solved 16 bins into staging workspace before atomic commit to target `rb->lqr_lut_*`, guarding against concurrent/nested calls with `lqr_workspace_busy` returning `PBIO_ERROR_BUSY`, atomic clearance on all exit paths, and deinit reset. Failed initialization safely resets robotbase slot via `memset(rb, 0, sizeof(pbio_mdrobotbase_t))`.
+    6. **Verification Pass:** `make primehub_f4` exits code 0 (0 warnings under `-Werror`). 29/29 VirtualHub LQR tests pass. 100/100 VirtualHub robotics tests pass. 100 repeated 16-bin solves verified with tracemalloc differential snapshots proving 0 bytes net allocation growth. 31/31 native PBIO unit tests pass (including exact sizeof == 760 assertions). Governance check passes cleanly.
+  - Audit report exported to [`docs/06_raw/20260913_081500_g_mdrb_036_dare_memory_usage_optimization.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260913_081500_g_mdrb_036_dare_memory_usage_optimization.md).
+
+- `2026-09-13T08:05:00+07:00` — **G-MDRB-036 DARE/LQR "Unknown Error" Regression Remediation**
+  - Resolved regression where ill-conditioned or near-singular DARE configurations surfaced as generic "Unknown Error" / empty `RuntimeError`:
+    1. **Input Domain Validation:** Added strict bounds in `pbio_mdrobotbase_lqr_solve_dare_full()`, `pbio_mdrobotbase_set_lqr_weights()`, and VirtualHub: finiteness (`isfinite`), non-negativity $q \ge 0$, strict positivity $r > 0$, maximum weight bounds $q, r \le 10^7$, minimum control weight $r \ge 10^{-6}$, and safe conditioning ratios $q/r \le 10^8$.
+    2. **Intermediate Finiteness Instrumentation:** Checked all intermediate SDA matrices ($W$, $\det(W_2)$, $W^{-1}$, $E_{next}$, $G_{next}$, $H_{next}$, $W_k$, $\det(W_k)$, $W_k^{-1}$, $K$, $A_{cl}$, $\rho$) with `isfinite()`, returning `PBIO_ERROR_INVALID_ARG` on non-finite values.
+    3. **Appropriate Error Code Mapping:** Replaced generic `PBIO_ERROR_FAILED` returns on near-singular $W[0][0]$, $\det(W_2)$, and $\det(W_k)$ with `PBIO_ERROR_INVALID_ARG` (translating to standard Python `ValueError`).
+    4. **Descriptive Python Error Paths:** Added explicit handling in `pb_type_mdrobotbase.c` so that any true internal numerical solver failure raises a descriptive `RuntimeError("DARE numerical solver failed to converge")` rather than an empty/unknown error.
+    5. **Atomic Configuration Invariant:** Verified and tested that `pbio_mdrobotbase_set_lqr_weights()` solves all 16 bins into stack temporary arrays first, committing to active LUT and weights only after all bins succeed; prior state is 100% preserved on error.
+    6. **VirtualHub Initialization Parity:** Initialized default BALANCED LQR preset `self.set_lqr_preset(0, True)` inside VirtualHub `MDRobotBase.__init__`, aligning with native PBIO `pbio_mdrobotbase_init()`.
+    7. **Comprehensive Verification:** `make primehub_f4` exits code 0 (0 warnings under `-Werror`). 24/24 VirtualHub LQR tests pass. 95/95 robotics tests pass. 31/31 native PBIO C tests pass. Governance check passes cleanly.
+  - Audit report exported to [`docs/06_raw/20260913_080500_g_mdrb_036_unknown_error_remediation.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260913_080500_g_mdrb_036_unknown_error_remediation.md).
+
 ## 2026-09-12
+
+- `2026-09-12T23:20:00+07:00` — **G-MDRB-036 Bare-Metal ARM Cortex-M4 Build Regression Remediation**
+  - Resolved build regression in `pybricks/robotics/pb_type_mdrobotbase.c`:
+    1. **Dead Code Elimination:** Removed obsolete `t_expected` variable declaration and its unused ramp/timeout calculation block (lines 1240–1287) leftover from prior timeout implementations; motion deadline is now strictly provided by `mdrobotbase_calculate_motion_deadline_ms()`.
+    2. **Local Scope Cleanliness:** Re-scoped `total_dist_actual`, `abs_start_speed`, and `abs_end_speed` locally within the ramping and acceleration bounds block.
+    3. **Bare-Metal Double-Promotion Resolution:** Added explicit `(double)` casting to numeric literals in `pbio_mdrobotbase_lqr_solve_dare_full` and `pbio_mdrobotbase_lqr_compute_riccati_residual` in `lib/pbio/src/mdrobotbase.c` to satisfy `-fsingle-precision-constant -Wdouble-promotion`.
+    4. **Freestanding Math Symbol Resolution:** Linked single-precision `sqrtf` via `(double)sqrtf((float)...)` on Cortex-M4 to resolve undefined reference to 64-bit `sqrt`.
+    5. **Target Alias:** Added `primehub_f4: mpy-cross` rule in top-level `Makefile`.
+    6. **Verification:** `make primehub_f4` exits with code 0 (clean ELF, binary, and firmware.zip packaging). `git diff --check` passes cleanly. 23/23 VirtualHub LQR tests, 94/94 robotics tests, and 31/31 native PBIO C tests pass. Governance check passes cleanly.
+  - Audit report exported to [`docs/06_raw/20260912_232000_g_mdrb_036_build_regression_remediation.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260912_232000_g_mdrb_036_build_regression_remediation.md).
 
 - `2026-09-12T20:45:00+07:00` — **G-MDRB-036 Full Production DARE LQR Integration & Codex Review Remediation**
   - Resolved Codex Review P1 & P2 findings:

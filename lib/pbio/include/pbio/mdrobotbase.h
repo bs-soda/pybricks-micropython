@@ -307,6 +307,11 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare(float q_x, float q_y, float q_theta
 pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(float q_x, float q_y, float q_theta, float r_v, float r_omega, float v_profile, float K[2][3], float P[3][3], float *spectral_radius);
 pbio_error_t pbio_mdrobotbase_lqr_compute_riccati_residual(float q_x, float q_y, float q_theta, float r_v, float r_omega, float v_profile, const float P[3][3], float *max_residual);
 pbio_error_t pbio_mdrobotbase_lqr_verify_discrete_stability(float k_y, float k_theta, float v_nominal, float *spectral_radius);
+size_t pbio_mdrobotbase_lqr_get_workspace_size(void);
+#if PBIO_TEST_BUILD
+bool pbio_mdrobotbase_lqr_is_busy(void);
+void pbio_mdrobotbase_lqr_set_busy_for_testing(bool busy);
+#endif
 pbio_error_t pbio_mdrobotbase_set_lqr_preset(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_lqr_preset_t preset, bool schedule);
 pbio_error_t pbio_mdrobotbase_lqr_verify_stability(float k_x, float k_y, float k_theta, float v_nominal, float *damping_ratio, float *natural_freq);
 pbio_error_t pbio_mdrobotbase_lqr_step(const pbio_mdrobotbase_t *rb, float v_profile, float x_ref, float y_ref, float path_theta_deg, float *v_cmd, float *w_cmd);

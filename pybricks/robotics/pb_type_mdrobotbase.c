@@ -767,7 +767,16 @@ static mp_obj_t pb_type_MDRobotBase_set_lqr_weights(size_t n_args,
   float rv = mp_obj_get_float(r_v_in);
   float rw = mp_obj_get_float(r_omega_in);
 
-  pb_assert(pbio_mdrobotbase_set_lqr_weights(self->rb, qx, qy, qth, rv, rw));
+  pbio_error_t err = pbio_mdrobotbase_set_lqr_weights(self->rb, qx, qy, qth, rv, rw);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid or ill-conditioned LQR weights: must be non-negative finite values with r_v > 0, r_omega > 0 yielding stable closed-loop"));
+  } else if (err == PBIO_ERROR_BUSY) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR solver workspace busy"));
+  } else if (err == PBIO_ERROR_FAILED) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("DARE numerical solver failed to converge"));
+  } else {
+    pb_assert(err);
+  }
 
   return mp_const_none;
 }
@@ -803,7 +812,16 @@ static mp_obj_t pb_type_MDRobotBase_set_lqr_preset(size_t n_args,
   mp_int_t preset_val = mp_obj_get_int(preset_in);
   bool schedule = mp_obj_is_true(schedule_in);
 
-  pb_assert(pbio_mdrobotbase_set_lqr_preset(self->rb, (pbio_mdrobotbase_lqr_preset_t)preset_val, schedule));
+  pbio_error_t err = pbio_mdrobotbase_set_lqr_preset(self->rb, (pbio_mdrobotbase_lqr_preset_t)preset_val, schedule);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid LQR preset"));
+  } else if (err == PBIO_ERROR_BUSY) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR solver workspace busy"));
+  } else if (err == PBIO_ERROR_FAILED) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("DARE numerical solver failed to converge for preset"));
+  } else {
+    pb_assert(err);
+  }
 
   return mp_const_none;
 }
@@ -1237,54 +1255,6 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   float dy_init = gy - cur_y;
   float total_dist = sqrtf(dx_init * dx_init + dy_init * dy_init);
 
-  float t_expected = 0.0f;
-  float abs_target_speed = fabsf(speed);
-  float abs_start_speed = fabsf(start_speed);
-  float abs_end_speed = fabsf(end_speed);
-  float nominal_speed = abs_target_speed > 10.0f ? abs_target_speed : 10.0f;
-  float total_dist_actual = total_dist - tolerance;
-  if (total_dist_actual < 0.0f) total_dist_actual = 0.0f;
-
-  if (total_dist_actual > 0.0f) {
-    if (ramping && (accel_d + decel_d > 0.0f)) {
-      if (total_dist_actual > (accel_d + decel_d)) {
-        float t_acc = 0.0f;
-        if (accel_d > 0.0f) {
-          float v_avg = (abs_start_speed + nominal_speed) / 2.0f;
-          if (v_avg < 10.0f) v_avg = 10.0f;
-          t_acc = accel_d / v_avg;
-        }
-        float t_dec = 0.0f;
-        if (decel_d > 0.0f) {
-          float v_avg = (nominal_speed + abs_end_speed) / 2.0f;
-          if (v_avg < 10.0f) v_avg = 10.0f;
-          t_dec = decel_d / v_avg;
-        }
-        float t_const = (total_dist_actual - accel_d - decel_d) / nominal_speed;
-        t_expected = t_acc + t_dec + t_const;
-      } else {
-        float ratio = total_dist_actual / (accel_d + decel_d);
-        float accel_d_prime = accel_d * ratio;
-        float decel_d_prime = decel_d * ratio;
-        float v_peak = abs_start_speed + (nominal_speed - abs_start_speed) * ratio;
-        float t_acc = 0.0f;
-        if (accel_d_prime > 0.0f) {
-          float v_avg = (abs_start_speed + v_peak) / 2.0f;
-          if (v_avg < 10.0f) v_avg = 10.0f;
-          t_acc = accel_d_prime / v_avg;
-        }
-        float t_dec = 0.0f;
-        if (decel_d_prime > 0.0f) {
-          float v_avg = (v_peak + abs_end_speed) / 2.0f;
-          if (v_avg < 10.0f) v_avg = 10.0f;
-          t_dec = decel_d_prime / v_avg;
-        }
-        t_expected = t_acc + t_dec;
-      }
-    } else {
-      t_expected = total_dist_actual / nominal_speed;
-    }
-  }
 
   float turn_speed = MDROBOTBASE_DEFAULT_WAYPOINT_TURN_RATE_DPS;
   float total_turn_angle = 0.0f;
@@ -1333,6 +1303,10 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
   }
 
   float target_speed_for_ramping = target_speed_signed;
+  float total_dist_actual = total_dist - tolerance;
+  if (total_dist_actual < 0.0f) {
+    total_dist_actual = 0.0f;
+  }
   if (ramping && (accel_d + decel_d > 0.0f) && (total_dist_actual < accel_d + decel_d)) {
     float ratio = total_dist_actual / (accel_d + decel_d);
     accel_d *= ratio;
@@ -1345,6 +1319,8 @@ static mp_obj_t pb_type_MDRobotBase_navigate_to_goal(size_t n_args,
 
   float max_accel = 1200.0f;
   float abs_target_ramping = fabsf(target_speed_for_ramping);
+  float abs_start_speed = fabsf(start_speed);
+  float abs_end_speed = fabsf(end_speed);
   if (accel_d > 0.0f) {
     float a_calc = (abs_target_ramping * abs_target_ramping - abs_start_speed * abs_start_speed) / accel_d;
     if (a_calc > max_accel) max_accel = a_calc;
@@ -2233,11 +2209,17 @@ static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type,
   pbio_servo_t *srv_left = pb_type_motor_get_servo(left_motor_in);
   pbio_servo_t *srv_right = pb_type_motor_get_servo(right_motor_in);
 
-  pb_assert(pbio_mdrobotbase_get_robotbase(
+  pbio_error_t err = pbio_mdrobotbase_get_robotbase(
       &self->rb, srv_left, srv_right,
       pb_obj_get_scaled_int(wheel_diameter_left_in, 1000),
       pb_obj_get_scaled_int(wheel_diameter_right_in, 1000),
-      pb_obj_get_scaled_int(axle_track_in, 1000)));
+      pb_obj_get_scaled_int(axle_track_in, 1000));
+  if (err != PBIO_SUCCESS) {
+    if (err == PBIO_ERROR_FAILED) {
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to initialize MDRobotBase controller"));
+    }
+    pb_assert(err);
+  }
 
   self->debug = mp_obj_is_true(debug_in);
   self->last_awaitable = NULL;

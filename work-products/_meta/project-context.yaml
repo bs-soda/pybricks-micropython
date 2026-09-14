@@ -1,0 +1,63 @@
+# ISO 29110 — project context (Mustache globals for WP templates)
+# Fill via `iso scan` or by hand. Do not invent commercial fields.
+# Skill: .agents/skills/soda-iso29110/SKILL.md
+
+schema_version: "1"
+template_version: "1.2"          # matches docs/08-iso29110/template-manifest.yaml
+language: en
+context_pack_ready: false
+
+project_name: ""
+project_code: ""
+project_description: ""
+objective: ""
+
+client_name: ""
+vendor_name: ""
+author: ""
+product_owner_name: ""
+company_code: ""
+
+date: ""
+agreement_id: ""
+agreement_date: ""
+project_duration_start: ""
+project_duration_end: ""
+
+stakeholders: ""
+communication_methods: ""
+
+# --- Link / register WPs (required for full 23) ---
+repository_url: ""                      # WP11 GitHub
+components_repository_url: ""           # WP15 GitHub (fallback: repository_url)
+backup_server: ""                       # WP12 host / IP
+backup_path: ""                         # WP12 path
+change_request_clickup_url: ""          # WP03 ClickUp
+correction_register_clickup_url: ""     # WP04 ClickUp
+project_tool_url: ""                    # ClickUp space/list fallback
+change_request_form_url: ""
+schedule_link: ""
+document_link: ""
+sheet_link: ""
+test_case_sheet_link: ""
+
+production_url: ""
+app_store_url: ""
+app_package_id: ""
+release_version: ""
+release_tag: ""
+store_submission_status: ""
+test_report_version: "1.0"
+
+test_environment: ""
+test_period_start: ""
+test_period_end: ""
+test_lead: ""
+
+sources:
+  brief: docs/02-product/project-brief.md
+  snapshot: docs/00-project-snapshot.md
+  overview: docs/03-architecture/overview.md
+  goals: docs/07-backlog/goals.md
+  acceptance_glob: docs/02-product/acceptance/G-*.md
+  design: docs/03-architecture/

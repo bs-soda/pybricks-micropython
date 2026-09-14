@@ -1,0 +1,14 @@
+{
+  "listId": "901820410586",
+  "statusMap": {
+    "draft": "TO DO",
+    "planned": "TO DO",
+    "ready": "TO DO",
+    "in_progress": "IN PROGRESS",
+    "review": "IN REVIEW",
+    "approved": "COMPLETE",
+    "done": "COMPLETE",
+    "blocked": "BLOCKED"
+  },
+  "repo": "CRH"
+}

@@ -36,6 +36,20 @@ const char *pbio_error_str(pbio_error_t err) {
             return "Timed out";
         case PBIO_ERROR_CANCELED:
             return "Canceled";
+        case PBIO_ERROR_LQR_FAILED:
+            return "LQR controller failed to compute a valid command";
+        case PBIO_ERROR_ODOMETRY_FAILED:
+            return "MDRobotBase odometry update failed";
+        case PBIO_ERROR_IMU_FAILED:
+            return "MDRobotBase IMU heading unavailable";
+        case PBIO_ERROR_NAVIGATION_STALLED:
+            return "MDRobotBase navigation stalled";
+        case PBIO_ERROR_TURN_STALLED:
+            return "MDRobotBase turn stalled";
+        case PBIO_ERROR_PIVOT_STALLED:
+            return "MDRobotBase pivot stalled";
+        case PBIO_ERROR_TRAJECTORY_STALLED:
+            return "MDRobotBase trajectory stalled";
     }
 
     return NULL;

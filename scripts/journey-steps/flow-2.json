@@ -1,0 +1,5474 @@
+[
+  {
+    "name": "Flow 2 - Step 1: Campaign Offer Received",
+    "data": [
+      {
+        "type": "FRAME",
+        "width": 430,
+        "height": 932,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 20,
+        "y": 876,
+        "width": 36,
+        "height": 36,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 0.8
+          }
+        ],
+        "effects": [
+          {
+            "color": {
+              "r": 0.09019607843137255,
+              "g": 0.09019607843137255,
+              "b": 0.09019607843137255,
+              "a": 1
+            },
+            "type": "DROP_SHADOW",
+            "radius": 0,
+            "blendMode": "NORMAL",
+            "visible": true,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "topLeftRadius": 9999,
+        "topRightRadius": 9999,
+        "bottomRightRadius": 9999,
+        "bottomLeftRadius": 9999
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 22,
+        "y": 878,
+        "width": 32,
+        "height": 32,
+        "fills": [],
+        "topLeftRadius": 9999,
+        "topRightRadius": 9999,
+        "bottomRightRadius": 9999,
+        "bottomLeftRadius": 9999
+      },
+      {
+        "type": "SVG",
+        "svg": "<svg width=\"40\" height=\"40\" viewBox=\"0 0 40 40\" fill=\"none\" data-next-mark-loading=\"false\"><g transform=\"translate(8.5, 13)\"><path class=\"paused\" d=\"M13.3 15.2 L2.34 1 V12.6\" fill=\"none\" stroke=\"url(#next_logo_paint0_linear_1357_10853)\" stroke-width=\"1.86\" mask=\"url(#next_logo_mask0)\" stroke-dasharray=\"29.6\" stroke-dashoffset=\"29.6\"></path><path class=\"paused\" d=\"M11.825 1.5 V13.1\" stroke-width=\"1.86\" stroke=\"url(#next_logo_paint1_linear_1357_10853)\" stroke-dasharray=\"11.6\" stroke-dashoffset=\"11.6\"></path></g><defs><linearGradient id=\"next_logo_paint0_linear_1357_10853\" x1=\"9.95555\" y1=\"11.1226\" x2=\"15.4778\" y2=\"17.9671\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"white\"></stop><stop offset=\"0.604072\" stop-color=\"white\" stop-opacity=\"0\"></stop><stop offset=\"1\" stop-color=\"white\" stop-opacity=\"0\"></stop></linearGradient><linearGradient id=\"next_logo_paint1_linear_1357_10853\" x1=\"11.8222\" y1=\"1.40039\" x2=\"11.791\" y2=\"9.62542\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"white\"></stop><stop offset=\"1\" stop-color=\"white\" stop-opacity=\"0\"></stop></linearGradient><mask id=\"next_logo_mask0\"><rect width=\"100%\" height=\"100%\" fill=\"white\"></rect><rect width=\"5\" height=\"1.5\" fill=\"black\"></rect></mask></defs></svg>",
+        "x": 22,
+        "y": 874,
+        "width": 40,
+        "height": 40
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 374,
+        "y": 868,
+        "width": 40,
+        "height": 48,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 0,
+        "y": 0,
+        "width": 430,
+        "height": 932,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 28,
+        "y": 116,
+        "width": 375,
+        "height": 700,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "b": 0.9725490196078431,
+              "g": 0.9686274509803922
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 8,
+        "topLeftRadius": 40,
+        "topRightRadius": 40,
+        "bottomRightRadius": 40,
+        "bottomLeftRadius": 40
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 124,
+        "width": 359,
+        "height": 32,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 60,
+        "y": 132,
+        "width": 23,
+        "height": 16,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 357,
+        "y": 133,
+        "width": 14,
+        "height": 14,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 357,
+        "y": 133,
+        "width": 14,
+        "height": 14,
+        "fills": [],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 652,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 652,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 48,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 168,
+        "width": 24,
+        "height": 24,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0.6627450980392157,
+              "b": 0.7176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 10,
+        "topRightRadius": 10,
+        "bottomRightRadius": 10,
+        "bottomLeftRadius": 10
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 84,
+        "y": 170,
+        "width": 92,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 204,
+        "width": 359,
+        "height": 559,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9686274509803922,
+              "g": 0.9725490196078431,
+              "b": 0.9764705882352941
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 378,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 268,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 26,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 262,
+        "width": 327,
+        "height": 164,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9450980392156862,
+              "g": 0.984313725490196,
+              "b": 0.9882352941176471
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 16,
+        "topRightRadius": 16,
+        "bottomRightRadius": 16,
+        "bottomLeftRadius": 16
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 278,
+        "width": 295,
+        "height": 24,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 302,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 334,
+        "width": 295,
+        "height": 76,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 334,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 334,
+        "width": 81,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 336,
+        "y": 334,
+        "width": 26,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 362,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 362,
+        "width": 107,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 355,
+        "y": 362,
+        "width": 8,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 390,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 390,
+        "width": 89,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 191,
+        "y": 390,
+        "width": 172,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 442,
+        "width": 327,
+        "height": 47,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "bottomRightRadius": 12,
+        "bottomLeftRadius": 12
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 508,
+        "width": 327,
+        "height": 90,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 508,
+        "width": 327,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 536,
+        "width": 327,
+        "height": 62,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 536,
+        "width": 327,
+        "height": 62,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9019607843137255,
+              "b": 0.9215686274509803,
+              "g": 0.9098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 1,
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "bottomRightRadius": 12,
+        "bottomLeftRadius": 12
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 549,
+        "width": 104,
+        "height": 36,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 549,
+        "width": 104,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 569,
+        "width": 104,
+        "height": 16,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 307,
+        "y": 555,
+        "width": 58,
+        "height": 24,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9450980392156862,
+              "g": 0.984313725490196,
+              "b": 0.9882352941176471
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 35.5,
+        "y": 762,
+        "width": 359,
+        "height": 1,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9019607843137255,
+              "b": 0.9215686274509803,
+              "g": 0.9098039215686274
+            },
+            "opacity": 1
+          }
+        ]
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 763,
+        "width": 359,
+        "height": 45,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 125,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 215,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 305,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "x": 386,
+        "y": 880,
+        "width": 16,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "☀️",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 60,
+        "y": 132,
+        "width": 23,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "9:41",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 59,
+        "y": 172,
+        "width": 9,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "C",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 84,
+        "y": 170,
+        "width": 92,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "My campaign",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 52,
+        "y": 220,
+        "width": 127,
+        "height": 26,
+        "type": "TEXT",
+        "characters": "Campaign offer",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 25.5
+        },
+        "fontSize": 17,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 277,
+        "width": 120,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "Cleansing Balm",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 302,
+        "width": 82,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Hmee Prung",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 334,
+        "width": 81,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Commission",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 336,
+        "y": 333,
+        "width": 26,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "20%",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 362,
+        "width": 107,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Committed clips",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 355,
+        "y": 361,
+        "width": 8,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "3",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 390,
+        "width": 89,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Submit within",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 191,
+        "y": 389,
+        "width": 172,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "10d of receiving the sample",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 146,
+        "y": 453,
+        "width": 139,
+        "height": 23,
+        "type": "TEXT",
+        "characters": "Review offer & sign",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 22.5
+        },
+        "fontSize": 15,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 52,
+        "y": 508,
+        "width": 102,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Your campaigns",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 19.5
+        },
+        "fontSize": 13,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 65,
+        "y": 549,
+        "width": 104,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Cleansing Balm",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 65,
+        "y": 568,
+        "width": 71,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "Hmee Prung",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 317,
+        "y": 558,
+        "width": 38,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "invited",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0.6627450980392157,
+              "b": 0.7176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 60,
+        "y": 776,
+        "width": 40,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Home",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 136,
+        "y": 776,
+        "width": 69,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Campaign",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 239,
+        "y": 776,
+        "width": 42,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Wallet",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 328,
+        "y": 776,
+        "width": 44,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Profile",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      }
+    ],
+    "connections": [
+      {
+        "triggerText": "Review offer & sign",
+        "destinationIndex": 1
+      }
+    ]
+  },
+  {
+    "name": "Flow 2 - Step 2: Campaign Briefing & Agreement",
+    "data": [
+      {
+        "type": "FRAME",
+        "width": 430,
+        "height": 932,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 20,
+        "y": 876,
+        "width": 36,
+        "height": 36,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 0.8
+          }
+        ],
+        "effects": [
+          {
+            "color": {
+              "r": 0.09019607843137255,
+              "g": 0.09019607843137255,
+              "b": 0.09019607843137255,
+              "a": 1
+            },
+            "type": "DROP_SHADOW",
+            "radius": 0,
+            "blendMode": "NORMAL",
+            "visible": true,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "topLeftRadius": 9999,
+        "topRightRadius": 9999,
+        "bottomRightRadius": 9999,
+        "bottomLeftRadius": 9999
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 22,
+        "y": 878,
+        "width": 32,
+        "height": 32,
+        "fills": [],
+        "topLeftRadius": 9999,
+        "topRightRadius": 9999,
+        "bottomRightRadius": 9999,
+        "bottomLeftRadius": 9999
+      },
+      {
+        "type": "SVG",
+        "svg": "<svg width=\"40\" height=\"40\" viewBox=\"0 0 40 40\" fill=\"none\" data-next-mark-loading=\"false\"><g transform=\"translate(8.5, 13)\"><path class=\"paused\" d=\"M13.3 15.2 L2.34 1 V12.6\" fill=\"none\" stroke=\"url(#next_logo_paint0_linear_1357_10853)\" stroke-width=\"1.86\" mask=\"url(#next_logo_mask0)\" stroke-dasharray=\"29.6\" stroke-dashoffset=\"29.6\"></path><path class=\"paused\" d=\"M11.825 1.5 V13.1\" stroke-width=\"1.86\" stroke=\"url(#next_logo_paint1_linear_1357_10853)\" stroke-dasharray=\"11.6\" stroke-dashoffset=\"11.6\"></path></g><defs><linearGradient id=\"next_logo_paint0_linear_1357_10853\" x1=\"9.95555\" y1=\"11.1226\" x2=\"15.4778\" y2=\"17.9671\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"white\"></stop><stop offset=\"0.604072\" stop-color=\"white\" stop-opacity=\"0\"></stop><stop offset=\"1\" stop-color=\"white\" stop-opacity=\"0\"></stop></linearGradient><linearGradient id=\"next_logo_paint1_linear_1357_10853\" x1=\"11.8222\" y1=\"1.40039\" x2=\"11.791\" y2=\"9.62542\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"white\"></stop><stop offset=\"1\" stop-color=\"white\" stop-opacity=\"0\"></stop></linearGradient><mask id=\"next_logo_mask0\"><rect width=\"100%\" height=\"100%\" fill=\"white\"></rect><rect width=\"5\" height=\"1.5\" fill=\"black\"></rect></mask></defs></svg>",
+        "x": 22,
+        "y": 874,
+        "width": 40,
+        "height": 40
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 374,
+        "y": 868,
+        "width": 40,
+        "height": 48,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 0,
+        "y": 0,
+        "width": 430,
+        "height": 932,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 28,
+        "y": 116,
+        "width": 375,
+        "height": 700,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "b": 0.9725490196078431,
+              "g": 0.9686274509803922
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 8,
+        "topLeftRadius": 40,
+        "topRightRadius": 40,
+        "bottomRightRadius": 40,
+        "bottomLeftRadius": 40
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 124,
+        "width": 359,
+        "height": 32,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 60,
+        "y": 132,
+        "width": 23,
+        "height": 16,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 357,
+        "y": 133,
+        "width": 14,
+        "height": 14,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 357,
+        "y": 133,
+        "width": 14,
+        "height": 14,
+        "fills": [],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 652,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 652,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 48,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 168,
+        "width": 24,
+        "height": 24,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0.6627450980392157,
+              "b": 0.7176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 10,
+        "topRightRadius": 10,
+        "bottomRightRadius": 10,
+        "bottomLeftRadius": 10
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 84,
+        "y": 170,
+        "width": 203,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 204,
+        "width": 359,
+        "height": 604,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9686274509803922,
+              "g": 0.9725490196078431,
+              "b": 0.9764705882352941
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 703,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 26,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 262,
+        "width": 327,
+        "height": 192,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9450980392156862,
+              "g": 0.984313725490196,
+              "b": 0.9882352941176471
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 16,
+        "topRightRadius": 16,
+        "bottomRightRadius": 16,
+        "bottomLeftRadius": 16
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 278,
+        "width": 295,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 280,
+        "width": 40,
+        "height": 40,
+        "fills": [
+          {
+            "url": "https://api.dicebear.com/9.x/shapes/svg?seed=hmeeprung&backgroundColor=0d9488",
+            "type": "IMAGE",
+            "scaleMode": "FILL",
+            "imageHash": null
+          }
+        ],
+        "name": "IMAGE",
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "bottomRightRadius": 12,
+        "bottomLeftRadius": 12
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 120,
+        "y": 278,
+        "width": 120,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 120,
+        "y": 278,
+        "width": 120,
+        "height": 24,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 120,
+        "y": 302,
+        "width": 120,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 334,
+        "width": 295,
+        "height": 104,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 334,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 334,
+        "width": 81,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 336,
+        "y": 334,
+        "width": 26,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 362,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 362,
+        "width": 107,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 355,
+        "y": 362,
+        "width": 8,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 390,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 390,
+        "width": 89,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 167,
+        "y": 390,
+        "width": 196,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 418,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 418,
+        "width": 73,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 228,
+        "y": 418,
+        "width": 135,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 470,
+        "width": 327,
+        "height": 64,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9686274509803922,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "bottomRightRadius": 12,
+        "bottomLeftRadius": 12
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 550,
+        "width": 327,
+        "height": 60,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 626,
+        "width": 327,
+        "height": 298,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 626,
+        "width": 327,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 649,
+        "width": 327,
+        "height": 238,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9137254901960784,
+              "b": 0.9294117647058824,
+              "g": 0.9176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 1,
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "bottomRightRadius": 12,
+        "bottomLeftRadius": 12
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 69,
+        "y": 666,
+        "width": 293,
+        "height": 160,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9137254901960784,
+              "b": 0.9294117647058824,
+              "g": 0.9176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 1,
+        "topLeftRadius": 10,
+        "topRightRadius": 10,
+        "bottomRightRadius": 10,
+        "bottomLeftRadius": 10
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 69,
+        "y": 834,
+        "width": 293,
+        "height": 36,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 169,
+        "y": 834,
+        "width": 60,
+        "height": 36,
+        "fills": [],
+        "topLeftRadius": 10,
+        "topRightRadius": 10,
+        "bottomRightRadius": 10,
+        "bottomLeftRadius": 10
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 237,
+        "y": 834,
+        "width": 125,
+        "height": 36,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 10,
+        "topRightRadius": 10,
+        "bottomRightRadius": 10,
+        "bottomLeftRadius": 10
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 891,
+        "width": 327,
+        "height": 32,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "x": 386,
+        "y": 880,
+        "width": 16,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "☀️",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 60,
+        "y": 132,
+        "width": 23,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "9:41",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 59,
+        "y": 172,
+        "width": 9,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "C",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 84,
+        "y": 170,
+        "width": 203,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Agreement & Digital Signature",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 52,
+        "y": 220,
+        "width": 127,
+        "height": 26,
+        "type": "TEXT",
+        "characters": "Campaign offer",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 25.5
+        },
+        "fontSize": 17,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 120,
+        "y": 277,
+        "width": 120,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "Cleansing Balm",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 120,
+        "y": 302,
+        "width": 82,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Hmee Prung",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 334,
+        "width": 81,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Commission",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 336,
+        "y": 333,
+        "width": 26,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "20%",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 362,
+        "width": 107,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Committed clips",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 355,
+        "y": 361,
+        "width": 8,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "3",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 390,
+        "width": 89,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Submit within",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 167,
+        "y": 389,
+        "width": 196,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "10 days of receiving the sample",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 418,
+        "width": 73,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Agreement",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 228,
+        "y": 417,
+        "width": 135,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "creator-standard v1.1",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 64,
+        "y": 483,
+        "width": 296,
+        "height": 37,
+        "type": "TEXT",
+        "characters": "Standard terms + Spark Ads code disclosure and re-submit window.",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 73,
+        "y": 550,
+        "width": 231,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "I accept the campaign agreement (",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 73,
+        "y": 551,
+        "width": 284,
+        "height": 37,
+        "type": "TEXT",
+        "characters": "creator-standard",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 131,
+        "y": 570,
+        "width": 12,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "v",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 143,
+        "y": 570,
+        "width": 14,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "1.1",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 157,
+        "y": 570,
+        "width": 63,
+        "height": 20,
+        "type": "TEXT",
+        "characters": ") and the",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 219,
+        "y": 570,
+        "width": 15,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "10",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 73,
+        "y": 571,
+        "width": 271,
+        "height": 37,
+        "type": "TEXT",
+        "characters": "-day submission window.",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 52,
+        "y": 626,
+        "width": 102,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Digital signature",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 19.5
+        },
+        "fontSize": 13,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 181,
+        "y": 842,
+        "width": 36,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Clear",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 249,
+        "y": 842,
+        "width": 101,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Save Signature",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 52,
+        "y": 892,
+        "width": 281,
+        "height": 31,
+        "type": "TEXT",
+        "characters": "Tick the agreement above, then Save signature to confirm.",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      }
+    ],
+    "connections": [
+      {
+        "triggerText": "I accept the campaign agreement",
+        "destinationIndex": 2
+      }
+    ]
+  },
+  {
+    "name": "Flow 2 - Step 3: Request Sample (Agreement Signed)",
+    "data": [
+      {
+        "type": "FRAME",
+        "width": 430,
+        "height": 932,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 20,
+        "y": 876,
+        "width": 36,
+        "height": 36,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 0.8
+          }
+        ],
+        "effects": [
+          {
+            "color": {
+              "r": 0.09019607843137255,
+              "g": 0.09019607843137255,
+              "b": 0.09019607843137255,
+              "a": 1
+            },
+            "type": "DROP_SHADOW",
+            "radius": 0,
+            "blendMode": "NORMAL",
+            "visible": true,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "topLeftRadius": 9999,
+        "topRightRadius": 9999,
+        "bottomRightRadius": 9999,
+        "bottomLeftRadius": 9999
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 22,
+        "y": 878,
+        "width": 32,
+        "height": 32,
+        "fills": [],
+        "topLeftRadius": 9999,
+        "topRightRadius": 9999,
+        "bottomRightRadius": 9999,
+        "bottomLeftRadius": 9999
+      },
+      {
+        "type": "SVG",
+        "svg": "<svg width=\"40\" height=\"40\" viewBox=\"0 0 40 40\" fill=\"none\" data-next-mark-loading=\"false\"><g transform=\"translate(8.5, 13)\"><path class=\"paused\" d=\"M13.3 15.2 L2.34 1 V12.6\" fill=\"none\" stroke=\"url(#next_logo_paint0_linear_1357_10853)\" stroke-width=\"1.86\" mask=\"url(#next_logo_mask0)\" stroke-dasharray=\"29.6\" stroke-dashoffset=\"29.6\"></path><path class=\"paused\" d=\"M11.825 1.5 V13.1\" stroke-width=\"1.86\" stroke=\"url(#next_logo_paint1_linear_1357_10853)\" stroke-dasharray=\"11.6\" stroke-dashoffset=\"11.6\"></path></g><defs><linearGradient id=\"next_logo_paint0_linear_1357_10853\" x1=\"9.95555\" y1=\"11.1226\" x2=\"15.4778\" y2=\"17.9671\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"white\"></stop><stop offset=\"0.604072\" stop-color=\"white\" stop-opacity=\"0\"></stop><stop offset=\"1\" stop-color=\"white\" stop-opacity=\"0\"></stop></linearGradient><linearGradient id=\"next_logo_paint1_linear_1357_10853\" x1=\"11.8222\" y1=\"1.40039\" x2=\"11.791\" y2=\"9.62542\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"white\"></stop><stop offset=\"1\" stop-color=\"white\" stop-opacity=\"0\"></stop></linearGradient><mask id=\"next_logo_mask0\"><rect width=\"100%\" height=\"100%\" fill=\"white\"></rect><rect width=\"5\" height=\"1.5\" fill=\"black\"></rect></mask></defs></svg>",
+        "x": 22,
+        "y": 874,
+        "width": 40,
+        "height": 40
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 374,
+        "y": 868,
+        "width": 40,
+        "height": 48,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 0,
+        "y": 0,
+        "width": 430,
+        "height": 932,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 28,
+        "y": 116,
+        "width": 375,
+        "height": 700,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "b": 0.9725490196078431,
+              "g": 0.9686274509803922
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 8,
+        "topLeftRadius": 40,
+        "topRightRadius": 40,
+        "bottomRightRadius": 40,
+        "bottomLeftRadius": 40
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 124,
+        "width": 359,
+        "height": 32,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 60,
+        "y": 132,
+        "width": 23,
+        "height": 16,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 357,
+        "y": 133,
+        "width": 14,
+        "height": 14,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 357,
+        "y": 133,
+        "width": 14,
+        "height": 14,
+        "fills": [],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 652,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 652,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 48,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 168,
+        "width": 24,
+        "height": 24,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0.6627450980392157,
+              "b": 0.7176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 10,
+        "topRightRadius": 10,
+        "bottomRightRadius": 10,
+        "bottomLeftRadius": 10
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 84,
+        "y": 170,
+        "width": 92,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 204,
+        "width": 359,
+        "height": 559,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9686274509803922,
+              "g": 0.9725490196078431,
+              "b": 0.9764705882352941
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 468,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 358,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 122,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9019607843137255,
+              "b": 0.9215686274509803,
+              "g": 0.9098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 1,
+        "topLeftRadius": 16,
+        "topRightRadius": 16,
+        "bottomRightRadius": 16,
+        "bottomLeftRadius": 16
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 69,
+        "y": 237,
+        "width": 293,
+        "height": 24,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 69,
+        "y": 265,
+        "width": 293,
+        "height": 60,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 358,
+        "width": 327,
+        "height": 164,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9450980392156862,
+              "g": 0.984313725490196,
+              "b": 0.9882352941176471
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 16,
+        "topRightRadius": 16,
+        "bottomRightRadius": 16,
+        "bottomLeftRadius": 16
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 374,
+        "width": 295,
+        "height": 24,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 398,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 430,
+        "width": 295,
+        "height": 76,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 430,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 430,
+        "width": 81,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 336,
+        "y": 430,
+        "width": 26,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 458,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 458,
+        "width": 107,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 355,
+        "y": 458,
+        "width": 8,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 486,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 486,
+        "width": 89,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 191,
+        "y": 486,
+        "width": 172,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 538,
+        "width": 327,
+        "height": 40,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 10,
+        "topRightRadius": 10,
+        "bottomRightRadius": 10,
+        "bottomLeftRadius": 10
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 598,
+        "width": 327,
+        "height": 90,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 598,
+        "width": 327,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 626,
+        "width": 327,
+        "height": 62,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 626,
+        "width": 327,
+        "height": 62,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9019607843137255,
+              "b": 0.9215686274509803,
+              "g": 0.9098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 1,
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "bottomRightRadius": 12,
+        "bottomLeftRadius": 12
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 639,
+        "width": 104,
+        "height": 36,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 639,
+        "width": 104,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 659,
+        "width": 104,
+        "height": 16,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 292,
+        "y": 645,
+        "width": 74,
+        "height": 24,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9450980392156862,
+              "g": 0.984313725490196,
+              "b": 0.9882352941176471
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 35.5,
+        "y": 762,
+        "width": 359,
+        "height": 1,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9019607843137255,
+              "b": 0.9215686274509803,
+              "g": 0.9098039215686274
+            },
+            "opacity": 1
+          }
+        ]
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 763,
+        "width": 359,
+        "height": 45,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 125,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 215,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 305,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "x": 386,
+        "y": 880,
+        "width": 16,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "☀️",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 60,
+        "y": 132,
+        "width": 23,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "9:41",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 59,
+        "y": 172,
+        "width": 9,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "C",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 84,
+        "y": 170,
+        "width": 92,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "My campaign",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 69,
+        "y": 237,
+        "width": 158,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "Agreement signed ✓",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 69,
+        "y": 267,
+        "width": 291,
+        "height": 57,
+        "type": "TEXT",
+        "characters": "Request your sample product to get started. TikTok ships it directly — no address needed.",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 374,
+        "width": 120,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "Cleansing Balm",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 398,
+        "width": 82,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Hmee Prung",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 430,
+        "width": 81,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Commission",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 336,
+        "y": 430,
+        "width": 26,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "20%",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 458,
+        "width": 107,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Committed clips",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 355,
+        "y": 458,
+        "width": 8,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "3",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 486,
+        "width": 89,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Submit within",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 191,
+        "y": 486,
+        "width": 172,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "10d of receiving the sample",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 127,
+        "y": 547,
+        "width": 176,
+        "height": 23,
+        "type": "TEXT",
+        "characters": "Request sample product",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 22.5
+        },
+        "fontSize": 15,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 52,
+        "y": 598,
+        "width": 102,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Your campaigns",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 19.5
+        },
+        "fontSize": 13,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 65,
+        "y": 639,
+        "width": 104,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Cleansing Balm",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 65,
+        "y": 658,
+        "width": 71,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "Hmee Prung",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 302,
+        "y": 648,
+        "width": 54,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "accepted",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0.6627450980392157,
+              "b": 0.7176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 60,
+        "y": 776,
+        "width": 40,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Home",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 136,
+        "y": 776,
+        "width": 69,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Campaign",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 239,
+        "y": 776,
+        "width": 42,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Wallet",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 328,
+        "y": 776,
+        "width": 44,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Profile",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      }
+    ],
+    "connections": [
+      {
+        "triggerText": "Request sample product",
+        "destinationIndex": 3
+      }
+    ]
+  },
+  {
+    "name": "Flow 2 - Step 4: Sample Requested (Awaiting Approval)",
+    "data": [
+      {
+        "type": "FRAME",
+        "width": 430,
+        "height": 932,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 20,
+        "y": 876,
+        "width": 36,
+        "height": 36,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 0.8
+          }
+        ],
+        "effects": [
+          {
+            "color": {
+              "r": 0.09019607843137255,
+              "g": 0.09019607843137255,
+              "b": 0.09019607843137255,
+              "a": 1
+            },
+            "type": "DROP_SHADOW",
+            "radius": 0,
+            "blendMode": "NORMAL",
+            "visible": true,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "topLeftRadius": 9999,
+        "topRightRadius": 9999,
+        "bottomRightRadius": 9999,
+        "bottomLeftRadius": 9999
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 22,
+        "y": 878,
+        "width": 32,
+        "height": 32,
+        "fills": [],
+        "topLeftRadius": 9999,
+        "topRightRadius": 9999,
+        "bottomRightRadius": 9999,
+        "bottomLeftRadius": 9999
+      },
+      {
+        "type": "SVG",
+        "svg": "<svg width=\"40\" height=\"40\" viewBox=\"0 0 40 40\" fill=\"none\" data-next-mark-loading=\"false\"><g transform=\"translate(8.5, 13)\"><path class=\"paused\" d=\"M13.3 15.2 L2.34 1 V12.6\" fill=\"none\" stroke=\"url(#next_logo_paint0_linear_1357_10853)\" stroke-width=\"1.86\" mask=\"url(#next_logo_mask0)\" stroke-dasharray=\"29.6\" stroke-dashoffset=\"29.6\"></path><path class=\"paused\" d=\"M11.825 1.5 V13.1\" stroke-width=\"1.86\" stroke=\"url(#next_logo_paint1_linear_1357_10853)\" stroke-dasharray=\"11.6\" stroke-dashoffset=\"11.6\"></path></g><defs><linearGradient id=\"next_logo_paint0_linear_1357_10853\" x1=\"9.95555\" y1=\"11.1226\" x2=\"15.4778\" y2=\"17.9671\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"white\"></stop><stop offset=\"0.604072\" stop-color=\"white\" stop-opacity=\"0\"></stop><stop offset=\"1\" stop-color=\"white\" stop-opacity=\"0\"></stop></linearGradient><linearGradient id=\"next_logo_paint1_linear_1357_10853\" x1=\"11.8222\" y1=\"1.40039\" x2=\"11.791\" y2=\"9.62542\" gradientUnits=\"userSpaceOnUse\"><stop stop-color=\"white\"></stop><stop offset=\"1\" stop-color=\"white\" stop-opacity=\"0\"></stop></linearGradient><mask id=\"next_logo_mask0\"><rect width=\"100%\" height=\"100%\" fill=\"white\"></rect><rect width=\"5\" height=\"1.5\" fill=\"black\"></rect></mask></defs></svg>",
+        "x": 22,
+        "y": 874,
+        "width": 40,
+        "height": 40
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 374,
+        "y": 868,
+        "width": 40,
+        "height": 48,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 0,
+        "y": 0,
+        "width": 430,
+        "height": 932,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 28,
+        "y": 116,
+        "width": 375,
+        "height": 700,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "b": 0.9725490196078431,
+              "g": 0.9686274509803922
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 8,
+        "topLeftRadius": 40,
+        "topRightRadius": 40,
+        "bottomRightRadius": 40,
+        "bottomLeftRadius": 40
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 124,
+        "width": 359,
+        "height": 32,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9647058823529412,
+              "g": 0.9686274509803922,
+              "b": 0.9725490196078431
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 60,
+        "y": 132,
+        "width": 23,
+        "height": 16,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 357,
+        "y": 133,
+        "width": 14,
+        "height": 14,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 357,
+        "y": 133,
+        "width": 14,
+        "height": 14,
+        "fills": [],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 652,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 652,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 156,
+        "width": 359,
+        "height": 48,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 168,
+        "width": 24,
+        "height": 24,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0.6627450980392157,
+              "b": 0.7176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 10,
+        "topRightRadius": 10,
+        "bottomRightRadius": 10,
+        "bottomLeftRadius": 10
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 84,
+        "y": 170,
+        "width": 92,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 204,
+        "width": 359,
+        "height": 559,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9686274509803922,
+              "g": 0.9725490196078431,
+              "b": 0.9764705882352941
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 412,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 302,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 220,
+        "width": 327,
+        "height": 122,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9019607843137255,
+              "b": 0.9215686274509803,
+              "g": 0.9098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 1,
+        "topLeftRadius": 16,
+        "topRightRadius": 16,
+        "bottomRightRadius": 16,
+        "bottomLeftRadius": 16
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 69,
+        "y": 237,
+        "width": 293,
+        "height": 24,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 69,
+        "y": 265,
+        "width": 293,
+        "height": 60,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 358,
+        "width": 327,
+        "height": 164,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9450980392156862,
+              "g": 0.984313725490196,
+              "b": 0.9882352941176471
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 16,
+        "topRightRadius": 16,
+        "bottomRightRadius": 16,
+        "bottomLeftRadius": 16
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 374,
+        "width": 295,
+        "height": 24,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 398,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 430,
+        "width": 295,
+        "height": 76,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 430,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 430,
+        "width": 81,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 336,
+        "y": 430,
+        "width": 26,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 458,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 458,
+        "width": 107,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 355,
+        "y": 458,
+        "width": 8,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 486,
+        "width": 295,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 68,
+        "y": 486,
+        "width": 89,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 191,
+        "y": 486,
+        "width": 172,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 542,
+        "width": 327,
+        "height": 90,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 542,
+        "width": 327,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 570,
+        "width": 327,
+        "height": 62,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 52,
+        "y": 570,
+        "width": 327,
+        "height": 62,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "strokes": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9019607843137255,
+              "b": 0.9215686274509803,
+              "g": 0.9098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "strokeWeight": 1,
+        "topLeftRadius": 12,
+        "topRightRadius": 12,
+        "bottomRightRadius": 12,
+        "bottomLeftRadius": 12
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 583,
+        "width": 104,
+        "height": 36,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 583,
+        "width": 104,
+        "height": 20,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 65,
+        "y": 603,
+        "width": 104,
+        "height": 16,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 243,
+        "y": 589,
+        "width": 123,
+        "height": 24,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9450980392156862,
+              "g": 0.984313725490196,
+              "b": 0.9882352941176471
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 7,
+        "topRightRadius": 7,
+        "bottomRightRadius": 7,
+        "bottomLeftRadius": 7
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 35.5,
+        "y": 762,
+        "width": 359,
+        "height": 1,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.9019607843137255,
+              "b": 0.9215686274509803,
+              "g": 0.9098039215686274
+            },
+            "opacity": 1
+          }
+        ]
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 763,
+        "width": 359,
+        "height": 45,
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 36,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 125,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 215,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "type": "RECTANGLE",
+        "x": 305,
+        "y": 764,
+        "width": 90,
+        "height": 44,
+        "fills": [],
+        "topLeftRadius": 0,
+        "topRightRadius": 0,
+        "bottomRightRadius": 0,
+        "bottomLeftRadius": 0
+      },
+      {
+        "x": 386,
+        "y": 880,
+        "width": 16,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "☀️",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 60,
+        "y": 132,
+        "width": 23,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "9:41",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 59,
+        "y": 172,
+        "width": 9,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "C",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 84,
+        "y": 170,
+        "width": 92,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "My campaign",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 69,
+        "y": 237,
+        "width": 160,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "Sample requested ⏳",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 69,
+        "y": 267,
+        "width": 247,
+        "height": 57,
+        "type": "TEXT",
+        "characters": "Waiting for the brand to approve your sample request. You'll be notified the moment it ships.",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 374,
+        "width": 120,
+        "height": 24,
+        "type": "TEXT",
+        "characters": "Cleansing Balm",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        },
+        "fontSize": 16,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 398,
+        "width": 82,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Hmee Prung",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 430,
+        "width": 81,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Commission",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 336,
+        "y": 430,
+        "width": 26,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "20%",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 458,
+        "width": 107,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Committed clips",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 355,
+        "y": 458,
+        "width": 8,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "3",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 68,
+        "y": 486,
+        "width": 89,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Submit within",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 191,
+        "y": 486,
+        "width": 172,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "10d of receiving the sample",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Outfit, Inter, sans-serif"
+      },
+      {
+        "x": 52,
+        "y": 542,
+        "width": 102,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Your campaigns",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 19.5
+        },
+        "fontSize": 13,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 65,
+        "y": 583,
+        "width": 104,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Cleansing Balm",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 65,
+        "y": 602,
+        "width": 71,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "Hmee Prung",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 253,
+        "y": 592,
+        "width": 103,
+        "height": 16,
+        "type": "TEXT",
+        "characters": "sample requested",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0,
+              "g": 0.6627450980392157,
+              "b": 0.7176470588235294
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        },
+        "fontSize": 12,
+        "fontFamily": "Inter, sans-serif"
+      },
+      {
+        "x": 60,
+        "y": 776,
+        "width": 40,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Home",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 136,
+        "y": 776,
+        "width": 69,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Campaign",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.00392156862745098,
+              "g": 0.00392156862745098,
+              "b": 0.00392156862745098
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 239,
+        "y": 776,
+        "width": 42,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Wallet",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      },
+      {
+        "x": 328,
+        "y": 776,
+        "width": 44,
+        "height": 20,
+        "type": "TEXT",
+        "characters": "Profile",
+        "fills": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.4627450980392157,
+              "g": 0.4823529411764706,
+              "b": 0.5098039215686274
+            },
+            "opacity": 1
+          }
+        ],
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        },
+        "fontSize": 14,
+        "fontFamily": "Inter, sans-serif",
+        "textAlignHorizontal": "CENTER"
+      }
+    ]
+  }
+]

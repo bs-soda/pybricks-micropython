@@ -1,0 +1,27 @@
+# รายการหน้าเว็บและพอร์ตของระบบ CreatorHub (TikTok Affiliate Management) ทั้ง 4 Portals
+# ใช้สำหรับรันสคริปต์สแกนหน้าเว็บไปที่ Figma (อัปเดตตาม Next.js basePath)
+
+# === 1. Landing Portal (Port 4000) ===
+http://localhost:4000/
+
+# === 2. Brand Portal (Port 4001 - basePath: /brand) ===
+http://localhost:4001/brand/auth
+http://localhost:4001/brand/dashboard
+http://localhost:4001/brand/campaigns
+http://localhost:4001/brand/creators
+http://localhost:4001/brand/logistics
+http://localhost:4001/brand/reports
+http://localhost:4001/brand/samples
+
+# === 3. Agency Admin Portal (Port 4002 - basePath: /admin) ===
+http://localhost:4002/admin/auth
+http://localhost:4002/admin/brands
+http://localhost:4002/admin/dashboard
+http://localhost:4002/admin/campaigns
+http://localhost:4002/admin/moderation
+http://localhost:4002/admin/agreements
+
+# === 4. Creator Portal (Port 4003 - basePath: /creator) ===
+http://localhost:4003/creator/auth
+http://localhost:4003/creator/dashboard
+http://localhost:4003/creator/wallet

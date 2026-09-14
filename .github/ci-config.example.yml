@@ -1,0 +1,17 @@
+# Copy to ci-config.yml at project bootstrap (G-001).
+# Uncomment and set commands for your stack.
+
+working_directory: code
+
+# Examples — pick one stack:
+# test: npm test
+# lint: npm run lint
+
+# test: dart analyze && flutter test
+# lint: dart format --set-exit-if-changed .
+
+# test: go test ./...
+# lint: golangci-lint run
+
+test: null
+lint: null

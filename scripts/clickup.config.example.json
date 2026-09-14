@@ -1,0 +1,14 @@
+{
+  "listId": "PASTE_YOUR_CLICKUP_LIST_ID",
+  "statusMap": {
+    "draft": "TO DO",
+    "planned": "TO DO",
+    "ready": "TO DO",
+    "in_progress": "IN PROGRESS",
+    "review": "IN REVIEW",
+    "approved": "COMPLETE",
+    "done": "COMPLETE",
+    "blocked": "BLOCKED"
+  },
+  "repo": "litter-green-nextjs"
+}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: sans-serif; padding: 16px; margin: 0; background: #ffffff; }
+    h3 { margin-top: 0; font-size: 14px; color: #333; }
+    .btn { background-color: #18a0fb; color: white; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; font-size: 12px; margin-top: 8px; }
+    .btn:hover { background-color: #0d8de3; }
+    input { width: 100%; padding: 8px; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-size: 12px; }
+    .status { font-size: 11px; color: #666; margin-top: 8px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <h3>Web-to-Figma Importer (Local)</h3>
+  <input type="text" id="json-url" value="http://localhost:8080/figma-nodes.json" />
+  <button class="btn" id="btn-import">Import Layers</button>
+  <div class="status" id="status-text">Ready to import...</div>
+
+  <script>
+    document.getElementById('btn-import').onclick = async () => {
+      const url = document.getElementById('json-url').value;
+      const statusText = document.getElementById('status-text');
+      statusText.innerText = '🔄 Fetching JSON from local server...';
+      
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Server returned non-200 status');
+        
+        const jsonData = await response.json();
+        statusText.innerText = '✍️ Drawing elements on canvas...';
+        
+        parent.postMessage({ pluginMessage: { type: 'import-layers', data: jsonData } }, '*');
+      } catch (err) {
+        statusText.innerText = '❌ Error: ' + err.message;
+        alert('Cannot connect to local server. Make sure "node sync-figma.js" is running.');
+      }
+    };
+
+    window.onmessage = (event) => {
+      const message = event.data.pluginMessage;
+      if (message && message.type === 'success') {
+        document.getElementById('status-text').innerText = '✅ Import Complete!';
+      }
+    };
+  </script>
+</body>
+</html>

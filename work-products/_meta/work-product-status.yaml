@@ -1,0 +1,177 @@
+# Work product status — ISO/IEC 29110 SoftWare Basic Profile (all 23)
+# Skill: .agents/skills/soda-iso29110/SKILL.md
+
+schema_version: "1"
+context_pack_ready: false
+
+# status: missing | draft | in_review | approved | baseline
+# output_type: doc | link | register | derived
+
+work_products:
+  WP01:
+    name: Acceptance Record
+    folder: 05_CM_QA
+    output: work-products/05_CM_QA/WP01-Acceptance-Record.md
+    output_type: doc
+    status: missing
+    wave: D
+  WP02:
+    name: Agreement
+    folder: 01_Management
+    output: work-products/01_Management/WP02-Agreement.md
+    output_type: doc
+    status: missing
+    wave: A
+  WP03:
+    name: Change Request
+    folder: 05_CM_QA
+    output: work-products/05_CM_QA/WP03-Change-Request.md
+    output_type: link
+    status: missing
+    wave: event
+    note: ClickUp URL
+  WP04:
+    name: Correction Register
+    folder: 05_CM_QA
+    output: work-products/05_CM_QA/WP04-Correction-Register.md
+    output_type: link
+    status: missing
+    wave: event
+    note: ClickUp URL
+  WP05:
+    name: Implementation Environment
+    folder: 06_Environment
+    output: work-products/06_Environment/WP05-Implementation-Environment.md
+    output_type: doc
+    status: missing
+    wave: B
+  WP06:
+    name: Maintenance Documentation
+    folder: 07_Operations
+    output: work-products/07_Operations/WP06-Maintenance-Documentation.md
+    output_type: doc
+    status: missing
+    wave: C
+  WP07:
+    name: Meeting Record
+    folder: 01_Management
+    output: work-products/01_Management/WP07-Meeting-Record.md
+    output_type: doc
+    status: missing
+    wave: event
+  WP08:
+    name: Product Operation Guideline
+    folder: 07_Operations
+    output: work-products/07_Operations/WP08-Product-Operation-Guideline.md
+    output_type: doc
+    status: missing
+    wave: C
+  WP09:
+    name: Progress Status Record
+    folder: 01_Management
+    output: work-products/01_Management/WP09-Progress-Status-Record.md
+    output_type: doc
+    status: missing
+    wave: B
+  WP10:
+    name: Project Plan
+    folder: 01_Management
+    output: work-products/01_Management/WP10-Project-Plan.md
+    output_type: doc
+    status: missing
+    wave: A
+  WP11:
+    name: Project Repository
+    folder: 08_Repository
+    output: work-products/08_Repository/WP11-Project-Repository.md
+    output_type: link
+    status: missing
+    wave: B
+    note: GitHub URL
+  WP12:
+    name: Project Repository Backup
+    folder: 08_Repository
+    output: work-products/08_Repository/WP12-Project-Repository-Backup.md
+    output_type: link
+    status: missing
+    wave: C
+    note: server IP + path
+  WP13:
+    name: Requirement Specification
+    folder: 02_Requirements
+    output: work-products/02_Requirements/WP13-Requirement-Specification.md
+    output_type: doc
+    status: missing
+    wave: A
+  WP14:
+    name: Software
+    folder: 09_Deliverables
+    output: work-products/09_Deliverables/WP14-Software.md
+    output_type: register
+    status: missing
+    wave: B
+  WP15:
+    name: Software Components
+    folder: 03_Design
+    output: work-products/03_Design/WP15-Software-Components.md
+    output_type: link
+    status: missing
+    wave: B
+    note: GitHub components repo
+  WP16:
+    name: Software Design
+    folder: 03_Design
+    output: work-products/03_Design/WP16-Software-Design.md
+    output_type: doc
+    status: missing
+    wave: B
+  WP17:
+    name: Software Product
+    folder: 09_Deliverables
+    output: work-products/09_Deliverables/WP17-Software-Product.md
+    output_type: doc
+    status: missing
+    wave: C
+  WP18:
+    name: Software User Document
+    folder: 07_Operations
+    output: work-products/07_Operations/WP18-Software-User-Document.md
+    output_type: doc
+    status: missing
+    wave: C
+  WP19:
+    name: Test Cases and Procedure
+    folder: 04_Testing
+    output: work-products/04_Testing/WP19-Test-Cases-Procedure.md
+    output_type: doc
+    status: missing
+    wave: B
+  WP20:
+    name: Test Report
+    folder: 04_Testing
+    output: work-products/04_Testing/WP20-Test-Report.md
+    output_type: derived
+    status: missing
+    wave: B
+    note: Summary + graph from WP19
+  WP21:
+    name: Traceability Record
+    folder: 02_Requirements
+    output: work-products/02_Requirements/WP21-Traceability-Record.md
+    output_type: doc
+    status: missing
+    wave: B
+  WP22:
+    name: Validation Record
+    folder: 04_Testing
+    output: work-products/04_Testing/WP22-Validation-Record.md
+    output_type: doc
+    status: missing
+    wave: D
+  WP23:
+    name: Verification Record
+    folder: 04_Testing
+    output: work-products/04_Testing/WP23-Verification-Record.md
+    output_type: doc
+    status: missing
+    wave: B

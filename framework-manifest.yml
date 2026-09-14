@@ -1,0 +1,257 @@
+# Soda Agent OS — framework manifest
+# Used by soda-os upgrade --report and soda-upgrade-os skill.
+# Bump version when framework contract changes.
+
+version: "1.24.0"
+
+# Phase 1: soda-os upgrade overwrites these (deterministic)
+overwrite:
+  skills:
+    - .agents/skills/soda-*/
+  rules:
+    - .agents/rules/governance.md
+    - .agents/rules/security.md
+    - .agents/rules/core.md
+    - .agents/rules/guidelines.md
+    - .agents/rules/commits.md
+    - .agents/rules/goal-execution.md
+    - .agents/rules/goal-creation.md
+    - .agents/rules/artifact-conservation.md
+    - .agents/rules/platform-consumer.md
+    - .agents/rules/constitution.md
+    - .agents/rules/stack-*.example.md
+    - .agents/rules/ui-component-first.example.md
+    - .agents/rules/harness-engineering.example.md
+    - .agents/rules/third-party-api-resilience.example.md
+    - .agents/rules/agentic-discovery-loops.example.md
+  github:
+    - .github/workflows/
+    - .github/pull_request_template.md
+    - .github/ci-config.example.yml
+  scripts:
+    - scripts/harness/
+    - scripts/agentic/
+    - scripts/api/
+    - scripts/backend/
+    - scripts/ci/
+    - scripts/clickhouse/
+    - scripts/contract-check/
+    - scripts/crm/
+    - scripts/db-smoke/
+    - scripts/discovery/
+    - scripts/e2e/
+    - scripts/figma-plugin/
+    - scripts/goals/
+    - scripts/http-smoke/
+    - scripts/ia/
+    - scripts/infra/
+    - scripts/journey-steps/
+    - scripts/otel-benchmark/
+    - scripts/production/
+    - scripts/security/
+    - scripts/security-audit/
+    - scripts/sre/
+    - scripts/system-admin/
+    - scripts/testing/
+    - scripts/tokens/
+    - scripts/ui/
+    - scripts/ui-smoke/
+    - scripts/ux/
+    - scripts/run-all-soda-harnesses.sh
+    - scripts/run-all-fim-epic-socratic-suite.sh
+    - scripts/run-all-microservices-socratic-loops.sh
+    - scripts/run-all-system-admin-socratic-loops.sh
+    - scripts/run-agentic-loop-end-to-end.sh
+    - scripts/clickup.config.example.json
+    - scripts/check-ui.example.mjs
+    - scripts/check-ui.mjs
+    - scripts/visual-check.mjs
+  docs:
+    - docs/04-agents/
+    - docs/06-workflows/
+    - docs/03-architecture/design-spec.md
+    - docs/03-architecture/knowledge-services.md
+    - docs/03-architecture/knowledge-store.md
+    - docs/03-architecture/context-compiler.md
+    - docs/03-architecture/context-resolver.md
+    - docs/03-architecture/working-memory.md
+    - docs/03-architecture/coordination.md
+    - docs/03-architecture/compiler-ir.md
+    - docs/03-architecture/context-bundle.schema.json
+    - docs/02-product/acceptance-template.md
+    - docs/02-product/acceptance/
+    - docs/02-product/knowledge-map.schema.json
+    - docs/02-product/knowledge-map.README.md
+    - docs/08-iso29110/
+  goals_scaffolding:
+    - docs/07-backlog/goals/_template.md
+    - docs/07-backlog/goals/_archived/README.md
+    - docs/07-backlog/epics/_template.md
+    - docs/07-backlog/queues/_template.md
+  work_products_framework:
+    - work-products/README.md
+  meta:
+    - framework-manifest.yml
+
+# Created only if missing (soda-os upgrade — do not clobber filled project context)
+create_if_missing:
+  - docs/00-project-snapshot.md
+  - docs/07-backlog/epics.md
+  - docs/07-backlog/goal-id-registry.yaml
+  - docs/07-backlog/queues/CORE.md
+  - docs/02-product/knowledge-digest.md
+  - docs/02-product/knowledge-map.json
+  - docs/02-product/learning-log.md
+  - docs/02-product/os-health.md
+  - docs/02-product/assumptions.md
+  - docs/07-backlog/changelog.md
+  - docs/constitution/engineering-constitution.md
+  - work-products/_meta/project-context.yaml
+  - work-products/_meta/feature-register.yaml
+  - work-products/_meta/req-register.yaml
+  - work-products/_meta/work-product-status.yaml
+  - work-products/_meta/links-register.yaml
+
+# Phase 2: AI semantic merge (soda-upgrade-os skill) — never blind overwrite
+merge:
+  - file: AGENTS.md
+    strategy: keep_placeholders
+    keep_local:
+      - "{PROJECT_NAME}"
+      - mission paragraph
+      - "{TEST_COMMANDS}"
+    sections_from_os:
+      - governance / approval gates
+      - skills table (including soda-upgrade-os)
+      - CI & GitHub section
+      - Goals row (goals/G-xxx.md, _archived/)
+
+  - file: docs/07-backlog/goals.md
+    strategy: framework_sections_only
+    keep_local:
+      - Dashboard (per-goal blocks)
+      - Active queue rows
+      - Archived rows
+    sections_from_os:
+      - intro line (1 goal = 1 file)
+      - Layout
+      - Status flow
+      - Create a goal
+      - Close a goal
+      - Plan legend
+
+  - file: docs/00-index.md
+    strategy: merge_table
+    keep_local:
+      - Phase, Stack, Last updated, Active goal link
+    sections_from_os:
+      - document map rows for new workflow docs
+
+  - file: README.md
+    strategy: merge_sections
+    keep_local:
+      - project name, stack-specific setup
+    sections_from_os:
+      - upgrade 2-phase workflow
+      - framework vs product table
+
+  - file: docs/00-project-snapshot.md
+    strategy: keep_local
+    note: Only created if missing; never overwrite existing snapshot
+
+# Never touch during upgrade (product-owned)
+never_touch:
+  - code/**
+  - docs/constitution/**
+  - docs/02-product/project-brief.md
+  - docs/02-product/knowledge-digest.md
+  - docs/02-product/knowledge-map.json
+  - docs/02-product/learning-log.md
+  - docs/02-product/os-health.md
+  - docs/02-product/assumptions.md
+  - docs/03-architecture/overview.md
+  - docs/03-architecture/api/**
+  - docs/03-architecture/data/**
+  - docs/05-decisions/**
+  - docs/07-backlog/goals/G-*.md
+  - docs/07-backlog/goals/_archived/G-*.md
+  - docs/07-backlog/changelog-goals.md
+  - docs/02-product/acceptance/G-*.md
+  - .github/ci-config.yml
+  - .agents/rules/{stack}.md
+  - .agents/skills/{project}-*/
+  # Generated ISO WPs (product-owned); frameworks templates live under docs/08-iso29110/
+  - work-products/01_Management/**
+  - work-products/02_Requirements/**
+  - work-products/03_Design/**
+  - work-products/04_Testing/**
+  - work-products/05_CM_QA/**
+  - work-products/06_Environment/**
+  - work-products/07_Operations/**
+  - work-products/08_Repository/**
+  - work-products/09_Deliverables/**
+
+# Drift checks run by soda-os upgrade --report
+drift_checks:
+  - id: goals-dashboard
+    file: docs/07-backlog/goals.md
+    must_contain: "## Dashboard"
+
+  - id: goals-layout
+    file: docs/07-backlog/goals.md
+    must_contain: "## Layout"
+
+  - id: goals-plan-legend
+    file: docs/07-backlog/goals.md
+    must_contain: "## Plan legend"
+
+  - id: goals-archived-path
+    file: docs/07-backlog/goals.md
+    must_contain: "goals/_archived/"
+    warn_if_contains: "goals/_archive/"
+
+  - id: template-context
+    file: docs/07-backlog/goals/_template.md
+    must_contain: "## Context"
+
+  - id: template-work-steps
+    file: docs/07-backlog/goals/_template.md
+    must_contain: "## Work steps"
+
+  - id: agents-goals-file
+    file: AGENTS.md
+    must_contain: "goals/G-xxx.md"
+
+  - id: legacy-lean-index
+    file: docs/07-backlog/goals.md
+    warn_if_contains: "lean index"
+
+  - id: archive-folder-legacy
+    path: docs/07-backlog/goals/_archive
+    type: directory_exists
+    message: "Rename or migrate docs/07-backlog/goals/_archive → _archived/"
+
+  - id: knowledge-map-scaffold
+    file: docs/02-product/knowledge-map.json
+    must_contain: "\"os_health\""
+    message: "Run soda-os upgrade --yes (creates scaffold) or merge os_health from OS template"
+
+  - id: iso29110-manifest
+    file: docs/08-iso29110/template-manifest.yaml
+    must_contain: "output_type:"
+    message: "ISO templates missing or outdated — run soda-os upgrade --yes"
+
+  - id: goal-id-registry
+    file: docs/07-backlog/goal-id-registry.yaml
+    must_contain: "schema_version:"
+    message: "Goal ID registry missing — run soda-os upgrade --yes or copy from template"
+
+  - id: epics-index
+    file: docs/07-backlog/epics.md
+    must_contain: "## Registered epics"
+    message: "Epic index missing — run soda-os upgrade --yes or copy from template"
+
+  - id: goal-id-contract
+    file: docs/06-workflows/goal-id.md
+    must_contain: "G-{EPIC}-{SEQ}"
+    message: "Goal ID contract missing — run soda-os upgrade --yes"

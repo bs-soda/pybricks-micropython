@@ -1,0 +1,13 @@
+{
+  "name": "figma-sync-tool",
+  "version": "1.0.0",
+  "description": "Local tool to extract webpage layouts and sync to Figma",
+  "main": "sync-figma.js",
+  "scripts": {
+    "sync": "node sync-figma.js",
+    "socratic:all": "bash run-all-system-admin-socratic-loops.sh"
+  },
+  "dependencies": {
+    "puppeteer": "^22.11.2"
+  }
+}

@@ -1,0 +1,27 @@
+# Requirement register — REQ-xxx ↔ F-xx ↔ G-xxx
+# Written by `iso generate WP13`. IDs are assigned only in WP13 (not WP02).
+# Skill: .agents/skills/soda-iso29110/SKILL.md
+
+schema_version: "1"
+next_req_number: 1               # next free REQ-NNN (1 → REQ-001)
+
+# Example row:
+# requirements:
+#   - id: REQ-001
+#     feature_id: F-01
+#     goal_id: G-001
+#     acceptance_path: docs/02-product/acceptance/G-001.md
+#     user_story: "As a guest, I want to browse the catalog so that I can decide whether to sign up."
+#     status: draft              # draft | in_review | approved
+
+requirements: []
+
+# Example NFR:
+# nfrs:
+#   - id: NFR-01
+#     category: Performance
+#     requirement: App responsiveness
+#     criteria: Key screens load in under 8 seconds.
+#     source: quality bar | C-xxx | ADR-xxxx
+
+nfrs: []

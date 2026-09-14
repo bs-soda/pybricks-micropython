@@ -1,0 +1,23 @@
+# Feature register — F-xx ↔ soda-os scope / goals
+# Written by `iso generate WP02`. Do not put REQ-xxx here.
+# Skill: .agents/skills/soda-iso29110/SKILL.md
+
+schema_version: "1"
+
+# Example row (remove when filling for real):
+# features:
+#   - id: F-01
+#     name: Guest browsing
+#     description: Clients can explore content without an account.
+#     in_scope_summary:
+#       - Browse catalog
+#       - Open detail screens
+#     scope_items:
+#       - "Guest can browse catalog"
+#     goal_ids: [G-PAY-001, G-001]
+#     out_of_scope:
+#       - Offline sync
+
+features: []
+
+out_of_scope_global: []          # from project-brief.md Out of scope — items not tied to one F-xx

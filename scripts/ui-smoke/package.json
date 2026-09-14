@@ -1,0 +1,9 @@
+{
+  "name": "agency-login-ui-smoke",
+  "private": true,
+  "type": "module",
+  "description": "G-027 Playwright PoC — Agency Admin login UI smoke",
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}

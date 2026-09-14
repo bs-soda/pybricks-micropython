@@ -1,0 +1,49 @@
+# External pointers for link-type WPs (mirrors project-context; updated by iso scan / generate)
+# Skill: .agents/skills/soda-iso29110/SKILL.md
+
+schema_version: "1"
+
+WP03_change_request:
+  tool: ClickUp
+  url_field: change_request_clickup_url
+  url: ""
+  status: missing
+
+WP04_correction_register:
+  tool: ClickUp
+  url_field: correction_register_clickup_url
+  url: ""
+  status: missing
+
+WP11_project_repository:
+  tool: GitHub
+  url_field: repository_url
+  url: ""
+  status: missing
+
+WP12_repository_backup:
+  tool: server
+  host_field: backup_server
+  path_field: backup_path
+  host: ""
+  path: ""
+  status: missing
+
+WP15_software_components:
+  tool: GitHub
+  url_field: components_repository_url
+  url: ""
+  fallback_field: repository_url
+  status: missing
+
+WP14_software_artifacts:
+  release_version: ""
+  release_tag: ""
+  production_url: ""
+  app_store_url: ""
+  status: missing
+
+WP20_test_report:
+  derived_from: WP19
+  test_report_version: "1.0"
+  status: missing

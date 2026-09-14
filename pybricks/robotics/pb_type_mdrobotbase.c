@@ -718,14 +718,25 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     return PBIO_SUCCESS;
   }
 
-  // 0. Physical servo update loop check (immediate motor disconnection)
-  if (!pbio_servo_update_loop_is_running(self->rb->left)) {
+  // 0. Physical servo update loop check (immediate motor disconnection with startup grace window)
+  if (!pbio_servo_update_loop_is_running(self->rb->left) ||
+      !pbio_servo_update_loop_is_running(self->rb->right)) {
+    uint32_t now = pbdrv_clock_get_ms();
+    if (!self->motion_started) {
+      if (self->startup_retry_start_ms == 0) {
+        self->startup_retry_start_ms = now;
+      }
+      if ((uint32_t)(now - self->startup_retry_start_ms) < 500) {
+        pbio_os_request_poll();
+        return PBIO_ERROR_AGAIN;
+      }
+    }
     mdrobotbase_motion_stop(self, true);
-    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (left motor Port %c stopped)"), (char)self->left_port);
-  }
-  if (!pbio_servo_update_loop_is_running(self->rb->right)) {
-    mdrobotbase_motion_stop(self, true);
-    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (right motor Port %c stopped)"), (char)self->right_port);
+    if (!pbio_servo_update_loop_is_running(self->rb->left)) {
+      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (left motor Port %c stopped)"), (char)self->left_port);
+    } else {
+      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (right motor Port %c stopped)"), (char)self->right_port);
+    }
   }
 
   // 1. Update Odometry State

@@ -4,6 +4,19 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T15:10:00+07:00` — **G-MDRB-036 Servo Update Loop Self-Healing & Startup Grace Window Certification**
+  - Resolved physical PrimeHub hardware defect where right motor on Port B stopped during startup of `turn_to_angle`:
+    1. **Transient Error Filter in Kernel Servo Loop:** In `lib/pbio/src/servo.c:L184-L198` (`pbio_servo_update_all`), prevented the kernel from permanently killing `srv->run_update_loop` when `pbio_servo_update` returns `PBIO_ERROR_AGAIN` or `PBIO_ERROR_BUSY`.
+    2. **Self-Healing Motor Loop Re-Arming:** In `lib/pbio/src/servo.c:L57-L79` (`pbio_servo_update_loop_is_running`), if `run_update_loop` was stopped due to transient bus conditions but the physical motor is plugged in and communicating (`pbio_tacho_get_angle` returns `PBIO_SUCCESS`), the observer is re-synchronized via `pbio_observer_reset` and `run_update_loop` is restored to `true`.
+    3. **Startup Grace Window in Native C Motion Iterator:** In `pybricks/robotics/pb_type_mdrobotbase.c:L721-L740` (`pb_type_mdrobotbase_motion_iterate_once`), added a 500ms grace window with `pbio_os_request_poll()` for `!self->motion_started` prior to declaring a permanent motor loss, avoiding tick-0 race conditions while preserving instant hard disconnection aborts once moving.
+    4. **Added Comprehensive Verification Test:** Added `test_servo_update_loop_self_healing` in `lib/pbio/test/src/test_servo.c` verifying loop recovery and post-recovery motor control execution.
+    5. **Empirical Quality Verification:**
+       - 97/97 Native PBIO C tests passed (100%).
+       - 146/146 VirtualHub tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` and `primehub` firmware builds.
+       - Clean `git diff --check`.
+  - Detailed certification report exported to [`docs/06_raw/20260914_151000_servo_update_loop_self_healing_and_startup_grace_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_151000_servo_update_loop_self_healing_and_startup_grace_certification.md).
+
 - `2026-09-14T14:45:00+07:00` — **MDRobotBase Motor Connection Resilience & Port Diagnostics Certification**
   - Resolved user report of `OSError: MDRobotBase motor is not connected` when running robot navigation script `m.py`:
     1. **Eliminated Premature Break on Tick 0:** In `pb_type_MDRobotBase_reset_state`, removed the early loop break on `PBIO_ERROR_NO_DEV` when `!pbio_servo_update_loop_is_running(srv)`. Hardened the retry window to 1000ms with `mp_hal_delay_ms(5)` and `pbio_os_request_poll()` so the kernel event loop has ample time to complete initial UART handshakes.

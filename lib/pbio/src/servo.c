@@ -59,9 +59,23 @@ bool pbio_servo_update_loop_is_running(pbio_servo_t *srv) {
     // Servo must be the parent of its dc motor.
     if (!pbio_parent_equals(&srv->dcmotor->parent, srv)) {
         pbio_servo_update_loop_set_state(srv, false);
+        return false;
     }
 
-    return srv->run_update_loop;
+    if (srv->run_update_loop) {
+        return true;
+    }
+
+    // If the update loop was stopped (e.g. by transient bus drop or initial state),
+    // check if the physical motor is currently present and communicating.
+    pbio_angle_t angle;
+    if (pbio_tacho_get_angle(&srv->tacho, &angle) == PBIO_SUCCESS) {
+        pbio_observer_reset(&srv->observer, &angle);
+        pbio_servo_update_loop_set_state(srv, true);
+        return true;
+    }
+
+    return false;
 }
 
 static pbio_error_t pbio_servo_update(pbio_servo_t *srv) {
@@ -168,8 +182,8 @@ void pbio_servo_update_all(void) {
         // Run update loop only if registered.
         if (srv->run_update_loop) {
             err = pbio_servo_update(srv);
-            if (err != PBIO_SUCCESS) {
-                // If the update failed, don't update it anymore.
+            if (err != PBIO_SUCCESS && err != PBIO_ERROR_AGAIN && err != PBIO_ERROR_BUSY) {
+                // If the update failed with a permanent error, don't update it anymore.
                 pbio_servo_update_loop_set_state(srv, false);
 
                 // Coast the motor, letting errors pass.

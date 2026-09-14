@@ -1149,23 +1149,27 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
     pbio_error_t err_l = pbio_servo_get_state_control(rb->left, &state_l);
     pbio_error_t err_r = pbio_servo_get_state_control(rb->right, &state_r);
 
-    if (err_l == PBIO_ERROR_NO_DEV || err_r == PBIO_ERROR_NO_DEV) {
-        return PBIO_ERROR_NO_DEV;
-    }
-    if (err_l == PBIO_ERROR_IO || err_r == PBIO_ERROR_IO) {
-        return PBIO_ERROR_IO;
-    }
-    if (err_l == PBIO_ERROR_AGAIN || err_r == PBIO_ERROR_AGAIN) {
-        return PBIO_ERROR_AGAIN;
-    }
-    if (err_l == PBIO_ERROR_BUSY || err_r == PBIO_ERROR_BUSY) {
-        return PBIO_ERROR_BUSY;
-    }
-    if (err_l != PBIO_SUCCESS) {
-        return err_l;
-    }
-    if (err_r != PBIO_SUCCESS) {
-        return err_r;
+    if (err_l != PBIO_SUCCESS || err_r != PBIO_SUCCESS) {
+        bool left_running = pbio_servo_update_loop_is_running(rb->left);
+        bool right_running = pbio_servo_update_loop_is_running(rb->right);
+
+        if (!left_running || !right_running) {
+            return PBIO_ERROR_NO_DEV;
+        }
+
+        if (err_l == PBIO_ERROR_NO_DEV || err_r == PBIO_ERROR_NO_DEV) {
+            return PBIO_ERROR_AGAIN;
+        }
+        if (err_l == PBIO_ERROR_IO || err_r == PBIO_ERROR_IO) {
+            return PBIO_ERROR_IO;
+        }
+        if (err_l == PBIO_ERROR_AGAIN || err_r == PBIO_ERROR_AGAIN) {
+            return PBIO_ERROR_AGAIN;
+        }
+        if (err_l == PBIO_ERROR_BUSY || err_r == PBIO_ERROR_BUSY) {
+            return PBIO_ERROR_BUSY;
+        }
+        return (err_l != PBIO_SUCCESS) ? err_l : err_r;
     }
 
     float left_deg = pbio_control_settings_ctl_to_app_long_float(&rb->left->control.settings, &state_l.position);
@@ -1234,14 +1238,21 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
         }
     }
 
+    bool left_loop_stopped = !pbio_servo_update_loop_is_running(rb->left);
+    bool right_loop_stopped = !pbio_servo_update_loop_is_running(rb->right);
+
     // Evaluate whether either motor has exceeded the confirmed persistent failure window
     bool left_persistent = (err_l != PBIO_SUCCESS) &&
-        ((rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS) ||
-         (rb->left_failure_start_ms > 0 && (uint32_t)(now - rb->left_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS));
+        (left_loop_stopped ||
+         (rb->left_failure_start_ms > 0 &&
+          (uint32_t)(now - rb->left_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS &&
+          rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS));
 
     bool right_persistent = (err_r != PBIO_SUCCESS) &&
-        ((rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS) ||
-         (rb->right_failure_start_ms > 0 && (uint32_t)(now - rb->right_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS));
+        (right_loop_stopped ||
+         (rb->right_failure_start_ms > 0 &&
+          (uint32_t)(now - rb->right_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS &&
+          rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS));
 
     if (left_persistent || right_persistent) {
         pbio_error_t p_err_l = left_persistent ? err_l : PBIO_SUCCESS;

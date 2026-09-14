@@ -17,6 +17,7 @@
 #include <pbio/battery.h>
 #include <pbio/imu.h>
 #include <pbio/mdrobotbase.h>
+#include <pbio/os.h>
 #include <pybricks/common.h>
 #include <pybricks/parameters.h>
 #include <pybricks/robotics.h>
@@ -711,6 +712,13 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     return PBIO_SUCCESS;
   }
 
+  // 0. Physical servo update loop check (immediate motor disconnection)
+  if (!pbio_servo_update_loop_is_running(self->rb->left) ||
+      !pbio_servo_update_loop_is_running(self->rb->right)) {
+    mdrobotbase_motion_stop(self, true);
+    return pb_type_mdrobotbase_raise_motion_error(self, PBIO_ERROR_NO_DEV);
+  }
+
   // 1. Update Odometry State
   float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
   bool imu_ready = isfinite(gyro_heading) && pbio_imu_is_ready();
@@ -721,6 +729,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
   if (odometry_err == PBIO_ERROR_AGAIN ||
       odometry_err == PBIO_ERROR_BUSY) {
+    pbio_os_request_poll();
     return PBIO_ERROR_AGAIN;
   }
 
@@ -1142,8 +1151,32 @@ static mp_obj_t pb_type_MDRobotBase_reset_state(size_t n_args,
     gyro_val = imu_ready ? pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D) : 0.0f;
   }
 
-  pbio_error_t err = pbio_mdrobotbase_reset_state(self->rb, x_val, y_val, theta_val,
-                                                 gyro_val);
+  uint32_t start_ms = pbdrv_clock_get_ms();
+  pbio_error_t err;
+  while (true) {
+    err = pbio_mdrobotbase_reset_state(self->rb, x_val, y_val, theta_val,
+                                       gyro_val);
+    if (err == PBIO_SUCCESS ||
+        err == PBIO_ERROR_INVALID_ARG ||
+        err == PBIO_ERROR_IMU_FAILED) {
+      break;
+    }
+    if (err == PBIO_ERROR_NO_DEV) {
+      if (!pbio_servo_update_loop_is_running(self->rb->left) ||
+          !pbio_servo_update_loop_is_running(self->rb->right)) {
+        break;
+      }
+    }
+    uint32_t now = pbdrv_clock_get_ms();
+    if ((uint32_t)(now - start_ms) >= 500) {
+      if (err == PBIO_ERROR_AGAIN) {
+        err = PBIO_ERROR_NO_DEV;
+      }
+      break;
+    }
+    pbio_os_request_poll();
+    mp_hal_delay_ms(5);
+  }
   if (err == PBIO_ERROR_IMU_FAILED) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
   } else if (err == PBIO_ERROR_INVALID_ARG) {

@@ -4,6 +4,20 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T13:07:00+07:00` — **G-MDRB-036 Strict Persistence Window & Startup Readiness Retry Certification**
+  - Resolved the persistent false "MDRobotBase motor is not connected" regression on live PrimeHub hardware:
+    1. **Strict Conjunction Requirement (`&&`):** Eliminated the premature persistence trigger caused by the logical `||` in `left_persistent` / `right_persistent`. Because async loops spin in microseconds on ARM Cortex-M4, 20 iterations occurred in < 2 ms. Enforced that non-stopped servo loops require BOTH elapsed monotonic time $\ge 500$ ms AND $\ge 20$ consecutive failure ticks before reporting disconnection.
+    2. **Authoritative Kernel Loop Guardianship:** Integrated `pbio_servo_update_loop_is_running()` as the authoritative signal for actual physical motor loss across `pbio_mdrobotbase_reset_state()`, `pbio_mdrobotbase_update_state()`, and `pb_type_mdrobotbase_motion_iterate_once()`, restoring parity with stable `master` and Pybricks `DriveBase`.
+    3. **Startup Reset State Retry Loop:** Wrapped `pb_type_MDRobotBase_reset_state()` in a 500 ms retry window with `mp_hal_delay_ms(5)` and `pbio_os_request_poll()`, allowing UART LUMP mode switches and synchronization to complete without crashing user initialization scripts.
+    4. **VirtualHub Parity:** Updated `tests/virtualhub/robotics/pybricks/robotics.py` across `update_state()`, `navigate_to_goal()`, and `follow_trajectory()` to use `and` between tick counts and time limits.
+    5. **Empirical Quality Gates:**
+       - 146/146 VirtualHub tests passed (100%).
+       - 96/96 Native PBIO C tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` & `primehub` firmware build.
+       - `git diff --check` clean (0 whitespace errors).
+       - CI governance check passed (0 errors).
+  - Full certification report exported to [`docs/06_raw/20260914_130700_g_mdrb_036_strict_persistence_window_and_reset_state_retry_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_130700_g_mdrb_036_strict_persistence_window_and_reset_state_retry_certification.md).
+
 - `2026-09-14T12:45:00+07:00` — **G-MDRB-036 Per-Motor Consecutive Failure Tracking & Persistence Window Certification**
   - Resolved the motor disconnection regression on `feature/mdrobotbase-enhancement` where transient servo-state read failures (`PBIO_ERROR_NO_DEV`, `PBIO_ERROR_IO`) during startup or mid-motion incorrectly raised `OSError: "MDRobotBase motor is not connected"`:
     1. **Per-Motor Consecutive Failure Tracking:** Extended `pbio_mdrobotbase_t` and `MDRobotBase` with `left_state_failures`, `right_state_failures`, and monotonic timestamps `left_failure_start_ms`, `right_failure_start_ms`.

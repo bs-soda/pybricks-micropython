@@ -580,11 +580,11 @@ class MDRobotBase:
             self._right_failure_start_time = None
 
         left_persistent = (is_l_io or is_l_no_dev) and (
-            self._left_state_failures >= 20 or
+            self._left_state_failures >= 20 and
             (self._left_failure_start_time is not None and (now_mono - self._left_failure_start_time) >= 0.500)
         )
         right_persistent = (is_r_io or is_r_no_dev) and (
-            self._right_state_failures >= 20 or
+            self._right_state_failures >= 20 and
             (self._right_failure_start_time is not None and (now_mono - self._right_failure_start_time) >= 0.500)
         )
 
@@ -1093,11 +1093,11 @@ class MDRobotBase:
                             self._right_failure_start_time = None
 
                         left_persistent = (is_l_io or is_l_no_dev) and (
-                            self._left_state_failures >= 20 or
+                            self._left_state_failures >= 20 and
                             (self._left_failure_start_time is not None and (now_mono - self._left_failure_start_time) >= 0.500)
                         )
                         right_persistent = (is_r_io or is_r_no_dev) and (
-                            self._right_state_failures >= 20 or
+                            self._right_state_failures >= 20 and
                             (self._right_failure_start_time is not None and (now_mono - self._right_failure_start_time) >= 0.500)
                         )
 
@@ -1248,11 +1248,11 @@ class MDRobotBase:
                             self._right_failure_start_time = None
 
                         left_persistent = (is_l_io or is_l_no_dev) and (
-                            self._left_state_failures >= 20 or
+                            self._left_state_failures >= 20 and
                             (self._left_failure_start_time is not None and (now_mono - self._left_failure_start_time) >= 0.500)
                         )
                         right_persistent = (is_r_io or is_r_no_dev) and (
-                            self._right_state_failures >= 20 or
+                            self._right_state_failures >= 20 and
                             (self._right_failure_start_time is not None and (now_mono - self._right_failure_start_time) >= 0.500)
                         )
 

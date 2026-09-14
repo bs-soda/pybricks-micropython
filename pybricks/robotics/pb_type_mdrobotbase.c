@@ -726,17 +726,6 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
   uint32_t now = pbdrv_clock_get_ms();
 
-  // Transient readiness retry for initial startup / task scheduling delays.
-  // Retries up to 500ms for transient motor readiness (NO_DEV or IO) before failing.
-  if ((odometry_err == PBIO_ERROR_NO_DEV || odometry_err == PBIO_ERROR_IO) && !self->motion_started) {
-    if (self->startup_retry_start_ms == 0) {
-      self->startup_retry_start_ms = now;
-    }
-    if ((uint32_t)(now - self->startup_retry_start_ms) < 500) {
-      return PBIO_ERROR_AGAIN;
-    }
-  }
-
   if (odometry_err != PBIO_SUCCESS) {
     pbio_control_state_t st_l, st_r;
     self->last_left_error = pbio_servo_get_state_control(self->rb->left, &st_l);
@@ -1199,6 +1188,9 @@ static mp_obj_t pb_type_MDRobotBase_update_state(size_t n_args,
     mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected"));
   } else if (err == PBIO_ERROR_IO) {
     mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed"));
+  } else if (err == PBIO_ERROR_AGAIN || err == PBIO_ERROR_BUSY) {
+    // Transient failure: retry on next cycle without raising error
+    return mp_const_none;
   } else if (err == PBIO_ERROR_ODOMETRY_FAILED || err != PBIO_SUCCESS) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase odometry update failed"));
   }
@@ -1243,17 +1235,24 @@ static mp_obj_t pb_type_MDRobotBase_get_diagnostics(mp_obj_t self_in) {
     err_r = self->last_right_error;
   }
 
+  uint32_t left_fails = 0, right_fails = 0;
+  pbio_mdrobotbase_get_failure_counters(self->rb, &left_fails, &right_fails);
+
   if (self->debug) {
     mp_printf(&mp_plat_print,
               "[MDRobotBase Diagnostics]\n"
               "  left_state_error: %d (%s)\n"
               "  right_state_error: %d (%s)\n"
+              "  left_state_failures: %u\n"
+              "  right_state_failures: %u\n"
               "  control_loop_left: %d\n"
               "  control_loop_right: %d\n"
               "  motion_type: %d\n"
               "  controller_type: %d\n",
               (int)err_l, pbio_error_str_safe(err_l),
               (int)err_r, pbio_error_str_safe(err_r),
+              (unsigned int)left_fails,
+              (unsigned int)right_fails,
               loop_l ? 1 : 0,
               loop_r ? 1 : 0,
               (int)self->rb->motion_type,
@@ -1263,6 +1262,8 @@ static mp_obj_t pb_type_MDRobotBase_get_diagnostics(mp_obj_t self_in) {
   mp_map_elem_t info[] = {
       {MP_OBJ_NEW_QSTR(MP_QSTR_left_state_error), mp_obj_new_int(err_l)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_right_state_error), mp_obj_new_int(err_r)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_left_state_failures), mp_obj_new_int(left_fails)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_right_state_failures), mp_obj_new_int(right_fails)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_control_loop_left), mp_obj_new_bool(loop_l)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_control_loop_right), mp_obj_new_bool(loop_r)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_motion_type), mp_obj_new_int(self->rb->motion_type)},

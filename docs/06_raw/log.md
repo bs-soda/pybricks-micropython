@@ -4,6 +4,23 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T12:45:00+07:00` — **G-MDRB-036 Per-Motor Consecutive Failure Tracking & Persistence Window Certification**
+  - Resolved the motor disconnection regression on `feature/mdrobotbase-enhancement` where transient servo-state read failures (`PBIO_ERROR_NO_DEV`, `PBIO_ERROR_IO`) during startup or mid-motion incorrectly raised `OSError: "MDRobotBase motor is not connected"`:
+    1. **Per-Motor Consecutive Failure Tracking:** Extended `pbio_mdrobotbase_t` and `MDRobotBase` with `left_state_failures`, `right_state_failures`, and monotonic timestamps `left_failure_start_ms`, `right_failure_start_ms`.
+    2. **Transient Error Retry:** Transient `PBIO_ERROR_NO_DEV`, `PBIO_ERROR_IO`, `PBIO_ERROR_AGAIN`, and `PBIO_ERROR_BUSY` results return `PBIO_ERROR_AGAIN` both during startup and mid-motion, preserving odometry baselines and requesting async retry.
+    3. **Immediate Counter Reset on Success:** Every successful state read immediately resets the respective motor's failure counter to 0 and clears the failure start timestamp.
+    4. **Confirmed Persistent Failure Window:** Only reports motor disconnection (`OSError: "MDRobotBase motor is not connected"`) or bus failure (`OSError: "MDRobotBase motor communication failed"`) after a confirmed persistent window of at least 20 consecutive control ticks or 500 ms.
+    5. **Control Loop Decoupling:** Eradicated the erroneous use of `pbio_servo_update_loop_is_running()` as a device presence test.
+    6. **Five Hardware-Style Regression Tests:** Added comprehensive tests for delayed control-loop readiness, mid-motion transient read glitch, repeated failures exceeding window, actual physical disconnection, and recovery after successful read across both native C and VirtualHub Python suites.
+    7. **Empirical Quality Gates:**
+       - 96/96 All native PBIO C tests passed (100%).
+       - 75/75 VirtualHub LQR tests passed (100%).
+       - 146/146 All VirtualHub Python tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` build (`.text`: 354,904 B, `.data`: 736 B, `.bss`: 43,632 B).
+       - `git diff --check` clean (0 whitespace errors).
+       - CI governance check passed.
+  - Full certification report exported to [`docs/06_raw/20260914_124500_g_mdrb_036_per_motor_failure_tracking_and_persistence_window_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_124500_g_mdrb_036_per_motor_failure_tracking_and_persistence_window_certification.md).
+
 - `2026-09-14T11:50:00+07:00` — **G-MDRB-036 MDRobotBase Dynamic Automatic Encoder Fallback & IMU Readiness Certification**
   - Addressed Codex review finding on commit `b018f9dc` regarding IMU readiness startup halt under default `fusion_alpha = 0.95`:
     1. **Dynamic Automatic Encoder Fallback:** Eliminated the rigid requirement where `fusion_alpha > 0.0f` caused motion to abort after 500 ms with `RuntimeError("MDRobotBase IMU heading unavailable")` when `!pbio_imu_is_ready()`. Implemented dynamic fallback where `effective_alpha = (rb->imu_ready && isfinite(gyro_heading)) ? rb->fusion_alpha : 0.0f;`, enabling seamless encoder-only odometry whenever the IMU is unready or calibrating, even under default `fusion_alpha = 0.95`.

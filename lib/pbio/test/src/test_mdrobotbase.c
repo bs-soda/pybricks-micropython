@@ -10,6 +10,7 @@
 #include <pbio/mdrobotbase.h>
 #include <pbio/servo.h>
 #include <pbio/port_interface.h>
+#include <pbdrv/clock.h>
 #include <test-pbio.h>
 #include <tinytest.h>
 #include <tinytest_macros.h>
@@ -3592,6 +3593,72 @@ end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }
 
+static pbio_error_t test_mdrobotbase_per_motor_failure_tracking_and_persistence_window(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_a;
+    static pbio_servo_t *srv_b;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_a), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_a, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_b), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_b, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+
+    // 1. Initial creation must have zero failure counts and timestamps
+    uint32_t lf = 99, rf = 99;
+    tt_uint_op(pbio_mdrobotbase_get_failure_counters(rb, &lf, &rf), ==, PBIO_SUCCESS);
+    tt_want_uint_op(lf, ==, 0);
+    tt_want_uint_op(rf, ==, 0);
+    tt_want_uint_op(rb->left_state_failures, ==, 0);
+    tt_want_uint_op(rb->right_state_failures, ==, 0);
+    tt_want_uint_op(rb->left_failure_start_ms, ==, 0);
+    tt_want_uint_op(rb->right_failure_start_ms, ==, 0);
+
+    // 2. Normal update_state keeps failure counts zero
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_get_failure_counters(rb, &lf, &rf), ==, PBIO_SUCCESS);
+    tt_want_uint_op(lf, ==, 0);
+    tt_want_uint_op(rf, ==, 0);
+
+    // 3. Simulated transient failure accumulation and reset
+    rb->left_state_failures = 5;
+    rb->left_failure_start_ms = pbdrv_clock_get_ms();
+    tt_uint_op(pbio_mdrobotbase_get_failure_counters(rb, &lf, &rf), ==, PBIO_SUCCESS);
+    tt_want_uint_op(lf, ==, 5);
+
+    // Successful update_state must reset failure count
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_get_failure_counters(rb, &lf, &rf), ==, PBIO_SUCCESS);
+    tt_want_uint_op(lf, ==, 0);
+    tt_want_uint_op(rb->left_failure_start_ms, ==, 0);
+
+    // 4. Reset state also resets failure counters
+    rb->right_state_failures = 8;
+    rb->right_failure_start_ms = pbdrv_clock_get_ms();
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_get_failure_counters(rb, &lf, &rf), ==, PBIO_SUCCESS);
+    tt_want_uint_op(rf, ==, 0);
+    tt_want_uint_op(rb->right_failure_start_ms, ==, 0);
+
+    // 5. Input validation on accessor
+    tt_uint_op(pbio_mdrobotbase_get_failure_counters(NULL, &lf, &rf), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_get_failure_counters(rb, NULL, &rf), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_get_failure_counters(rb, &lf, NULL), ==, PBIO_ERROR_INVALID_ARG);
+
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
 struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_basics),
     PBIO_THREAD_TEST(test_mdrobotbase_motion_state),
@@ -3628,5 +3695,6 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_failclosed_odometry_lqr_propagation),
     PBIO_THREAD_TEST(test_mdrobotbase_authoritative_device_validation_and_baseline_sync),
     PBIO_THREAD_TEST(test_mdrobotbase_imu_heading_error_and_encoder_fallback),
+    PBIO_THREAD_TEST(test_mdrobotbase_per_motor_failure_tracking_and_persistence_window),
     END_OF_TESTCASES
 };

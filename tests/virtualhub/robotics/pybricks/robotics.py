@@ -215,6 +215,10 @@ class MDRobotBase:
         self._state_initialized = False
         self._imu_ready = True
         self._imu_latch_needed = False
+        self._left_state_failures = 0
+        self._right_state_failures = 0
+        self._left_failure_start_time = None
+        self._right_failure_start_time = None
         self._max_angular_speed = 360.0
         self._max_turn_speed = 300.0
         self._max_pivot_speed = 250.0
@@ -520,6 +524,11 @@ class MDRobotBase:
            (hasattr(self.right_motor, "connected") and not self.right_motor.connected):
             raise OSError("MDRobotBase motor is not connected")
 
+        self._left_state_failures = 0
+        self._right_state_failures = 0
+        self._left_failure_start_time = None
+        self._right_failure_start_time = None
+
         self._last_left_deg = float(self.left_motor.angle()) if hasattr(self.left_motor, "angle") else 0.0
         self._last_right_deg = float(self.right_motor.angle()) if hasattr(self.right_motor, "angle") else 0.0
         self._backlash_left_accum = 0.0
@@ -529,6 +538,11 @@ class MDRobotBase:
         self._stall_time_ms = 0.0
         self._encoders_initialized = True
         self._state_initialized = True
+
+    @_require_open
+    def get_failure_counters(self) -> Tuple[int, int]:
+        """Returns (left_state_failures, right_state_failures)."""
+        return (self._left_state_failures, self._right_state_failures)
 
     @_require_open
     def update_state(self, *args, **kwargs):
@@ -541,18 +555,47 @@ class MDRobotBase:
         if not math.isfinite(self._x) or not math.isfinite(self._y) or not math.isfinite(self._theta):
             raise ValueError("LQR controller received invalid pose or configuration")
 
-        if (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
-           (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error):
-            raise OSError("MDRobotBase motor communication failed")
+        is_l_io = bool(getattr(self.left_motor, "_io_error", False))
+        is_r_io = bool(getattr(self.right_motor, "_io_error", False))
+        is_l_no_dev = bool(getattr(self.left_motor, "_closed", False) or (hasattr(self.left_motor, "connected") and not self.left_motor.connected))
+        is_r_no_dev = bool(getattr(self.right_motor, "_closed", False) or (hasattr(self.right_motor, "connected") and not self.right_motor.connected))
+        is_l_busy = bool(getattr(self.left_motor, "_transient_busy", False))
+        is_r_busy = bool(getattr(self.right_motor, "_transient_busy", False))
 
-        if (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
-           (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
-           (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
-           (hasattr(self.right_motor, "connected") and not self.right_motor.connected):
-            raise OSError("MDRobotBase motor is not connected")
+        now_mono = time.monotonic()
+        if is_l_io or is_l_no_dev or is_l_busy:
+            self._left_state_failures += 1
+            if self._left_failure_start_time is None:
+                self._left_failure_start_time = now_mono
+        else:
+            self._left_state_failures = 0
+            self._left_failure_start_time = None
 
-        if (hasattr(self.left_motor, "_transient_busy") and self.left_motor._transient_busy) or \
-           (hasattr(self.right_motor, "_transient_busy") and self.right_motor._transient_busy):
+        if is_r_io or is_r_no_dev or is_r_busy:
+            self._right_state_failures += 1
+            if self._right_failure_start_time is None:
+                self._right_failure_start_time = now_mono
+        else:
+            self._right_state_failures = 0
+            self._right_failure_start_time = None
+
+        left_persistent = (is_l_io or is_l_no_dev) and (
+            self._left_state_failures >= 20 or
+            (self._left_failure_start_time is not None and (now_mono - self._left_failure_start_time) >= 0.500)
+        )
+        right_persistent = (is_r_io or is_r_no_dev) and (
+            self._right_state_failures >= 20 or
+            (self._right_failure_start_time is not None and (now_mono - self._right_failure_start_time) >= 0.500)
+        )
+
+        if left_persistent or right_persistent:
+            if (left_persistent and is_l_no_dev) or (right_persistent and is_r_no_dev):
+                raise OSError("MDRobotBase motor is not connected")
+            if (left_persistent and is_l_io) or (right_persistent and is_r_io):
+                raise OSError("MDRobotBase motor communication failed")
+
+        if is_l_io or is_r_io or is_l_no_dev or is_r_no_dev or is_l_busy or is_r_busy:
+            # Transient failure: return early without raising error
             return
 
         if len(args) == 3:
@@ -728,6 +771,8 @@ class MDRobotBase:
         return {
             "left_state_error": left_err,
             "right_state_error": right_err,
+            "left_state_failures": self._left_state_failures,
+            "right_state_failures": self._right_state_failures,
             "left_error_str": left_str,
             "right_error_str": right_str,
             "control_loop_left": bool(getattr(self.left_motor, "_run_update_loop", False)),
@@ -1022,34 +1067,61 @@ class MDRobotBase:
                         self.stop()
                         raise RuntimeError("MDRobotBase navigation stalled")
 
-                    is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
-                            (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
-                    is_no_dev = (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
-                                (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
-                                (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
-                                (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
-                    if is_io or is_no_dev:
-                        if not getattr(self, "_motion_started", False):
-                            if getattr(self, "_startup_retry_start_time", None) is None:
-                                self._startup_retry_start_time = time.monotonic()
-                            while (is_io or is_no_dev) and (time.monotonic() - self._startup_retry_start_time < 0.500):
-                                await asyncio.sleep(0.005)
-                                is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
-                                        (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
-                                is_no_dev = (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
-                                            (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
-                                            (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
-                                            (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+                    is_l_io = bool(getattr(self.left_motor, "_io_error", False))
+                    is_r_io = bool(getattr(self.right_motor, "_io_error", False))
+                    is_l_no_dev = bool(getattr(self.left_motor, "_closed", False) or (hasattr(self.left_motor, "connected") and not self.left_motor.connected))
+                    is_r_no_dev = bool(getattr(self.right_motor, "_closed", False) or (hasattr(self.right_motor, "connected") and not self.right_motor.connected))
+                    is_l_busy = bool(getattr(self.left_motor, "_transient_busy", False))
+                    is_r_busy = bool(getattr(self.right_motor, "_transient_busy", False))
 
-                        if is_io:
+                    while is_l_io or is_r_io or is_l_no_dev or is_r_no_dev or is_l_busy or is_r_busy:
+                        now_mono = time.monotonic()
+                        if is_l_io or is_l_no_dev or is_l_busy:
+                            self._left_state_failures += 1
+                            if self._left_failure_start_time is None:
+                                self._left_failure_start_time = now_mono
+                        else:
+                            self._left_state_failures = 0
+                            self._left_failure_start_time = None
+
+                        if is_r_io or is_r_no_dev or is_r_busy:
+                            self._right_state_failures += 1
+                            if self._right_failure_start_time is None:
+                                self._right_failure_start_time = now_mono
+                        else:
+                            self._right_state_failures = 0
+                            self._right_failure_start_time = None
+
+                        left_persistent = (is_l_io or is_l_no_dev) and (
+                            self._left_state_failures >= 20 or
+                            (self._left_failure_start_time is not None and (now_mono - self._left_failure_start_time) >= 0.500)
+                        )
+                        right_persistent = (is_r_io or is_r_no_dev) and (
+                            self._right_state_failures >= 20 or
+                            (self._right_failure_start_time is not None and (now_mono - self._right_failure_start_time) >= 0.500)
+                        )
+
+                        if left_persistent or right_persistent:
                             self.stop()
-                            raise OSError("MDRobotBase motor communication failed")
+                            if (left_persistent and is_l_no_dev) or (right_persistent and is_r_no_dev):
+                                raise OSError("MDRobotBase motor is not connected")
+                            if (left_persistent and is_l_io) or (right_persistent and is_r_io):
+                                raise OSError("MDRobotBase motor communication failed")
 
-                        if is_no_dev:
-                            self.stop()
-                            raise OSError("MDRobotBase motor is not connected")
+                        await asyncio.sleep(0.005)
 
-                    self._startup_retry_start_time = None
+                        is_l_io = bool(getattr(self.left_motor, "_io_error", False))
+                        is_r_io = bool(getattr(self.right_motor, "_io_error", False))
+                        is_l_no_dev = bool(getattr(self.left_motor, "_closed", False) or (hasattr(self.left_motor, "connected") and not self.left_motor.connected))
+                        is_r_no_dev = bool(getattr(self.right_motor, "_closed", False) or (hasattr(self.right_motor, "connected") and not self.right_motor.connected))
+                        is_l_busy = bool(getattr(self.left_motor, "_transient_busy", False))
+                        is_r_busy = bool(getattr(self.right_motor, "_transient_busy", False))
+
+                    self._left_state_failures = 0
+                    self._left_failure_start_time = None
+                    self._right_state_failures = 0
+                    self._right_failure_start_time = None
+
                     self._motion_started = True
 
                     # Verify odometry safety
@@ -1150,34 +1222,61 @@ class MDRobotBase:
                         self.stop()
                         raise RuntimeError("MDRobotBase trajectory stalled")
 
-                    is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
-                            (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
-                    is_no_dev = (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
-                                (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
-                                (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
-                                (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
-                    if is_io or is_no_dev:
-                        if not getattr(self, "_motion_started", False):
-                            if getattr(self, "_startup_retry_start_time", None) is None:
-                                self._startup_retry_start_time = time.monotonic()
-                            while (is_io or is_no_dev) and (time.monotonic() - self._startup_retry_start_time < 0.500):
-                                await asyncio.sleep(0.005)
-                                is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
-                                        (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
-                                is_no_dev = (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
-                                            (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
-                                            (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
-                                            (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+                    is_l_io = bool(getattr(self.left_motor, "_io_error", False))
+                    is_r_io = bool(getattr(self.right_motor, "_io_error", False))
+                    is_l_no_dev = bool(getattr(self.left_motor, "_closed", False) or (hasattr(self.left_motor, "connected") and not self.left_motor.connected))
+                    is_r_no_dev = bool(getattr(self.right_motor, "_closed", False) or (hasattr(self.right_motor, "connected") and not self.right_motor.connected))
+                    is_l_busy = bool(getattr(self.left_motor, "_transient_busy", False))
+                    is_r_busy = bool(getattr(self.right_motor, "_transient_busy", False))
 
-                        if is_io:
+                    while is_l_io or is_r_io or is_l_no_dev or is_r_no_dev or is_l_busy or is_r_busy:
+                        now_mono = time.monotonic()
+                        if is_l_io or is_l_no_dev or is_l_busy:
+                            self._left_state_failures += 1
+                            if self._left_failure_start_time is None:
+                                self._left_failure_start_time = now_mono
+                        else:
+                            self._left_state_failures = 0
+                            self._left_failure_start_time = None
+
+                        if is_r_io or is_r_no_dev or is_r_busy:
+                            self._right_state_failures += 1
+                            if self._right_failure_start_time is None:
+                                self._right_failure_start_time = now_mono
+                        else:
+                            self._right_state_failures = 0
+                            self._right_failure_start_time = None
+
+                        left_persistent = (is_l_io or is_l_no_dev) and (
+                            self._left_state_failures >= 20 or
+                            (self._left_failure_start_time is not None and (now_mono - self._left_failure_start_time) >= 0.500)
+                        )
+                        right_persistent = (is_r_io or is_r_no_dev) and (
+                            self._right_state_failures >= 20 or
+                            (self._right_failure_start_time is not None and (now_mono - self._right_failure_start_time) >= 0.500)
+                        )
+
+                        if left_persistent or right_persistent:
                             self.stop()
-                            raise OSError("MDRobotBase motor communication failed")
+                            if (left_persistent and is_l_no_dev) or (right_persistent and is_r_no_dev):
+                                raise OSError("MDRobotBase motor is not connected")
+                            if (left_persistent and is_l_io) or (right_persistent and is_r_io):
+                                raise OSError("MDRobotBase motor communication failed")
 
-                        if is_no_dev:
-                            self.stop()
-                            raise OSError("MDRobotBase motor is not connected")
+                        await asyncio.sleep(0.005)
 
-                    self._startup_retry_start_time = None
+                        is_l_io = bool(getattr(self.left_motor, "_io_error", False))
+                        is_r_io = bool(getattr(self.right_motor, "_io_error", False))
+                        is_l_no_dev = bool(getattr(self.left_motor, "_closed", False) or (hasattr(self.left_motor, "connected") and not self.left_motor.connected))
+                        is_r_no_dev = bool(getattr(self.right_motor, "_closed", False) or (hasattr(self.right_motor, "connected") and not self.right_motor.connected))
+                        is_l_busy = bool(getattr(self.left_motor, "_transient_busy", False))
+                        is_r_busy = bool(getattr(self.right_motor, "_transient_busy", False))
+
+                    self._left_state_failures = 0
+                    self._left_failure_start_time = None
+                    self._right_state_failures = 0
+                    self._right_failure_start_time = None
+
                     self._motion_started = True
 
                     # Verify odometry safety

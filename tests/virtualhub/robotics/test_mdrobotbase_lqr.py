@@ -1906,6 +1906,122 @@ class TestMDRobotBaseOdometryLQRIntegration(unittest.TestCase):
         finally:
             robot.close()
 
+    def test_connected_motor_with_delayed_readiness_succeeds(self):
+        """Connected motor with delayed control-loop readiness retries and completes motion cleanly."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            # Simulate initial 5-tick transient unreadiness
+            motor_c._io_error = True
+
+            async def clear_delayed_readiness():
+                await asyncio.sleep(0.025)
+                motor_c._io_error = False
+
+            async def run_motion():
+                t = asyncio.create_task(clear_delayed_readiness())
+                await robot.navigate_to_goal(100.0, 0.0)
+                await t
+
+            asyncio.run(run_motion())
+            x, y, theta = robot.get_state()
+            self.assertAlmostEqual(x, 100.0, places=1)
+            self.assertEqual(robot.get_failure_counters(), (0, 0))
+            self.assertTrue(robot.done())
+        finally:
+            robot.close()
+
+    def test_transient_state_read_failure_during_motion_recovers(self):
+        """One transient state-read failure mid-motion retries without stopping robot."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            async def inject_transient_glitch():
+                await asyncio.sleep(0.030)
+                # Inject 1 transient failure
+                motor_d._io_error = True
+                await asyncio.sleep(0.010)
+                motor_d._io_error = False
+
+            async def run_motion():
+                t = asyncio.create_task(inject_transient_glitch())
+                await robot.navigate_to_goal(150.0, 0.0)
+                await t
+
+            asyncio.run(run_motion())
+            x, y, theta = robot.get_state()
+            self.assertAlmostEqual(x, 150.0, places=1)
+            self.assertEqual(robot.get_failure_counters(), (0, 0))
+            self.assertTrue(robot.done())
+        finally:
+            robot.close()
+
+    def test_repeated_state_read_failures_exceeding_persistence_window_raises_error(self):
+        """Repeated state-read failures exceeding 500ms or 20 ticks halt robot with OSError."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            motor_c._io_error = True
+            with self.assertRaises(OSError) as ctx:
+                asyncio.run(robot.navigate_to_goal(100.0, 0.0))
+            self.assertIn("MDRobotBase motor communication failed", str(ctx.exception))
+            self.assertFalse(robot._motion_in_progress)
+            self.assertGreaterEqual(robot.get_failure_counters()[0], 20)
+        finally:
+            motor_c._io_error = False
+            robot.close()
+
+    def test_actual_disconnected_motor_raises_no_dev_after_persistence(self):
+        """Actual disconnected motor produces clear OSError with NO_DEV message after persistence window."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            motor_d.connected = False
+            with self.assertRaises(OSError) as ctx:
+                asyncio.run(robot.navigate_to_goal(100.0, 0.0))
+            self.assertIn("MDRobotBase motor is not connected", str(ctx.exception))
+            self.assertFalse(robot._motion_in_progress)
+            self.assertGreaterEqual(robot.get_failure_counters()[1], 20)
+        finally:
+            motor_d.connected = True
+            robot.close()
+
+    def test_recovery_after_successful_read_resets_failure_counter(self):
+        """Recovery after a successful read resets failure counters to 0, preventing false persistence trips."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            robot.reset_state(0.0, 0.0, 0.0)
+            # Burst 1: 5 failures on left
+            motor_c._io_error = True
+            for _ in range(5):
+                robot.update_state(0.0)
+            self.assertEqual(robot.get_failure_counters()[0], 5)
+
+            # Recovery: read succeeds
+            motor_c._io_error = False
+            robot.update_state(0.0)
+            self.assertEqual(robot.get_failure_counters(), (0, 0))
+
+            # Burst 2: 5 failures on left again
+            motor_c._io_error = True
+            for _ in range(5):
+                robot.update_state(0.0)
+            # Counter must be 5, NOT 10!
+            self.assertEqual(robot.get_failure_counters()[0], 5)
+
+            # Final recovery
+            motor_c._io_error = False
+            robot.update_state(0.0)
+            self.assertEqual(robot.get_failure_counters(), (0, 0))
+        finally:
+            robot.close()
+
 
 if __name__ == "__main__":
     unittest.main()

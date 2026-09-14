@@ -7,6 +7,7 @@
 #include <pbio/mdrobotbase.h>
 #include <pbio/imu.h>
 #include <pbio/control_settings.h>
+#include <pbdrv/clock.h>
 
 #ifndef PBIO_CONFIG_NUM_MDROBOTBASES
 #define PBIO_CONFIG_NUM_MDROBOTBASES 2
@@ -127,6 +128,10 @@ pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, p
     rb->state_initialized = false;
     rb->imu_ready = true;
     rb->imu_latch_needed = false;
+    rb->left_state_failures = 0;
+    rb->right_state_failures = 0;
+    rb->left_failure_start_ms = 0;
+    rb->right_failure_start_ms = 0;
 
     // Latch baseline positions if servos are ready, but preserve state_initialized = false
     // so first valid update_state establishes encoder and gyro baselines atomically.
@@ -1184,6 +1189,10 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
     rb->last_x = x;
     rb->last_y = y;
     rb->last_step_theta = rb->theta;
+    rb->left_state_failures = 0;
+    rb->right_state_failures = 0;
+    rb->left_failure_start_ms = 0;
+    rb->right_failure_start_ms = 0;
 
     return PBIO_SUCCESS;
 }
@@ -1202,23 +1211,57 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     pbio_error_t err_l = pbio_servo_get_state_control(rb->left, &state_l);
     pbio_error_t err_r = pbio_servo_get_state_control(rb->right, &state_r);
 
-    if (err_l == PBIO_ERROR_NO_DEV || err_r == PBIO_ERROR_NO_DEV) {
-        return PBIO_ERROR_NO_DEV;
+    uint32_t now = pbdrv_clock_get_ms();
+
+    // Per-motor consecutive failure tracking and timestamp latching
+    if (err_l == PBIO_SUCCESS) {
+        rb->left_state_failures = 0;
+        rb->left_failure_start_ms = 0;
+    } else {
+        rb->left_state_failures++;
+        if (rb->left_failure_start_ms == 0) {
+            rb->left_failure_start_ms = now;
+        }
     }
-    if (err_l == PBIO_ERROR_IO || err_r == PBIO_ERROR_IO) {
-        return PBIO_ERROR_IO;
+
+    if (err_r == PBIO_SUCCESS) {
+        rb->right_state_failures = 0;
+        rb->right_failure_start_ms = 0;
+    } else {
+        rb->right_state_failures++;
+        if (rb->right_failure_start_ms == 0) {
+            rb->right_failure_start_ms = now;
+        }
     }
-    if (err_l == PBIO_ERROR_AGAIN || err_r == PBIO_ERROR_AGAIN) {
+
+    // Evaluate whether either motor has exceeded the confirmed persistent failure window
+    bool left_persistent = (err_l != PBIO_SUCCESS) &&
+        ((rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS) ||
+         (rb->left_failure_start_ms > 0 && (uint32_t)(now - rb->left_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS));
+
+    bool right_persistent = (err_r != PBIO_SUCCESS) &&
+        ((rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS) ||
+         (rb->right_failure_start_ms > 0 && (uint32_t)(now - rb->right_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS));
+
+    if (left_persistent || right_persistent) {
+        pbio_error_t p_err_l = left_persistent ? err_l : PBIO_SUCCESS;
+        pbio_error_t p_err_r = right_persistent ? err_r : PBIO_SUCCESS;
+
+        if (p_err_l == PBIO_ERROR_NO_DEV || p_err_r == PBIO_ERROR_NO_DEV) {
+            return PBIO_ERROR_NO_DEV;
+        }
+        if (p_err_l == PBIO_ERROR_IO || p_err_r == PBIO_ERROR_IO) {
+            return PBIO_ERROR_IO;
+        }
+        if (p_err_l != PBIO_SUCCESS) {
+            return p_err_l;
+        }
+        return p_err_r;
+    }
+
+    // If there is any transient failure (not yet persistent), retry on next tick
+    if (err_l != PBIO_SUCCESS || err_r != PBIO_SUCCESS) {
         return PBIO_ERROR_AGAIN;
-    }
-    if (err_l == PBIO_ERROR_BUSY || err_r == PBIO_ERROR_BUSY) {
-        return PBIO_ERROR_BUSY;
-    }
-    if (err_l != PBIO_SUCCESS) {
-        return err_l;
-    }
-    if (err_r != PBIO_SUCCESS) {
-        return err_r;
     }
 
     float left_deg = pbio_control_settings_ctl_to_app_long_float(&rb->left->control.settings, &state_l.position);
@@ -1519,6 +1562,15 @@ pbio_error_t pbio_mdrobotbase_get_motion_status(const pbio_mdrobotbase_t *rb, pb
         return PBIO_ERROR_INVALID_ARG;
     }
     *status = rb->motion_status;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_failure_counters(const pbio_mdrobotbase_t *rb, uint32_t *left_failures, uint32_t *right_failures) {
+    if (!rb || !left_failures || !right_failures) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *left_failures = rb->left_state_failures;
+    *right_failures = rb->right_state_failures;
     return PBIO_SUCCESS;
 }
 

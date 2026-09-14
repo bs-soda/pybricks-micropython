@@ -189,6 +189,7 @@ typedef struct _pbio_mdrobotbase_t {
     float last_left_deg;
     float last_right_deg;
     float last_gyro_heading;
+    bool state_initialized;
     float fusion_alpha;
     float gear_ratio;
     float last_accel_x;
@@ -308,8 +309,8 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(float q_x, float q_y, float q_
 pbio_error_t pbio_mdrobotbase_lqr_compute_riccati_residual(float q_x, float q_y, float q_theta, float r_v, float r_omega, float v_profile, const float P[3][3], float *max_residual);
 pbio_error_t pbio_mdrobotbase_lqr_verify_discrete_stability(float k_y, float k_theta, float v_nominal, float *spectral_radius);
 size_t pbio_mdrobotbase_lqr_get_workspace_size(void);
-#if PBIO_TEST_BUILD
 bool pbio_mdrobotbase_lqr_is_busy(void);
+#if PBIO_TEST_BUILD
 void pbio_mdrobotbase_lqr_set_busy_for_testing(bool busy);
 #endif
 pbio_error_t pbio_mdrobotbase_set_lqr_preset(pbio_mdrobotbase_t *rb, pbio_mdrobotbase_lqr_preset_t preset, bool schedule);

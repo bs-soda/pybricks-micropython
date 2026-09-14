@@ -14,6 +14,7 @@ Addresses:
       k_theta: [s^-1]            (1/s)     Heading damping rate
 """
 
+import asyncio
 import math
 import os
 import sys
@@ -40,6 +41,7 @@ class TestMDRobotBaseLQR(unittest.TestCase):
         )
 
     def tearDown(self):
+        MDRobotBase._lqr_workspace_set_busy_for_testing(False)
         self.robot.close()
 
     def test_lqr_gain_positivity_and_validation(self):
@@ -945,6 +947,845 @@ class TestMDRobotBaseLQR(unittest.TestCase):
             self.robot.set_lqr_weights(-1.0, 5000.0, 20.0, 25.0, 0.1)
         self.assertEqual(self.robot.get_lqr_weights(), w_orig)
         self.assertEqual(self.robot._lqr_lut, lut_orig)
+
+    def test_lqr_workspace_busy_rejection_and_error_mapping(self):
+        """Verify fail-closed rejection and descriptive error propagation when LQR workspace is busy."""
+        self.assertFalse(MDRobotBase._lqr_workspace_is_busy())
+
+        # Manually lock workspace to simulate concurrent solver in flight
+        MDRobotBase._lqr_workspace_set_busy_for_testing(True)
+        self.assertTrue(MDRobotBase._lqr_workspace_is_busy())
+
+        try:
+            # 1. solve_dare_full must reject with explicit RuntimeError
+            with self.assertRaises(RuntimeError) as ctx:
+                self.robot.solve_dare_full(2500.0, 5000.0, 20.0, 25.0, 0.1, 300.0)
+            self.assertIn("LQR solver workspace busy", str(ctx.exception))
+
+            # 2. solve_dare must reject with explicit RuntimeError
+            with self.assertRaises(RuntimeError) as ctx:
+                self.robot.solve_dare(2500.0, 5000.0, 20.0, 25.0, 0.1, 300.0)
+            self.assertIn("LQR solver workspace busy", str(ctx.exception))
+
+            # 3. compute_riccati_residual must reject with explicit RuntimeError
+            with self.assertRaises(RuntimeError) as ctx:
+                P_dummy = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+                self.robot.compute_riccati_residual(2500.0, 5000.0, 20.0, 25.0, 0.1, 300.0, P_dummy)
+            self.assertIn("LQR solver workspace busy", str(ctx.exception))
+
+            # 4. set_lqr_weights must reject with explicit RuntimeError
+            with self.assertRaises(RuntimeError) as ctx:
+                self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, 0.1)
+            self.assertIn("LQR solver workspace busy", str(ctx.exception))
+
+            # 5. set_lqr_preset must reject with explicit RuntimeError
+            with self.assertRaises(RuntimeError) as ctx:
+                self.robot.set_lqr_preset(0)
+            self.assertIn("LQR solver workspace busy", str(ctx.exception))
+
+            # 6. MDRobotBase constructor (which runs set_lqr_preset(BALANCED)) must fail-closed with clear error
+            m_l = Motor(Port.C)
+            m_r = Motor(Port.D)
+            with self.assertRaises(RuntimeError) as ctx:
+                MDRobotBase(m_l, m_r, wheel_diameter=56.0, axle_track=112.0)
+            self.assertIn("motors already in use or LQR solver workspace busy", str(ctx.exception))
+
+        finally:
+            MDRobotBase._lqr_workspace_set_busy_for_testing(False)
+
+        self.assertFalse(MDRobotBase._lqr_workspace_is_busy())
+
+        # Verify immediate normal solver execution after lock release
+        K, P, rho = self.robot.solve_dare_full(2500.0, 5000.0, 20.0, 25.0, 0.1, 300.0)
+        self.assertLess(rho, 1.0)
+
+    def test_lqr_workspace_lock_release_on_solver_exception(self):
+        """Verify LQR workspace lock is deterministically released even when solver raises an exception."""
+        self.assertFalse(MDRobotBase._lqr_workspace_is_busy())
+
+        # Trigger ValueError during solve_dare_full
+        with self.assertRaises(ValueError):
+            self.robot.solve_dare_full(-1.0, 5000.0, 20.0, 25.0, 0.1, 300.0)
+        self.assertFalse(MDRobotBase._lqr_workspace_is_busy())
+
+        # Trigger ValueError during set_lqr_weights
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, -10.0, 20.0, 25.0, 0.1)
+        self.assertFalse(MDRobotBase._lqr_workspace_is_busy())
+
+    def test_lqr_concurrent_threads_workspace_safety(self):
+        """Verify multiple concurrent worker threads invoking DARE solvers exhibit zero race crashes or leaks."""
+        import threading
+        errors = []
+        busy_count = [0]
+        success_count = [0]
+
+        def worker(thread_id: int):
+            for _ in range(25):
+                try:
+                    # Randomize between full solve and weight update
+                    if thread_id % 2 == 0:
+                        self.robot.solve_dare_full(2500.0, 5000.0, 20.0, 25.0, 0.1, 200.0 + thread_id * 20.0)
+                    else:
+                        self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, 0.1)
+                    success_count[0] += 1
+                except RuntimeError as e:
+                    if "LQR solver workspace busy" in str(e):
+                        busy_count[0] += 1
+                    else:
+                        errors.append(f"Unexpected RuntimeError: {e}")
+                except Exception as e:
+                    errors.append(f"Unexpected exception in thread {thread_id}: {e}")
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [], f"Thread worker encountered unexpected errors: {errors}")
+        self.assertGreater(success_count[0], 0)
+        # Lock must be completely free after all threads terminate
+        self.assertFalse(MDRobotBase._lqr_workspace_is_busy())
+
+
+class TestMDRobotBaseOdometryLQRIntegration(unittest.TestCase):
+    """
+    Deterministic Verification Matrix for MDRobotBase Odometry and LQR Integration (G-MDRB-036).
+    Proves identical coordinate frame, sign conventions, units, and timing model between odometry and LQR.
+    """
+
+    def setUp(self):
+        self.left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
+        self.right_motor = Motor(Port.B)
+        self.robot = MDRobotBase(
+            self.left_motor,
+            self.right_motor,
+            wheel_diameter=56.0,
+            axle_track=112.0,
+        )
+
+    def tearDown(self):
+        MDRobotBase._lqr_workspace_set_busy_for_testing(False)
+        self.robot.close()
+
+    def test_straight_forward_odometry(self):
+        """Straight forward: x increases, y and theta remain zero."""
+        self.robot.set_backlash_filter(False)
+        self.robot.set_fusion_alpha(0.0)  # encoder only
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Move both motors 360 deg forward (pi * 56 mm = 175.929 mm)
+        self.left_motor._angle += 360.0
+        self.right_motor._angle += 360.0
+        self.robot.update_state(0.0)
+
+        x, y, theta = self.robot.get_state()
+        self.assertAlmostEqual(x, 175.929, delta=0.5)
+        self.assertAlmostEqual(y, 0.0, delta=0.1)
+        self.assertAlmostEqual(theta, 0.0, delta=0.1)
+
+    def test_straight_reverse_odometry(self):
+        """Straight reverse: x decreases correctly, y and theta remain zero."""
+        self.robot.set_backlash_filter(False)
+        self.robot.set_fusion_alpha(0.0)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Move both motors 360 deg backward (-175.929 mm)
+        self.left_motor._angle -= 360.0
+        self.right_motor._angle -= 360.0
+        self.robot.update_state(0.0)
+
+        x, y, theta = self.robot.get_state()
+        self.assertAlmostEqual(x, -175.929, delta=0.5)
+        self.assertAlmostEqual(y, 0.0, delta=0.1)
+        self.assertAlmostEqual(theta, 0.0, delta=0.1)
+
+    def test_left_turn_odometry_theta_increases(self):
+        """Left turn: theta increases (counter-clockwise positive)."""
+        self.robot.set_backlash_filter(False)
+        self.robot.set_fusion_alpha(0.0)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Spin turn CCW: left motor backward 180 deg, right motor forward 180 deg
+        # Delta theta = (d_right - d_left) / track = (87.964 - (-87.964)) / 112 = 1.57079 rad = 90 deg
+        self.left_motor._angle -= 180.0
+        self.right_motor._angle += 180.0
+        self.robot.update_state(0.0)
+
+        x, y, theta = self.robot.get_state()
+        self.assertAlmostEqual(theta, 90.0, delta=0.5)
+        self.assertAlmostEqual(x, 0.0, delta=0.1)
+        self.assertAlmostEqual(y, 0.0, delta=0.1)
+
+    def test_right_turn_odometry_theta_decreases(self):
+        """Right turn: theta decreases (clockwise negative)."""
+        self.robot.set_backlash_filter(False)
+        self.robot.set_fusion_alpha(0.0)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Spin turn CW: left motor forward 180 deg, right motor backward 180 deg
+        self.left_motor._angle += 180.0
+        self.right_motor._angle -= 180.0
+        self.robot.update_state(0.0)
+
+        x, y, theta = self.robot.get_state()
+        self.assertAlmostEqual(theta, -90.0, delta=0.5)
+        self.assertAlmostEqual(x, 0.0, delta=0.1)
+        self.assertAlmostEqual(y, 0.0, delta=0.1)
+
+    def test_square_trajectory_returns_near_start(self):
+        """Square trajectory (4 legs of 200 mm + four 90 deg CCW turns) returns near starting pose."""
+        self.robot.set_backlash_filter(False)
+        self.robot.set_fusion_alpha(0.0)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        leg_dist = 200.0  # mm
+        turn_th = 90.0   # deg
+
+        leg_deg = (leg_dist / (math.pi * 56.0)) * 360.0
+        turn_deg = (math.radians(turn_th) * (112.0 / 2.0) / (math.pi * 56.0)) * 360.0
+
+        for _ in range(4):
+            # Drive straight leg
+            self.left_motor._angle += leg_deg
+            self.right_motor._angle += leg_deg
+            self.robot.update_state(0.0)
+
+            # Spin turn 90 deg CCW
+            self.left_motor._angle -= turn_deg
+            self.right_motor._angle += turn_deg
+            self.robot.update_state(0.0)
+
+        x, y, theta = self.robot.get_state()
+        self.assertAlmostEqual(x, 0.0, delta=1.5)
+        self.assertAlmostEqual(y, 0.0, delta=1.5)
+        self.assertAlmostEqual(theta, 0.0, delta=1.0)
+
+    def test_unequal_wheel_diameters_preserves_distance(self):
+        """Unequal wheel diameters preserve correct distance and heading."""
+        motor_l = Motor(Port.C, Direction.COUNTERCLOCKWISE)
+        motor_r = Motor(Port.D)
+        # Left wheel: 50.0 mm, Right wheel: 60.0 mm
+        rb_unequal = MDRobotBase(
+            motor_l,
+            motor_r,
+            wheel_diameter=(50.0, 60.0),
+            axle_track=110.0,
+        )
+        try:
+            rb_unequal.set_backlash_filter(False)
+            rb_unequal.set_fusion_alpha(0.0)
+            rb_unequal.reset_state(0.0, 0.0, 0.0)
+
+            motor_l._angle += 360.0
+            motor_r._angle += 360.0
+            rb_unequal.update_state(0.0)
+
+            x, y, theta = rb_unequal.get_state()
+            expected_d_center = (math.pi * 50.0 + math.pi * 60.0) / 2.0
+            expected_th_rad = (math.pi * 60.0 - math.pi * 50.0) / 110.0
+            expected_th_deg = math.degrees(expected_th_rad)
+            expected_x = expected_d_center * math.cos(expected_th_rad / 2.0)
+            expected_y = expected_d_center * math.sin(expected_th_rad / 2.0)
+
+            self.assertAlmostEqual(theta, expected_th_deg, delta=0.5)
+            self.assertAlmostEqual(x, expected_x, delta=0.5)
+            self.assertAlmostEqual(y, expected_y, delta=0.5)
+        finally:
+            rb_unequal.close()
+
+    def test_gear_ratio_conversion(self):
+        """Gear ratio conversion scales motor encoder deltas correctly."""
+        self.robot.set_backlash_filter(False)
+        self.robot.set_fusion_alpha(0.0)
+        self.robot.set_gear_ratio(2.0)  # 2:1 reduction: 720 deg motor = 360 deg wheel
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        self.left_motor._angle += 720.0
+        self.right_motor._angle += 720.0
+        self.robot.update_state(0.0)
+
+        x, y, theta = self.robot.get_state()
+        # 360 deg wheel = pi * 56 mm = 175.929 mm
+        self.assertAlmostEqual(x, 175.929, delta=0.5)
+        self.assertAlmostEqual(y, 0.0, delta=0.1)
+        self.assertAlmostEqual(theta, 0.0, delta=0.1)
+
+    def test_fusion_modes_gyro_encoder_blended(self):
+        """Gyro-only, encoder-only, and blended fusion behave deterministically."""
+        self.robot.set_backlash_filter(False)
+        # Gyro-only (alpha = 1.0): motor unchanged, gyro moves -45 deg (CCW +45 deg)
+        self.robot.set_fusion_alpha(1.0)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        self.robot.update_state(-45.0)
+        x, y, theta = self.robot.get_state()
+        self.assertAlmostEqual(theta, 45.0, delta=0.1)
+
+        # Encoder-only (alpha = 0.0): motor rotates 90 deg turn, gyro stationary
+        self.robot.set_fusion_alpha(0.0)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        self.left_motor._angle -= 180.0
+        self.right_motor._angle += 180.0
+        self.robot.update_state(0.0)
+        x, y, theta = self.robot.get_state()
+        self.assertAlmostEqual(theta, 90.0, delta=0.5)
+
+        # Blended (alpha = 0.5): encoder delta = 90 deg, gyro delta = 40 deg
+        self.robot.set_fusion_alpha(0.5)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        self.left_motor._angle -= 180.0
+        self.right_motor._angle += 180.0
+        self.robot.update_state(-40.0)
+        x, y, theta = self.robot.get_state()
+        # 0.5 * 40.0 + 0.5 * 90.0 = 65.0 deg
+        self.assertAlmostEqual(theta, 65.0, delta=0.5)
+
+        # Out-of-bounds alpha raises ValueError
+        with self.assertRaises(ValueError):
+            self.robot.set_fusion_alpha(-0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_fusion_alpha(1.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_fusion_alpha(float('nan'))
+
+    def test_backlash_enable_disable_and_reset(self):
+        """Backlash filter enable, disable, and accumulator reset contract."""
+        self.robot.set_backlash_filter(True)
+        self.assertTrue(self.robot.get_backlash_filter())
+
+        # Accumulate backlash
+        self.left_motor._angle += 2.0
+        self.right_motor._angle += 2.0
+        self.robot.update_state(0.0)
+        self.assertGreater(abs(self.robot._backlash_left_accum), 0.0)
+
+        # Disabling filter must clear accumulators
+        self.robot.set_backlash_filter(False)
+        self.assertFalse(self.robot.get_backlash_filter())
+        self.assertEqual(self.robot._backlash_left_accum, 0.0)
+        self.assertEqual(self.robot._backlash_right_accum, 0.0)
+
+        # Keyword argument enabled=False must work without TypeError
+        self.robot.set_backlash_filter(enabled=True)
+        self.assertTrue(self.robot.get_backlash_filter())
+        self.robot.set_backlash_filter(enabled=False)
+        self.assertFalse(self.robot.get_backlash_filter())
+
+    def test_lqr_tracking_using_odometry_pose(self):
+        """Prove odometry and LQR share identical coordinate frame and sign conventions."""
+        self.robot.set_lqr_preset(0, True)  # BALANCED preset
+        self.robot.set_backlash_filter(False)
+        self.robot.set_fusion_alpha(0.0)
+
+        # Robot at (0, 0, 0), reference path point at (100 mm, 20 mm, 0 deg)
+        # Reference is 20 mm to the robot's left (e_y > 0 in body frame)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        v_cmd, w_cmd = self.robot.lqr_step(200.0, 100.0, 20.0, 0.0)
+        # Steering command must be positive (turn left / CCW towards the path)
+        self.assertGreater(w_cmd, 0.0)
+
+        # If reference is 20 mm to the robot's right (e_y < 0 in body frame)
+        v_cmd_r, w_cmd_right = self.robot.lqr_step(200.0, 100.0, -20.0, 0.0)
+        # Steering command must be negative (turn right / CW towards the path)
+        self.assertLess(w_cmd_right, 0.0)
+        self.assertAlmostEqual(w_cmd, -w_cmd_right, places=4)
+
+    def test_no_unknown_error_for_valid_odometry_configuration(self):
+        """All odometry APIs return clean values and raise specific ValueErrors on invalid input."""
+        # Valid configurations
+        self.robot.reset_state(10.0, 20.0, 30.0)
+        x, y, th = self.robot.get_state()
+        self.assertEqual((x, y, th), (10.0, 20.0, 30.0))
+
+        self.robot.set_fusion_alpha(0.95)
+        self.assertEqual(self.robot.get_fusion_alpha(), 0.95)
+
+        self.robot.set_gear_ratio(1.5)
+        self.assertEqual(self.robot.get_gear_ratio(), 1.5)
+
+        self.robot.set_backlash_filter(True)
+        self.assertTrue(self.robot.get_backlash_filter())
+
+        self.robot.set_backlash_filter(False)
+        self.assertFalse(self.robot.get_backlash_filter())
+
+        # Invalid configurations raise ValueError, never unknown error
+        with self.assertRaises(ValueError):
+            self.robot.reset_state(float('nan'), 0.0, 0.0)
+        with self.assertRaises(ValueError):
+            self.robot.reset_state(0.0, float('inf'), 0.0)
+        with self.assertRaises(ValueError):
+            self.robot.set_fusion_alpha(-1.0)
+        with self.assertRaises(ValueError):
+            self.robot.set_gear_ratio(-2.0)
+        with self.assertRaises(ValueError):
+            self.robot.set_gear_ratio(0.0)
+
+    def test_navigation_lqr_workspace_busy_stops_robot_and_raises_runtime_error(self):
+        """Forced LQR busy during navigation stops robot immediately and raises exact RuntimeError."""
+        self.robot.set_controller(1)  # LQR controller
+        self.robot.set_lqr_preset(0, True)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Force LQR workspace busy lock
+        MDRobotBase._lqr_workspace_set_busy_for_testing(True)
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(self.robot.navigate_to_goal(200.0, 100.0, speed_mm_s=200.0))
+            self.assertIn("LQR solver workspace busy", str(ctx.exception))
+            self.assertNotIn("Unknown Error", str(ctx.exception))
+
+            # Verify robot stopped immediately without executing fallback commands
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+        finally:
+            MDRobotBase._lqr_workspace_set_busy_for_testing(False)
+
+    def test_navigation_odometry_failure_stops_robot_and_raises_value_error(self):
+        """Forced odometry invalidation during navigation stops robot immediately and raises ValueError."""
+        self.robot.set_controller(1)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Invalidate pose to NaN
+        self.robot._x = float('nan')
+
+        with self.assertRaises(ValueError) as ctx:
+            asyncio.run(self.robot.navigate_to_goal(200.0, 100.0))
+        self.assertIn("LQR controller received invalid pose or configuration", str(ctx.exception))
+        self.assertNotIn("Unknown Error", str(ctx.exception))
+
+        # Verify robot stopped immediately
+        self.assertFalse(self.robot._motion_in_progress)
+        self.assertEqual(self.left_motor._speed, 0)
+        self.assertEqual(self.right_motor._speed, 0)
+
+    def test_invalid_pose_in_step_lqr_and_update_state(self):
+        """Non-finite pose coordinates reject both LQR stepping and odometry updates with ValueError."""
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Non-finite x in robot state
+        self.robot._x = float('nan')
+        with self.assertRaises(ValueError):
+            self.robot.step_lqr(200.0, 100.0, 50.0, 0.0)
+        with self.assertRaises(ValueError):
+            self.robot.update_state(0.0)
+
+        # Non-finite y in robot state
+        self.robot._x = 0.0
+        self.robot._y = float('inf')
+        with self.assertRaises(ValueError):
+            self.robot.step_lqr(200.0, 100.0, 50.0, 0.0)
+        with self.assertRaises(ValueError):
+            self.robot.update_state(0.0)
+
+        # Non-finite theta in robot state
+        self.robot._y = 0.0
+        self.robot._theta = float('-inf')
+        with self.assertRaises(ValueError):
+            self.robot.step_lqr(200.0, 100.0, 50.0, 0.0)
+        with self.assertRaises(ValueError):
+            self.robot.update_state(0.0)
+        self.robot._theta = 0.0
+
+        # Non-finite inputs to step_lqr
+        with self.assertRaises(ValueError):
+            self.robot.step_lqr(float('nan'), 100.0, 50.0, 0.0)
+        with self.assertRaises(ValueError):
+            self.robot.step_lqr(200.0, float('nan'), 50.0, 0.0)
+        with self.assertRaises(ValueError):
+            self.robot.step_lqr(200.0, 100.0, float('inf'), 0.0)
+        with self.assertRaises(ValueError):
+            self.robot.step_lqr(200.0, 100.0, 50.0, float('nan'))
+
+    def test_invalid_lqr_configuration(self):
+        """Invalid LQR weight matrices and presets raise specific ValueErrors."""
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(-1.0, 5000.0, 20.0, 25.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, -5.0, 20.0, 25.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, 5000.0, -2.0, 25.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 0.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, 5000.0, 20.0, 25.0, -0.01)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(float('nan'), 5000.0, 20.0, 25.0, 0.1)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_weights(2500.0, float('inf'), 20.0, 25.0, 0.1)
+
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_preset(99)
+        with self.assertRaises(ValueError):
+            self.robot.set_lqr_preset(-1)
+
+    def test_sensor_motor_disconnection_stops_robot_and_raises_error(self):
+        """Motor/sensor hardware disconnection stops robot and raises clear OSError."""
+        self.robot.set_controller(1)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Simulate disconnected motor
+        self.left_motor._closed = True
+        try:
+            with self.assertRaises(OSError) as ctx:
+                asyncio.run(self.robot.navigate_to_goal(200.0, 100.0))
+            self.assertIn("MDRobotBase motor is not connected", str(ctx.exception))
+            self.assertNotIn("Unknown Error", str(ctx.exception))
+
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+        finally:
+            self.left_motor._closed = False
+
+    def test_trajectory_lqr_workspace_busy_stops_robot(self):
+        """Trajectory tracking halts safely with RuntimeError when LQR solver is busy."""
+        self.robot.set_controller(1)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        points = [(0.0, 0.0), (100.0, 50.0), (200.0, 100.0)]
+        MDRobotBase._lqr_workspace_set_busy_for_testing(True)
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(self.robot.follow_trajectory(points))
+            self.assertIn("LQR solver workspace busy", str(ctx.exception))
+            self.assertNotIn("Unknown Error", str(ctx.exception))
+
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+        finally:
+            MDRobotBase._lqr_workspace_set_busy_for_testing(False)
+
+    def test_navigation_stall_stops_robot_and_raises_runtime_error(self):
+        """Physical stall during navigation stops robot immediately and raises meaningful RuntimeError."""
+        self.robot.set_controller(1)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        self.robot.set_stalled(True)
+
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(self.robot.navigate_to_goal(500.0, 0.0))
+            self.assertEqual(str(ctx.exception), "MDRobotBase navigation stalled")
+            self.assertNotIn("Unknown Error", str(ctx.exception))
+
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+        finally:
+            self.robot.set_stalled(False)
+
+    def test_turn_stall_stops_robot_and_raises_runtime_error(self):
+        """Physical stall during turn_to_angle stops robot immediately and raises meaningful RuntimeError."""
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        self.robot.set_stalled(True)
+
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(self.robot.turn_to_angle(90.0))
+            self.assertEqual(str(ctx.exception), "MDRobotBase turn stalled")
+            self.assertNotIn("Unknown Error", str(ctx.exception))
+
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+        finally:
+            self.robot.set_stalled(False)
+
+    def test_pivot_stall_stops_robot_and_raises_runtime_error(self):
+        """Physical stall during pivot_turn_to_angle stops robot immediately and raises meaningful RuntimeError."""
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        self.robot.set_stalled(True)
+
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(self.robot.pivot_turn_to_angle(90.0, pivot_side="left"))
+            self.assertEqual(str(ctx.exception), "MDRobotBase pivot stalled")
+            self.assertNotIn("Unknown Error", str(ctx.exception))
+
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+        finally:
+            self.robot.set_stalled(False)
+
+    def test_trajectory_stall_stops_robot_and_raises_runtime_error(self):
+        """Physical stall during follow_trajectory stops robot immediately and raises meaningful RuntimeError."""
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        self.robot.set_stalled(True)
+
+        points = [(0.0, 0.0), (100.0, 0.0), (200.0, 0.0)]
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(self.robot.follow_trajectory(points))
+            self.assertEqual(str(ctx.exception), "MDRobotBase trajectory stalled")
+            self.assertNotIn("Unknown Error", str(ctx.exception))
+
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+        finally:
+            self.robot.set_stalled(False)
+
+    def test_repeated_failure_and_clean_recovery(self):
+        """Failure aborts cleanly with motor shutdown and leaves robot ready for subsequent valid motion."""
+        self.robot.set_controller(1)  # LQR controller
+        self.robot.set_lqr_preset(0, True)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # 1. First attempt fails due to busy workspace
+        MDRobotBase._lqr_workspace_set_busy_for_testing(True)
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(self.robot.navigate_to_goal(100.0, 0.0))
+            self.assertIn("LQR solver workspace busy", str(ctx.exception))
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+        finally:
+            # 2. Release busy state
+            MDRobotBase._lqr_workspace_set_busy_for_testing(False)
+
+        # 3. Subsequent valid motion succeeds completely
+        asyncio.run(self.robot.navigate_to_goal(100.0, 0.0))
+        self.assertFalse(self.robot._motion_in_progress)
+        self.assertAlmostEqual(self.robot._x, 100.0, delta=1.0)
+
+    def test_connected_motors_idle_update_loop_does_not_raise_no_dev(self):
+        """Connected motors with idle/stopped update loop must NOT produce NO_DEV."""
+        # Motors are stationary and idle (speed = 0)
+        self.assertEqual(self.left_motor._speed, 0)
+        self.assertEqual(self.right_motor._speed, 0)
+        self.assertTrue(getattr(self.left_motor, "connected", True))
+        self.assertTrue(getattr(self.right_motor, "connected", True))
+
+        # First navigation iteration must succeed without false "motor or sensor unavailable"
+        self.robot.set_controller(1)  # LQR
+        self.robot.reset_state(0.0, 0.0, 0.0)
+        asyncio.run(self.robot.navigate_to_goal(50.0, 0.0, speed_mm_s=200.0))
+
+        self.assertFalse(self.robot._motion_in_progress)
+        self.assertAlmostEqual(self.robot._x, 50.0, delta=1.0)
+
+    def test_first_navigation_iteration_succeeds_when_motors_valid(self):
+        """First navigation iteration succeeds and commands both motors when devices are valid."""
+        self.robot.set_controller(0)  # PID controller
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Execute navigation and assert successful completion
+        asyncio.run(self.robot.navigate_to_goal(60.0, 0.0, speed_mm_s=200.0))
+        self.assertFalse(self.robot._motion_in_progress)
+        self.assertAlmostEqual(self.robot._x, 60.0, delta=1.0)
+
+    def test_actual_missing_motor_produces_no_dev(self):
+        """Actual disconnected motor produces clear OSError with NO_DEV message."""
+        self.robot.set_controller(1)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Set physical disconnection flag
+        self.right_motor.connected = False
+        try:
+            with self.assertRaises(OSError) as ctx:
+                asyncio.run(self.robot.navigate_to_goal(100.0, 0.0))
+            self.assertIn("MDRobotBase motor is not connected", str(ctx.exception))
+            self.assertFalse(self.robot._motion_in_progress)
+        finally:
+            self.right_motor.connected = True
+
+    def test_imu_not_yet_ready_does_not_fail_initialization(self):
+        """MDRobotBase construction and safe initial baselines succeed without immediate IMU readiness."""
+        # Create fresh motors and robot base with default uncalibrated state
+        m_left = Motor(Port.E)
+        m_right = Motor(Port.F)
+        rb = MDRobotBase(m_left, m_right, 56.0, 112.0)
+        try:
+            self.assertEqual(rb._x, 0.0)
+            self.assertEqual(rb._y, 0.0)
+            self.assertEqual(rb._theta, 0.0)
+
+            # First update synchronizes baselines cleanly
+            rb.update_state(15.0)
+            self.assertEqual(rb._x, 0.0)
+            self.assertEqual(rb._y, 0.0)
+
+            # Second update computes delta from latched baseline with gyro fusion
+            rb._fusion_alpha = 1.0
+            rb.update_state(25.0)
+            # In CCW-positive convention, +10 heading CW change yields -10 deg theta
+            self.assertAlmostEqual(rb._theta, -10.0, delta=0.1)
+        finally:
+            rb.close()
+
+    def test_full_motion_lifecycle_lqr_and_pid(self):
+        """Verify full motion lifecycle across LQR and PID: navigate, turn, pivot, stop, repeated."""
+        for c_type in [0, 1]:  # 0 = PID, 1 = LQR
+            self.robot.set_controller(c_type)
+            self.robot.reset_state(0.0, 0.0, 0.0)
+
+            # 1. Navigation
+            asyncio.run(self.robot.navigate_to_goal(80.0, 0.0, speed_mm_s=250.0))
+            self.assertAlmostEqual(self.robot._x, 80.0, delta=1.5)
+            self.assertFalse(self.robot._motion_in_progress)
+
+            # 2. Turn
+            asyncio.run(self.robot.turn_angle(45.0, speed_deg_s=180.0))
+            self.assertAlmostEqual(self.robot._theta, 45.0, delta=2.0)
+            self.assertFalse(self.robot._motion_in_progress)
+
+            # 3. Pivot
+            asyncio.run(self.robot.pivot_turn_angle(-45.0, speed_deg_s=150.0))
+            self.assertAlmostEqual(self.robot._theta, 0.0, delta=2.0)
+            self.assertFalse(self.robot._motion_in_progress)
+
+            # 4. Stop
+            self.robot.stop()
+            self.assertFalse(self.robot._motion_in_progress)
+            self.assertEqual(self.left_motor._speed, 0)
+            self.assertEqual(self.right_motor._speed, 0)
+
+    def test_motor_communication_io_error_raises_io_message(self):
+        """Motor communication bus failure raises distinct communication failed message."""
+        self.robot.set_controller(1)
+        self.robot.reset_state(0.0, 0.0, 0.0)
+
+        # Simulate IO failure on left motor bus
+        self.left_motor._io_error = True
+        try:
+            with self.assertRaises(OSError) as ctx:
+                asyncio.run(self.robot.navigate_to_goal(100.0, 0.0))
+            self.assertIn("MDRobotBase motor communication failed", str(ctx.exception))
+            self.assertFalse(self.robot._motion_in_progress)
+        finally:
+            self.left_motor._io_error = False
+
+    def test_diagnostics_query_returns_expected_fields(self):
+        """MDRobotBase get_diagnostics returns motor state errors, control loop flags, and motion types."""
+        diag = self.robot.get_diagnostics()
+        self.assertIn("left_state_error", diag)
+        self.assertIn("right_state_error", diag)
+        self.assertIn("left_error_str", diag)
+        self.assertIn("right_error_str", diag)
+        self.assertIn("control_loop_left", diag)
+        self.assertIn("control_loop_right", diag)
+        self.assertIn("motion_type", diag)
+        self.assertIn("controller_type", diag)
+        self.assertEqual(diag["left_state_error"], 0)
+        self.assertEqual(diag["right_state_error"], 0)
+        self.assertEqual(diag["left_error_str"], "success")
+        self.assertEqual(diag["right_error_str"], "success")
+
+    def test_startup_with_debug_enabled_and_safe_diagnostics(self):
+        """Target-level startup test with debug=True exercises safe error string formatting without crashing."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        debug_robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0, debug=True)
+        try:
+            self.assertTrue(debug_robot._debug)
+            diag = debug_robot.get_diagnostics()
+            self.assertEqual(diag["left_state_error"], 0)
+            self.assertEqual(diag["right_state_error"], 0)
+            self.assertEqual(diag["left_error_str"], "success")
+            self.assertEqual(diag["right_error_str"], "success")
+            # Execute motion with debug enabled
+            asyncio.run(debug_robot.straight(50.0))
+            self.assertAlmostEqual(debug_robot.get_state()[0], 50.0, places=1)
+        finally:
+            debug_robot.close()
+
+    def test_encoder_baselines_atomic_initialization_no_zero_jump(self):
+        """Ensures non-zero initial encoder positions establish baselines atomically without an odometry jump."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        motor_c._angle = 1440.0  # 4 rotations preexisting angle
+        motor_d._angle = 2880.0  # 8 rotations preexisting angle
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            robot.set_backlash_filter(False)
+            # First update must atomically establish baselines; delta must be exactly 0
+            robot.update_state(0.0)
+            x, y, theta = robot.get_state()
+            self.assertEqual(x, 0.0)
+            self.assertEqual(y, 0.0)
+            self.assertEqual(theta, 0.0)
+
+            # Advance by 360 deg on both motors -> 1 wheel circumference forward (pi * 56 mm)
+            motor_c._angle += 360.0
+            motor_d._angle += 360.0
+            robot.update_state(0.0)
+            x2, y2, theta2 = robot.get_state()
+            expected_dist = math.pi * 56.0
+            self.assertAlmostEqual(x2, expected_dist, places=1)
+            self.assertAlmostEqual(y2, 0.0, places=1)
+        finally:
+            robot.close()
+
+    def test_failed_initial_encoder_read_sets_nan_and_recovers_without_zero_jump(self):
+        """When initial encoder read fails, baseline is marked NaN and later atomic update prevents zero jump."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        # Deliberately cause angle() to fail during initialization
+        orig_angle = motor_c.angle
+        def fail_angle():
+            raise OSError("motor disconnected")
+        motor_c.angle = fail_angle
+
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            self.assertTrue(math.isnan(robot._last_left_deg))
+            self.assertFalse(robot._encoders_initialized)
+
+            # Restore angle function with non-zero initial angles
+            motor_c.angle = orig_angle
+            motor_c._angle = 720.0
+            motor_d._angle = 1080.0
+
+            # First update must atomically establish baselines; must not jump from 0.0
+            robot.set_backlash_filter(False)
+            robot.update_state(0.0)
+            self.assertTrue(robot._encoders_initialized)
+            self.assertEqual(robot._last_left_deg, 720.0)
+            self.assertEqual(robot._last_right_deg, 1080.0)
+            x, y, theta = robot.get_state()
+            self.assertEqual(x, 0.0)
+            self.assertEqual(y, 0.0)
+            self.assertEqual(theta, 0.0)
+
+            # Incremental motion must integrate from 720.0 and 1080.0
+            motor_c._angle += 180.0
+            motor_d._angle += 180.0
+            robot.update_state(0.0)
+            x2, y2, theta2 = robot.get_state()
+            expected_dist = (180.0 / 360.0) * math.pi * 56.0
+            self.assertAlmostEqual(x2, expected_dist, places=1)
+        finally:
+            robot.close()
+
+    def test_startup_retry_recovers_transient_io_error_within_time_window(self):
+        """Transient I/O failure resolving within time-based retry window allows motion to succeed."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            motor_c._io_error = True
+
+            async def clear_error_after_delay():
+                await asyncio.sleep(0.020)  # 20ms < 300ms window
+                motor_c._io_error = False
+
+            async def run_motion_with_transient():
+                t = asyncio.create_task(clear_error_after_delay())
+                await robot.straight(50.0)
+                await t
+
+            asyncio.run(run_motion_with_transient())
+            x, y, theta = robot.get_state()
+            self.assertAlmostEqual(x, 50.0, places=1)
+            self.assertFalse(robot._motion_in_progress)
+        finally:
+            motor_c._io_error = False
+            robot.close()
 
 
 if __name__ == "__main__":

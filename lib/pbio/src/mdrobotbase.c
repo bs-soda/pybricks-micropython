@@ -46,18 +46,35 @@ typedef struct {
 
 static pbio_mdrobotbase_lqr_workspace_t lqr_workspace;
 
+#include <stdatomic.h>
+
 /**
  * @brief Threading & Concurrency Invariant:
  * Pybricks MicroPython firmware execution is cooperative and single-threaded on bare-metal ARM Cortex-M.
  * User scripts run sequentially on the main thread; peripheral interrupts (IMU, UART, motor drivers)
  * do not invoke LQR matrix solver routines.
  *
- * However, to guarantee fail-closed robustness against nested invocations (e.g. coroutines/generators)
- * or future multi-threaded runtimes, the shared static workspace is protected by lqr_workspace_busy.
- * Any re-entrant or concurrent invocation immediately fails closed with PBIO_ERROR_BUSY.
- * All return paths deterministically release lqr_workspace_busy, and pbio_mdrobotbase_deinit() resets it.
+ * However, to guarantee fail-closed robustness against nested coroutines, async tasks, or multi-threaded
+ * host environments, the shared static workspace is protected by an atomic compare-and-swap (CAS) lock.
+ * The acquire operation is strictly atomic:
+ *     bool expected = false;
+ *     if (!atomic_compare_exchange_strong(&lqr_workspace_busy, &expected, true))
+ *         return PBIO_ERROR_BUSY;
+ * Any concurrent or re-entrant attempt immediately fails closed with PBIO_ERROR_BUSY.
+ * All return paths deterministically release the lock via a single cleanup label, and
+ * pbio_mdrobotbase_deinit() unconditionally resets the lock on soft-reset.
  */
-static bool lqr_workspace_busy = false;
+static atomic_bool lqr_workspace_busy = false;
+
+static inline bool pbio_mdrobotbase_lqr_workspace_acquire(void) {
+    bool expected = false;
+    return atomic_compare_exchange_strong(&lqr_workspace_busy, &expected, true);
+}
+
+static inline void pbio_mdrobotbase_lqr_workspace_release(void) {
+    atomic_store(&lqr_workspace_busy, false);
+}
+
 
 pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, pbio_servo_t *right, int32_t wheel_diameter_left, int32_t wheel_diameter_right, int32_t axle_track) {
     if (!rb || !left || !right || left == right ||
@@ -104,9 +121,19 @@ pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, p
     rb->x = 0.0f;
     rb->y = 0.0f;
     rb->theta = 0.0f;
-    rb->last_left_deg = 0.0f;
-    rb->last_right_deg = 0.0f;
+    rb->last_left_deg = NAN;
+    rb->last_right_deg = NAN;
     rb->last_gyro_heading = 0.0f;
+    rb->state_initialized = false;
+
+    // Latch baseline positions if servos are ready, but preserve state_initialized = false
+    // so first valid update_state establishes encoder and gyro baselines atomically.
+    pbio_control_state_t state_l, state_r;
+    if (pbio_servo_get_state_control(left, &state_l) == PBIO_SUCCESS &&
+        pbio_servo_get_state_control(right, &state_r) == PBIO_SUCCESS) {
+        rb->last_left_deg = pbio_control_settings_ctl_to_app_long_float(&left->control.settings, &state_l.position);
+        rb->last_right_deg = pbio_control_settings_ctl_to_app_long_float(&right->control.settings, &state_r.position);
+    }
     rb->fusion_alpha = 0.95f;
     rb->gear_ratio = 1.0f;
     rb->last_accel_x = 0.0f;
@@ -303,7 +330,7 @@ void pbio_mdrobotbase_deinit(void) {
             mdrobotbase_in_use[i] = false;
         }
     }
-    lqr_workspace_busy = false;
+    pbio_mdrobotbase_lqr_workspace_release();
 }
 
 static void mdrobotbase_mat_mul3(const double A[3][3], const double B[3][3], double C[3][3]) {
@@ -554,15 +581,14 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare_full(
     float K[2][3], float P[3][3],
     float *spectral_radius) {
 
-    if (lqr_workspace_busy) {
+    if (!pbio_mdrobotbase_lqr_workspace_acquire()) {
         return PBIO_ERROR_BUSY;
     }
-    lqr_workspace_busy = true;
 
     pbio_error_t err = pbio_mdrobotbase_lqr_solve_dare_internal(
         &lqr_workspace, q_x, q_y, q_theta, r_v, r_omega, v_profile, K, P, spectral_radius);
 
-    lqr_workspace_busy = false;
+    pbio_mdrobotbase_lqr_workspace_release();
     return err;
 }
 
@@ -570,13 +596,13 @@ size_t pbio_mdrobotbase_lqr_get_workspace_size(void) {
     return sizeof(pbio_mdrobotbase_lqr_workspace_t);
 }
 
-#if PBIO_TEST_BUILD
 bool pbio_mdrobotbase_lqr_is_busy(void) {
-    return lqr_workspace_busy;
+    return atomic_load(&lqr_workspace_busy);
 }
 
+#if PBIO_TEST_BUILD
 void pbio_mdrobotbase_lqr_set_busy_for_testing(bool busy) {
-    lqr_workspace_busy = busy;
+    atomic_store(&lqr_workspace_busy, busy);
 }
 #endif
 
@@ -592,10 +618,9 @@ pbio_error_t pbio_mdrobotbase_lqr_compute_riccati_residual(
         return PBIO_ERROR_INVALID_ARG;
     }
 
-    if (lqr_workspace_busy) {
+    if (!pbio_mdrobotbase_lqr_workspace_acquire()) {
         return PBIO_ERROR_BUSY;
     }
-    lqr_workspace_busy = true;
     pbio_mdrobotbase_lqr_workspace_t *ws = &lqr_workspace;
 
     const double Ts = (double)0.005;
@@ -672,7 +697,7 @@ pbio_error_t pbio_mdrobotbase_lqr_compute_riccati_residual(
     *max_residual = (float)max_err;
 
 cleanup:
-    lqr_workspace_busy = false;
+    pbio_mdrobotbase_lqr_workspace_release();
     return err;
 }
 
@@ -680,12 +705,16 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare(
     float q_x, float q_y, float q_theta, float r_v, float r_omega,
     float v_profile, float *k_x, float *k_y, float *k_theta, float *spectral_radius) {
 
+    if (!pbio_mdrobotbase_lqr_workspace_acquire()) {
+        return PBIO_ERROR_BUSY;
+    }
+
     float K[2][3];
     float rho = 0.0f;
-    pbio_error_t err = pbio_mdrobotbase_lqr_solve_dare_full(
-        q_x, q_y, q_theta, r_v, r_omega, v_profile, K, NULL, &rho);
+    pbio_error_t err = pbio_mdrobotbase_lqr_solve_dare_internal(
+        &lqr_workspace, q_x, q_y, q_theta, r_v, r_omega, v_profile, K, NULL, &rho);
     if (err != PBIO_SUCCESS) {
-        return err;
+        goto cleanup;
     }
     if (k_x) {
         *k_x = fabsf(K[0][0]);
@@ -699,7 +728,10 @@ pbio_error_t pbio_mdrobotbase_lqr_solve_dare(
     if (spectral_radius) {
         *spectral_radius = rho;
     }
-    return PBIO_SUCCESS;
+
+cleanup:
+    pbio_mdrobotbase_lqr_workspace_release();
+    return err;
 }
 
 pbio_error_t pbio_mdrobotbase_lqr_verify_discrete_stability(float k_y, float k_theta, float v_nominal, float *spectral_radius) {
@@ -766,10 +798,9 @@ pbio_error_t pbio_mdrobotbase_set_lqr_weights(pbio_mdrobotbase_t *rb, float q_x,
         return PBIO_ERROR_INVALID_ARG;
     }
 
-    if (lqr_workspace_busy) {
+    if (!pbio_mdrobotbase_lqr_workspace_acquire()) {
         return PBIO_ERROR_BUSY;
     }
-    lqr_workspace_busy = true;
     pbio_mdrobotbase_lqr_workspace_t *ws = &lqr_workspace;
 
     // Solve full 3-state, 2-input DARE across all 16 velocity bins: 50, 100, ..., 800 mm/s
@@ -794,11 +825,11 @@ pbio_error_t pbio_mdrobotbase_set_lqr_weights(pbio_mdrobotbase_t *rb, float q_x,
     }
 
     if (err != PBIO_SUCCESS) {
-        lqr_workspace_busy = false;
-        return err;
+        goto cleanup;
     }
 
     // Atomic update of weights and lookup tables
+    rb->lqr_schedule_enabled = false;
     rb->lqr_weights.q_x = q_x;
     rb->lqr_weights.q_y = q_y;
     rb->lqr_weights.q_theta = q_theta;
@@ -819,8 +850,9 @@ pbio_error_t pbio_mdrobotbase_set_lqr_weights(pbio_mdrobotbase_t *rb, float q_x,
     rb->k_theta = rb->lqr_lut_kth[5];
     rb->lqr_schedule_enabled = true;
 
-    lqr_workspace_busy = false;
-    return PBIO_SUCCESS;
+cleanup:
+    pbio_mdrobotbase_lqr_workspace_release();
+    return err;
 }
 
 pbio_error_t pbio_mdrobotbase_get_lqr_weights(const pbio_mdrobotbase_t *rb, float *q_x, float *q_y, float *q_theta, float *r_v, float *r_omega) {
@@ -937,6 +969,14 @@ pbio_error_t pbio_mdrobotbase_lqr_step(
         return PBIO_ERROR_INVALID_ARG;
     }
 
+    if (!isfinite(rb->x) || !isfinite(rb->y) || !isfinite(rb->theta)) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+
+    if (pbio_mdrobotbase_lqr_is_busy()) {
+        return PBIO_ERROR_BUSY;
+    }
+
     float dx_ref = x_ref - rb->x;
     float dy_ref = y_ref - rb->y;
 
@@ -1019,6 +1059,10 @@ pbio_error_t pbio_mdrobotbase_lqr_step(
         w_cmd_raw *= scale;
     }
 
+    if (!isfinite(v_cmd_raw) || !isfinite(w_cmd_raw)) {
+        return PBIO_ERROR_LQR_FAILED;
+    }
+
     *v_cmd = v_cmd_raw;
     *w_cmd = w_cmd_raw;
 
@@ -1084,18 +1128,31 @@ pbio_error_t pbio_mdrobotbase_get_pivot_pid_gains(pbio_mdrobotbase_t *rb, float 
 }
 
 pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float y, float theta, float gyro_heading) {
-    if (!rb || !isfinite(x) || !isfinite(y) || !isfinite(theta) || !isfinite(gyro_heading)) {
+    if (!rb || !rb->left || !rb->right || !isfinite(x) || !isfinite(y) || !isfinite(theta) || !isfinite(gyro_heading)) {
         return PBIO_ERROR_INVALID_ARG;
     }
 
     pbio_control_state_t state_l, state_r;
-    pbio_error_t err = pbio_servo_get_state_control(rb->left, &state_l);
-    if (err != PBIO_SUCCESS) {
-        return err;
+    pbio_error_t err_l = pbio_servo_get_state_control(rb->left, &state_l);
+    pbio_error_t err_r = pbio_servo_get_state_control(rb->right, &state_r);
+
+    if (err_l == PBIO_ERROR_NO_DEV || err_r == PBIO_ERROR_NO_DEV) {
+        return PBIO_ERROR_NO_DEV;
     }
-    err = pbio_servo_get_state_control(rb->right, &state_r);
-    if (err != PBIO_SUCCESS) {
-        return err;
+    if (err_l == PBIO_ERROR_IO || err_r == PBIO_ERROR_IO) {
+        return PBIO_ERROR_IO;
+    }
+    if (err_l == PBIO_ERROR_AGAIN || err_r == PBIO_ERROR_AGAIN) {
+        return PBIO_ERROR_AGAIN;
+    }
+    if (err_l == PBIO_ERROR_BUSY || err_r == PBIO_ERROR_BUSY) {
+        return PBIO_ERROR_BUSY;
+    }
+    if (err_l != PBIO_SUCCESS) {
+        return err_l;
+    }
+    if (err_r != PBIO_SUCCESS) {
+        return err_r;
     }
 
     float left_deg = pbio_control_settings_ctl_to_app_long_float(&rb->left->control.settings, &state_l.position);
@@ -1103,33 +1160,64 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
 
     rb->x = x;
     rb->y = y;
-    rb->theta = theta;
+    rb->theta = pbio_mdrobotbase_wrap_degrees(theta);
 
     rb->last_left_deg = left_deg;
     rb->last_right_deg = right_deg;
     rb->last_gyro_heading = gyro_heading;
     rb->last_accel_x = 0.0f;
+    rb->state_initialized = true;
+    rb->backlash_left_accum = 0.0f;
+    rb->backlash_right_accum = 0.0f;
+    rb->turn_integral = 0.0f;
+    rb->stall_time_ms = 0.0f;
+    rb->dist_traveled = 0.0f;
+    rb->last_x = x;
+    rb->last_y = y;
+    rb->last_step_theta = rb->theta;
 
     return PBIO_SUCCESS;
 }
 
 pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_heading) {
-    if (!rb) {
+    if (!rb || !rb->left || !rb->right || !isfinite(gyro_heading) ||
+        !isfinite(rb->x) || !isfinite(rb->y) || !isfinite(rb->theta)) {
         return PBIO_ERROR_INVALID_ARG;
     }
 
     pbio_control_state_t state_l, state_r;
-    pbio_error_t err = pbio_servo_get_state_control(rb->left, &state_l);
-    if (err != PBIO_SUCCESS) {
-        return err;
+    pbio_error_t err_l = pbio_servo_get_state_control(rb->left, &state_l);
+    pbio_error_t err_r = pbio_servo_get_state_control(rb->right, &state_r);
+
+    if (err_l == PBIO_ERROR_NO_DEV || err_r == PBIO_ERROR_NO_DEV) {
+        return PBIO_ERROR_NO_DEV;
     }
-    err = pbio_servo_get_state_control(rb->right, &state_r);
-    if (err != PBIO_SUCCESS) {
-        return err;
+    if (err_l == PBIO_ERROR_IO || err_r == PBIO_ERROR_IO) {
+        return PBIO_ERROR_IO;
+    }
+    if (err_l == PBIO_ERROR_AGAIN || err_r == PBIO_ERROR_AGAIN) {
+        return PBIO_ERROR_AGAIN;
+    }
+    if (err_l == PBIO_ERROR_BUSY || err_r == PBIO_ERROR_BUSY) {
+        return PBIO_ERROR_BUSY;
+    }
+    if (err_l != PBIO_SUCCESS) {
+        return err_l;
+    }
+    if (err_r != PBIO_SUCCESS) {
+        return err_r;
     }
 
     float left_deg = pbio_control_settings_ctl_to_app_long_float(&rb->left->control.settings, &state_l.position);
     float right_deg = pbio_control_settings_ctl_to_app_long_float(&rb->right->control.settings, &state_r.position);
+
+    if (!rb->state_initialized || isnan(rb->last_left_deg) || isnan(rb->last_right_deg)) {
+        rb->last_left_deg = left_deg;
+        rb->last_right_deg = right_deg;
+        rb->last_gyro_heading = gyro_heading;
+        rb->state_initialized = true;
+        return PBIO_SUCCESS;
+    }
 
     float d_left_ticks = left_deg - rb->last_left_deg;
     float d_right_ticks = right_deg - rb->last_right_deg;
@@ -1215,6 +1303,10 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     }
 
     rb->theta = pbio_mdrobotbase_wrap_degrees(rb->theta + delta_theta);
+
+    if (!isfinite(rb->x) || !isfinite(rb->y) || !isfinite(rb->theta)) {
+        return PBIO_ERROR_ODOMETRY_FAILED;
+    }
 
     return PBIO_SUCCESS;
 }

@@ -11,8 +11,9 @@ and fail-closed lifecycle safety.
 import asyncio
 import functools
 import math
+import threading
 import time
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from .parameters import Stop
 from .pupdevices import Motor
 
@@ -24,6 +25,24 @@ def _require_open(func):
             raise RuntimeError("MDRobotBase instance is closed")
         return func(self, *args, **kwargs)
     return wrapper
+
+
+class _ClassOrInstanceMethod:
+    """Descriptor supporting both classmethod and instance-level calls with closed-object protection."""
+    def __init__(self, func):
+        self.func = func
+        functools.update_wrapper(self, func)
+
+    def __get__(self, instance, owner=None):
+        if instance is not None:
+            def instance_wrapper(*args, **kwargs):
+                if getattr(instance, "_is_closed", False):
+                    raise RuntimeError("MDRobotBase instance is closed")
+                return self.func(owner, *args, **kwargs)
+            return instance_wrapper
+        def class_wrapper(*args, **kwargs):
+            return self.func(owner, *args, **kwargs)
+        return class_wrapper
 
 
 def _rgb_to_hsv_helper(r: float, g: float, b: float) -> Tuple[float, float, float]:
@@ -53,13 +72,39 @@ class MDRobotBase:
     """
 
     _active_instances: List["MDRobotBase"] = []
+    _lqr_workspace_busy: bool = False
+    _lqr_workspace_lock: threading.Lock = threading.Lock()
+
+    @_ClassOrInstanceMethod
+    def _lqr_workspace_acquire(cls) -> bool:
+        with cls._lqr_workspace_lock:
+            if cls._lqr_workspace_busy:
+                return False
+            cls._lqr_workspace_busy = True
+            return True
+
+    @_ClassOrInstanceMethod
+    def _lqr_workspace_release(cls):
+        with cls._lqr_workspace_lock:
+            cls._lqr_workspace_busy = False
+
+    @_ClassOrInstanceMethod
+    def _lqr_workspace_is_busy(cls) -> bool:
+        with cls._lqr_workspace_lock:
+            return cls._lqr_workspace_busy
+
+    @_ClassOrInstanceMethod
+    def _lqr_workspace_set_busy_for_testing(cls, busy: bool):
+        with cls._lqr_workspace_lock:
+            cls._lqr_workspace_busy = bool(busy)
 
     @classmethod
     def deinit_all(cls):
-        """De-initializes all active instances, releasing all motor slots."""
+        """De-initializes all active instances, releasing all motor slots and LQR workspace."""
         for inst in list(cls._active_instances):
             inst.close()
         cls._active_instances.clear()
+        cls._lqr_workspace_release()
 
     def __init__(
         self,
@@ -68,9 +113,13 @@ class MDRobotBase:
         *args,
         wheel_diameter: float = 56.0,
         axle_track: float = 112.0,
+        debug: bool = False,
     ):
         self.left_motor = left_motor
         self.right_motor = right_motor
+        self._debug = bool(debug)
+        self._startup_retry_start_time = None
+        self._motion_started = False
         self._is_closed = False
         self._current_task: Optional[asyncio.Task] = None
         self._motion_in_progress = False
@@ -104,16 +153,28 @@ class MDRobotBase:
             self._wheel_diameter_right = float(args[1])
             self._axle_track = float(args[2])
         elif len(args) == 2:
-            self._wheel_diameter_left = float(args[0])
-            self._wheel_diameter_right = float(args[0])
+            if isinstance(args[0], (tuple, list)):
+                self._wheel_diameter_left = float(args[0][0])
+                self._wheel_diameter_right = float(args[0][1])
+            else:
+                self._wheel_diameter_left = float(args[0])
+                self._wheel_diameter_right = float(args[0])
             self._axle_track = float(args[1])
         elif len(args) == 1:
-            self._wheel_diameter_left = float(args[0])
-            self._wheel_diameter_right = float(args[0])
+            if isinstance(args[0], (tuple, list)):
+                self._wheel_diameter_left = float(args[0][0])
+                self._wheel_diameter_right = float(args[0][1])
+            else:
+                self._wheel_diameter_left = float(args[0])
+                self._wheel_diameter_right = float(args[0])
             self._axle_track = float(axle_track)
         else:
-            self._wheel_diameter_left = float(wheel_diameter)
-            self._wheel_diameter_right = float(wheel_diameter)
+            if isinstance(wheel_diameter, (tuple, list)):
+                self._wheel_diameter_left = float(wheel_diameter[0])
+                self._wheel_diameter_right = float(wheel_diameter[1])
+            else:
+                self._wheel_diameter_left = float(wheel_diameter)
+                self._wheel_diameter_right = float(wheel_diameter)
             self._axle_track = float(axle_track)
 
         self._gear_ratio = 1.0
@@ -127,10 +188,31 @@ class MDRobotBase:
         self._pid_gains = (1.0, 0.0, 0.1)
         self._turn_pid_gains = (1.2, 0.0, 0.15)
         self._pivot_pid_gains = (1.1, 0.0, 0.12)
-        self.set_lqr_preset(0, True)
+        try:
+            self.set_lqr_preset(0, True)
+        except RuntimeError as e:
+            if "LQR solver workspace busy" in str(e):
+                raise RuntimeError("motors already in use or LQR solver workspace busy") from e
+            raise
         self._fusion_alpha = 0.98
         self._backlash_filter = True
         self._backlash_limits = (-5.0, 5.0)
+        self._backlash_left_accum = 0.0
+        self._backlash_right_accum = 0.0
+        self._encoders_initialized = False
+        self._last_left_deg = float("nan")
+        self._last_right_deg = float("nan")
+        try:
+            if hasattr(self.left_motor, "angle") and hasattr(self.right_motor, "angle"):
+                self._last_left_deg = float(self.left_motor.angle())
+                self._last_right_deg = float(self.right_motor.angle())
+                self._encoders_initialized = True
+        except Exception:
+            self._last_left_deg = float("nan")
+            self._last_right_deg = float("nan")
+            self._encoders_initialized = False
+        self._last_gyro_heading = 0.0
+        self._state_initialized = False
         self._max_angular_speed = 360.0
         self._max_turn_speed = 300.0
         self._max_pivot_speed = 250.0
@@ -215,6 +297,8 @@ class MDRobotBase:
         """FSM Semantic helper: marks motion running."""
         self._status = 1
         self._motion_in_progress = True
+        self._motion_started = False
+        self._startup_retry_start_time = None
 
     @_require_open
     def motion_complete(self):
@@ -401,23 +485,231 @@ class MDRobotBase:
         return self._controller
 
     @_require_open
-    def reset_state(self, x: float = 0.0, y: float = 0.0, theta: float = 0.0):
+    def reset_state(self, x: float = 0.0, y: float = 0.0, theta: float = 0.0, gyro_heading: Optional[float] = None):
         """Resets odometric state estimation to specified coordinates."""
+        if not math.isfinite(x) or not math.isfinite(y) or not math.isfinite(theta):
+            raise ValueError("State coordinates must be finite numbers")
         self._x = float(x)
         self._y = float(y)
         self._theta = float(theta)
+        while self._theta > 180.0:
+            self._theta -= 360.0
+        while self._theta < -180.0:
+            self._theta += 360.0
+        if gyro_heading is not None:
+            if not math.isfinite(gyro_heading):
+                raise ValueError("gyro_heading must be finite")
+            self._last_gyro_heading = float(gyro_heading)
+        else:
+            self._last_gyro_heading = self._theta
+        if (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
+           (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error):
+            raise OSError("MDRobotBase motor communication failed")
+
+        if (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
+           (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
+           (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
+           (hasattr(self.right_motor, "connected") and not self.right_motor.connected):
+            raise OSError("MDRobotBase motor is not connected")
+
+        self._last_left_deg = float(self.left_motor.angle()) if hasattr(self.left_motor, "angle") else 0.0
+        self._last_right_deg = float(self.right_motor.angle()) if hasattr(self.right_motor, "angle") else 0.0
+        self._backlash_left_accum = 0.0
+        self._backlash_right_accum = 0.0
+        self._dist_traveled = 0.0
+        self._turn_integral = 0.0
+        self._stall_time_ms = 0.0
+        self._encoders_initialized = True
+        self._state_initialized = True
 
     @_require_open
-    def update_state(self, x: float, y: float, theta: float):
-        """Updates odometric state coordinates."""
-        self._x = float(x)
-        self._y = float(y)
-        self._theta = float(theta)
+    def update_state(self, *args, **kwargs):
+        """
+        Updates odometric state coordinates.
+        Supports:
+        - update_state(x, y, theta): direct coordinate update (simulation / mock mode)
+        - update_state(gyro_heading): differential drive + gyro/encoder fusion odometry update
+        """
+        if not math.isfinite(self._x) or not math.isfinite(self._y) or not math.isfinite(self._theta):
+            raise ValueError("LQR controller received invalid pose or configuration")
+
+        if (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
+           (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error):
+            raise OSError("MDRobotBase motor communication failed")
+
+        if (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
+           (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
+           (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
+           (hasattr(self.right_motor, "connected") and not self.right_motor.connected):
+            raise OSError("MDRobotBase motor is not connected")
+
+        if (hasattr(self.left_motor, "_transient_busy") and self.left_motor._transient_busy) or \
+           (hasattr(self.right_motor, "_transient_busy") and self.right_motor._transient_busy):
+            return
+
+        if len(args) == 3:
+            self._x = float(args[0])
+            self._y = float(args[1])
+            self._theta = float(args[2])
+            while self._theta > 180.0:
+                self._theta -= 360.0
+            while self._theta < -180.0:
+                self._theta += 360.0
+            return
+
+        gyro_val = None
+        if len(args) == 1:
+            gyro_val = float(args[0])
+        elif "gyro_heading" in kwargs:
+            gyro_val = float(kwargs["gyro_heading"])
+        else:
+            raise TypeError("update_state takes either 1 argument (gyro_heading) or 3 arguments (x, y, theta)")
+
+        if not math.isfinite(gyro_val):
+            raise ValueError("gyro_heading must be finite")
+
+        # Read motor encoder positions
+        left_deg = float(self.left_motor.angle()) if hasattr(self.left_motor, "angle") else 0.0
+        right_deg = float(self.right_motor.angle()) if hasattr(self.right_motor, "angle") else 0.0
+
+        if not self._encoders_initialized or math.isnan(self._last_left_deg) or math.isnan(self._last_right_deg):
+            self._last_left_deg = left_deg
+            self._last_right_deg = right_deg
+            self._encoders_initialized = True
+
+        if not self._state_initialized:
+            self._last_gyro_heading = gyro_val
+            self._state_initialized = True
+
+        d_left_ticks = left_deg - self._last_left_deg
+        d_right_ticks = right_deg - self._last_right_deg
+        self._last_left_deg = left_deg
+        self._last_right_deg = right_deg
+
+        # Apply gear ratio
+        if self._gear_ratio != 0.0:
+            d_left_ticks /= self._gear_ratio
+            d_right_ticks /= self._gear_ratio
+
+        # Backlash filter
+        if self._backlash_filter:
+            limit_l = abs(self._backlash_limits[1]) if isinstance(self._backlash_limits, tuple) else 1.0
+            limit_r = abs(self._backlash_limits[1]) if isinstance(self._backlash_limits, tuple) else 1.0
+
+            left_cand = self._backlash_left_accum + d_left_ticks
+            if left_cand > limit_l:
+                d_left_ticks = left_cand - limit_l
+                self._backlash_left_accum = limit_l
+            elif left_cand < -limit_l:
+                d_left_ticks = left_cand + limit_l
+                self._backlash_left_accum = -limit_l
+            else:
+                d_left_ticks = 0.0
+                self._backlash_left_accum = left_cand
+
+            right_cand = self._backlash_right_accum + d_right_ticks
+            if right_cand > limit_r:
+                d_right_ticks = right_cand - limit_r
+                self._backlash_right_accum = limit_r
+            elif right_cand < -limit_r:
+                d_right_ticks = right_cand + limit_r
+                self._backlash_right_accum = -limit_r
+            else:
+                d_right_ticks = 0.0
+                self._backlash_right_accum = right_cand
+
+        d_left = (d_left_ticks / 360.0) * math.pi * self._wheel_diameter_left
+        d_right = (d_right_ticks / 360.0) * math.pi * self._wheel_diameter_right
+        d_center = (d_left + d_right) / 2.0
+
+        delta_theta_gyro = -(gyro_val - self._last_gyro_heading)
+        while delta_theta_gyro > 180.0:
+            delta_theta_gyro -= 360.0
+        while delta_theta_gyro < -180.0:
+            delta_theta_gyro += 360.0
+        self._last_gyro_heading = gyro_val
+
+        delta_theta_enc_rad = (d_right - d_left) / self._axle_track
+        delta_theta_enc_deg = delta_theta_enc_rad * (180.0 / math.pi)
+
+        delta_theta = self._fusion_alpha * delta_theta_gyro + (1.0 - self._fusion_alpha) * delta_theta_enc_deg
+
+        motion_type = getattr(self, "_motion_type", 0)
+        if motion_type == 2:  # TURN
+            d_center = 0.0
+            avg_angle_rad = (self._theta + delta_theta / 2.0) * (math.pi / 180.0)
+            self._x += d_center * math.cos(avg_angle_rad)
+            self._y += d_center * math.sin(avg_angle_rad)
+        elif motion_type == 3:  # PIVOT
+            old_theta_rad = self._theta * (math.pi / 180.0)
+            new_theta_rad = (self._theta + delta_theta) * (math.pi / 180.0)
+            pivot_left = getattr(self, "_pivot_left", False)
+            r_offset = (self._axle_track / 2.0) if pivot_left else -(self._axle_track / 2.0)
+            self._x += r_offset * (math.sin(new_theta_rad) - math.sin(old_theta_rad))
+            self._y += -r_offset * (math.cos(new_theta_rad) - math.cos(old_theta_rad))
+        else:
+            avg_angle_rad = (self._theta + delta_theta / 2.0) * (math.pi / 180.0)
+            self._x += d_center * math.cos(avg_angle_rad)
+            self._y += d_center * math.sin(avg_angle_rad)
+
+        self._theta += delta_theta
+        while self._theta > 180.0:
+            self._theta -= 360.0
+        while self._theta < -180.0:
+            self._theta += 360.0
+
+        if not math.isfinite(self._x) or not math.isfinite(self._y) or not math.isfinite(self._theta):
+            raise RuntimeError("MDRobotBase odometry update failed")
 
     @_require_open
     def get_state(self) -> Tuple[float, float, float]:
         """Returns (x, y, theta) odometric coordinates in (mm, mm, deg)."""
         return (self._x, self._y, self._theta)
+
+    @_require_open
+    def get_diagnostics(self) -> Dict[str, Any]:
+        """Returns diagnostic state of motor connections, control loops, and motion mode."""
+        left_err = 0
+        right_err = 0
+        if (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
+           (hasattr(self.left_motor, "connected") and not self.left_motor.connected):
+            left_err = 19  # ENODEV / PBIO_ERROR_NO_DEV
+        elif hasattr(self.left_motor, "_io_error") and self.left_motor._io_error:
+            left_err = 5   # EIO / PBIO_ERROR_IO
+
+        if (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
+           (hasattr(self.right_motor, "connected") and not self.right_motor.connected):
+            right_err = 19  # ENODEV / PBIO_ERROR_NO_DEV
+        elif hasattr(self.right_motor, "_io_error") and self.right_motor._io_error:
+            right_err = 5   # EIO / PBIO_ERROR_IO
+
+        err_str_map = {
+            0: "success",
+            5: "I/O error",
+            19: "Device not connected",
+        }
+        left_str = err_str_map.get(left_err, "Unknown error")
+        right_str = err_str_map.get(right_err, "Unknown error")
+
+        if getattr(self, "_debug", False):
+            print(f"[MDRobotBase Diagnostics]\n"
+                  f"  left_state_error: {left_err} ({left_str})\n"
+                  f"  right_state_error: {right_err} ({right_str})\n"
+                  f"  control_loop_left: {1 if getattr(self.left_motor, '_run_update_loop', False) else 0}\n"
+                  f"  control_loop_right: {1 if getattr(self.right_motor, '_run_update_loop', False) else 0}\n"
+                  f"  motion_type: {int(self._status)}\n"
+                  f"  controller_type: {int(getattr(self, '_controller', 0))}")
+
+        return {
+            "left_state_error": left_err,
+            "right_state_error": right_err,
+            "left_error_str": left_str,
+            "right_error_str": right_str,
+            "control_loop_left": bool(getattr(self.left_motor, "_run_update_loop", False)),
+            "control_loop_right": bool(getattr(self.right_motor, "_run_update_loop", False)),
+            "motion_type": int(self._status),
+            "controller_type": int(getattr(self, "_controller", 0)),
+        }
 
     # -------------------------------------------------------------------------
     # Motion Execution & Preemption
@@ -545,7 +837,8 @@ class MDRobotBase:
                     self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     if self.stalled():
                         self.motion_stall()
-                        break
+                        self.stop()
+                        raise RuntimeError("MDRobotBase turn stalled")
                     await asyncio.sleep(0.01)
                     self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     self._theta += step_angle
@@ -624,7 +917,8 @@ class MDRobotBase:
                     self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     if self.stalled():
                         self.motion_stall()
-                        break
+                        self.stop()
+                        raise RuntimeError("MDRobotBase pivot stalled")
                     await asyncio.sleep(0.01)
                     self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     self._theta += step_angle
@@ -667,6 +961,10 @@ class MDRobotBase:
         if not isinstance(y, (int, float)) or not math.isfinite(y):
             raise TypeError("y coordinate must be a finite number")
 
+        if not math.isfinite(self._x) or not math.isfinite(self._y) or not math.isfinite(self._theta):
+            self.stop()
+            raise ValueError("LQR controller received invalid pose or configuration")
+
         dx = float(x) - self._x
         dy = float(y) - self._y
         dist = math.hypot(dx, dy)
@@ -696,7 +994,56 @@ class MDRobotBase:
                     self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     if self.stalled():
                         self.motion_stall()
-                        break
+                        self.stop()
+                        raise RuntimeError("MDRobotBase navigation stalled")
+
+                    is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
+                            (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
+                    is_no_dev = (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
+                                (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
+                                (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
+                                (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+
+                    if is_io or is_no_dev:
+                        if not getattr(self, "_motion_started", False):
+                            if getattr(self, "_startup_retry_start_time", None) is None:
+                                self._startup_retry_start_time = time.monotonic()
+                            while (is_io or is_no_dev) and (time.monotonic() - self._startup_retry_start_time < 0.300):
+                                await asyncio.sleep(0.005)
+                                is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
+                                        (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
+                                is_no_dev = (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
+                                            (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
+                                            (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
+                                            (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+
+                        if is_io:
+                            self.stop()
+                            raise OSError("MDRobotBase motor communication failed")
+
+                        if is_no_dev:
+                            self.stop()
+                            raise OSError("MDRobotBase motor is not connected")
+
+                    self._startup_retry_start_time = None
+                    self._motion_started = True
+
+                    # Verify odometry safety
+                    if not math.isfinite(self._x) or not math.isfinite(self._y) or not math.isfinite(self._theta):
+                        self.stop()
+                        raise ValueError("LQR controller received invalid pose or configuration")
+
+                    # Active LQR Controller Evaluation
+                    if getattr(self, "_controller", 0) == 1:
+                        if self._lqr_workspace_is_busy():
+                            self.stop()
+                            raise RuntimeError("LQR solver workspace busy")
+                        path_th = math.degrees(math.atan2(dy, dx)) if dist > 1.0 else self._theta
+                        v_cmd, w_cmd = self.step_lqr(speed_mm_s, float(x), float(y), path_th)
+                        if not math.isfinite(v_cmd) or not math.isfinite(w_cmd):
+                            self.stop()
+                            raise RuntimeError("LQR controller failed to compute a valid command")
+
                     await asyncio.sleep(0.01)
                     self.__check_motion_timeout(started_ms, resolved_timeout_ms)
 
@@ -706,6 +1053,9 @@ class MDRobotBase:
                     self._status = 2
             except asyncio.CancelledError:
                 pass
+            except Exception:
+                self.stop()
+                raise
             finally:
                 self._motion_in_progress = False
 
@@ -743,6 +1093,10 @@ class MDRobotBase:
             if not math.isfinite(x) or not math.isfinite(y):
                 raise ValueError("trajectory coordinates must be finite (no NaN or Inf)")
 
+        if not math.isfinite(self._x) or not math.isfinite(self._y) or not math.isfinite(self._theta):
+            self.stop()
+            raise ValueError("LQR controller received invalid pose or configuration")
+
         spd = float(speed_mm_s)
         tol = float(tolerance)
         if not math.isfinite(spd) or spd <= 0.0:
@@ -769,8 +1123,59 @@ class MDRobotBase:
                     self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     if self.stalled():
                         self.motion_stall()
-                        break
+                        self.stop()
+                        raise RuntimeError("MDRobotBase trajectory stalled")
+
+                    is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
+                            (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
+                    is_no_dev = (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
+                                (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
+                                (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
+                                (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+
+                    if is_io or is_no_dev:
+                        if not getattr(self, "_motion_started", False):
+                            if getattr(self, "_startup_retry_start_time", None) is None:
+                                self._startup_retry_start_time = time.monotonic()
+                            while (is_io or is_no_dev) and (time.monotonic() - self._startup_retry_start_time < 0.300):
+                                await asyncio.sleep(0.005)
+                                is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
+                                        (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
+                                is_no_dev = (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
+                                            (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
+                                            (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
+                                            (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+
+                        if is_io:
+                            self.stop()
+                            raise OSError("MDRobotBase motor communication failed")
+
+                        if is_no_dev:
+                            self.stop()
+                            raise OSError("MDRobotBase motor is not connected")
+
+                    self._startup_retry_start_time = None
+                    self._motion_started = True
+
+                    # Verify odometry safety
+                    if not math.isfinite(self._x) or not math.isfinite(self._y) or not math.isfinite(self._theta):
+                        self.stop()
+                        raise ValueError("LQR controller received invalid pose or configuration")
+
                     tx, ty = float(pt[0]), float(pt[1])
+                    if getattr(self, "_controller", 0) == 1:  # LQR
+                        if self._lqr_workspace_is_busy():
+                            self.stop()
+                            raise RuntimeError("LQR solver workspace busy")
+                        p_dx = tx - self._x
+                        p_dy = ty - self._y
+                        p_dist = math.hypot(p_dx, p_dy)
+                        path_th = math.degrees(math.atan2(p_dy, p_dx)) if p_dist > 1.0 else self._theta
+                        v_cmd, w_cmd = self.step_lqr(speed_mm_s, tx, ty, path_th)
+                        if not math.isfinite(v_cmd) or not math.isfinite(w_cmd):
+                            self.stop()
+                            raise RuntimeError("LQR controller failed to compute a valid command")
+
                     await asyncio.sleep(0.01)
                     self.__check_motion_timeout(started_ms, resolved_timeout_ms)
                     self._x = tx
@@ -779,6 +1184,9 @@ class MDRobotBase:
                     self._status = 2
             except asyncio.CancelledError:
                 pass
+            except Exception:
+                self.stop()
+                raise
             finally:
                 self._motion_in_progress = False
 
@@ -838,11 +1246,10 @@ class MDRobotBase:
         return self._lqr_gains
 
     @_require_open
-    def solve_dare_full(self, q_x: float = 1.0, q_y: float = 1.0, q_theta: float = 1.0, r_v: float = 1.0, r_omega: float = 1.0, v_profile: float = 100.0, Ts: float = 0.005):
+    def _solve_dare_internal(self, q_x: float = 1.0, q_y: float = 1.0, q_theta: float = 1.0, r_v: float = 1.0, r_omega: float = 1.0, v_profile: float = 100.0, Ts: float = 0.005):
         """
-        Solves full 3x3 Discrete Algebraic Riccati Equation (DARE) for the complete 3-state unicycle system
-        using the Structured Doubling Algorithm (SDA) with quadratic convergence.
-        Returns (K [2x3], P [3x3], spectral_radius).
+        Internal DARE solver (Structured Doubling Algorithm).
+        Assumes workspace lock is already acquired by the caller.
         """
         qx, qy, qth = float(q_x), float(q_y), float(q_theta)
         rv, rw = float(r_v), float(r_omega)
@@ -980,54 +1387,78 @@ class MDRobotBase:
         return K, P, rho_full
 
     @_require_open
+    def solve_dare_full(self, q_x: float = 1.0, q_y: float = 1.0, q_theta: float = 1.0, r_v: float = 1.0, r_omega: float = 1.0, v_profile: float = 100.0, Ts: float = 0.005):
+        """
+        Solves full 3x3 Discrete Algebraic Riccati Equation (DARE) for the complete 3-state unicycle system
+        using the Structured Doubling Algorithm (SDA) with quadratic convergence.
+        Returns (K [2x3], P [3x3], spectral_radius).
+        """
+        if not self._lqr_workspace_acquire():
+            raise RuntimeError("LQR solver workspace busy")
+        try:
+            return self._solve_dare_internal(q_x, q_y, q_theta, r_v, r_omega, v_profile, Ts)
+        finally:
+            self._lqr_workspace_release()
+
+    @_require_open
     def compute_riccati_residual(self, q_x: float, q_y: float, q_theta: float, r_v: float, r_omega: float, v_profile: float, P: list, Ts: float = 0.005) -> float:
         """Computes infinity norm residual ||P - (A^T P A - A^T P B (R + B^T P B)^-1 B^T P A + Q)||_inf."""
-        qx, qy, qth = float(q_x), float(q_y), float(q_theta)
-        rv, rw = float(r_v), float(r_omega)
-        v_abs = max(10.0, abs(float(v_profile)))
-        vr = v_abs / 1000.0
-        vTs = vr * Ts
-        b0 = -0.5 * vr * Ts * Ts
-        b1 = -Ts
+        if not self._lqr_workspace_acquire():
+            raise RuntimeError("LQR solver workspace busy")
+        try:
+            qx, qy, qth = float(q_x), float(q_y), float(q_theta)
+            rv, rw = float(r_v), float(r_omega)
+            v_abs = max(10.0, abs(float(v_profile)))
+            vr = v_abs / 1000.0
+            vTs = vr * Ts
+            b0 = -0.5 * vr * Ts * Ts
+            b1 = -Ts
 
-        S = [
-            [P[0][0], P[0][1], vTs * P[0][1] + P[0][2]],
-            [P[1][0], P[1][1], vTs * P[1][1] + P[1][2]],
-            [vTs * P[1][0] + P[2][0], vTs * P[1][1] + P[2][1], vTs * (vTs * P[1][1] + P[1][2]) + (vTs * P[2][1] + P[2][2])]
-        ]
-        M1 = [
-            [-Ts * P[0][0], b0 * P[0][1] + b1 * P[0][2]],
-            [-Ts * P[1][0], b0 * P[1][1] + b1 * P[1][2]],
-            [-Ts * (vTs * P[1][0] + P[2][0]), vTs * (b0 * P[1][1] + b1 * P[1][2]) + (b0 * P[2][1] + b1 * P[2][2])]
-        ]
-        W00 = rv + Ts * Ts * P[0][0]
-        W01 = -Ts * (b0 * P[0][1] + b1 * P[0][2])
-        W10 = W01
-        W11 = rw + b0 * (b0 * P[1][1] + b1 * P[1][2]) + b1 * (b0 * P[2][1] + b1 * P[2][2])
-        detW = W00 * W11 - W01 * W10
-        invW = [[W11 / detW, -W01 / detW], [-W10 / detW, W00 / detW]]
-        G_term = [
-            [M1[r][0] * invW[0][0] + M1[r][1] * invW[1][0], M1[r][0] * invW[0][1] + M1[r][1] * invW[1][1]]
-            for r in range(3)
-        ]
-        max_err = 0.0
-        for r in range(3):
-            for c in range(3):
-                q_val = qx if (r == c == 0) else (qy if (r == c == 1) else (qth if (r == c == 2) else 0.0))
-                rhs = S[r][c] - (G_term[r][0] * M1[c][0] + G_term[r][1] * M1[c][1]) + q_val
-                err = abs(P[r][c] - rhs)
-                if err > max_err:
-                    max_err = err
-        return max_err
+            S = [
+                [P[0][0], P[0][1], vTs * P[0][1] + P[0][2]],
+                [P[1][0], P[1][1], vTs * P[1][1] + P[1][2]],
+                [vTs * P[1][0] + P[2][0], vTs * P[1][1] + P[2][1], vTs * (vTs * P[1][1] + P[1][2]) + (vTs * P[2][1] + P[2][2])]
+            ]
+            M1 = [
+                [-Ts * P[0][0], b0 * P[0][1] + b1 * P[0][2]],
+                [-Ts * P[1][0], b0 * P[1][1] + b1 * P[1][2]],
+                [-Ts * (vTs * P[1][0] + P[2][0]), vTs * (b0 * P[1][1] + b1 * P[1][2]) + (b0 * P[2][1] + b1 * P[2][2])]
+            ]
+            W00 = rv + Ts * Ts * P[0][0]
+            W01 = -Ts * (b0 * P[0][1] + b1 * P[0][2])
+            W10 = W01
+            W11 = rw + b0 * (b0 * P[1][1] + b1 * P[1][2]) + b1 * (b0 * P[2][1] + b1 * P[2][2])
+            detW = W00 * W11 - W01 * W10
+            invW = [[W11 / detW, -W01 / detW], [-W10 / detW, W00 / detW]]
+            G_term = [
+                [M1[r][0] * invW[0][0] + M1[r][1] * invW[1][0], M1[r][0] * invW[0][1] + M1[r][1] * invW[1][1]]
+                for r in range(3)
+            ]
+            max_err = 0.0
+            for r in range(3):
+                for c in range(3):
+                    q_val = qx if (r == c == 0) else (qy if (r == c == 1) else (qth if (r == c == 2) else 0.0))
+                    rhs = S[r][c] - (G_term[r][0] * M1[c][0] + G_term[r][1] * M1[c][1]) + q_val
+                    err = abs(P[r][c] - rhs)
+                    if err > max_err:
+                        max_err = err
+            return max_err
+        finally:
+            self._lqr_workspace_release()
 
     @_require_open
     def solve_dare(self, q_x: float = 1.0, q_y: float = 1.0, q_theta: float = 1.0, r_v: float = 1.0, r_omega: float = 1.0, v_profile: float = 100.0, Ts: float = 0.005):
         """
         Legacy / Reference DARE solver helper.
-        Delegates to solve_dare_full() and extracts feedback gain magnitudes and spectral radius.
+        Solves DARE and extracts feedback gain magnitudes and spectral radius.
         """
-        K, P, rho = self.solve_dare_full(q_x, q_y, q_theta, r_v, r_omega, v_profile, Ts)
-        return abs(K[0][0]), abs(K[1][1]), abs(K[1][2]), rho
+        if not self._lqr_workspace_acquire():
+            raise RuntimeError("LQR solver workspace busy")
+        try:
+            K, P, rho = self._solve_dare_internal(q_x, q_y, q_theta, r_v, r_omega, v_profile, Ts)
+            return abs(K[0][0]), abs(K[1][1]), abs(K[1][2]), rho
+        finally:
+            self._lqr_workspace_release()
 
     @_require_open
     def set_lqr_weights(self, q_x: float, q_y: float, q_theta: float, r_v: float, r_omega: float):
@@ -1044,25 +1475,30 @@ class MDRobotBase:
         if (qx / rv > 1e8) or (qy / rw > 1e8) or (qth / rw > 1e8):
             raise ValueError("LQR weight ratios exceed safe numerical conditioning limits")
 
-        lut = []
-        lut_kx = []
-        for i in range(16):
-            v_bin = 50.0 + i * 50.0
-            K_full, P_full, rho_i = self.solve_dare_full(qx, qy, qth, rv, rw, v_bin)
-            if not math.isfinite(rho_i) or rho_i >= 1.0:
-                raise ValueError(f"Closed loop unstable at {v_bin} mm/s: rho={rho_i:.4f} >= 1.0")
-            kx_i = abs(K_full[0][0])
-            ky_i = abs(K_full[1][1])
-            kth_i = abs(K_full[1][2])
-            lut.append((v_bin, ky_i, kth_i, rho_i))
-            lut_kx.append(kx_i)
+        if not self._lqr_workspace_acquire():
+            raise RuntimeError("LQR solver workspace busy")
+        try:
+            lut = []
+            lut_kx = []
+            for i in range(16):
+                v_bin = 50.0 + i * 50.0
+                K_full, P_full, rho_i = self._solve_dare_internal(qx, qy, qth, rv, rw, v_bin)
+                if not math.isfinite(rho_i) or rho_i >= 1.0:
+                    raise ValueError(f"Closed loop unstable at {v_bin} mm/s: rho={rho_i:.4f} >= 1.0")
+                kx_i = abs(K_full[0][0])
+                ky_i = abs(K_full[1][1])
+                kth_i = abs(K_full[1][2])
+                lut.append((v_bin, ky_i, kth_i, rho_i))
+                lut_kx.append(kx_i)
 
-        self._lqr_weights = (qx, qy, qth, rv, rw)
-        self._lqr_k11 = lut_kx[0]
-        self._lqr_lut = lut
-        self._lqr_lut_kx = lut_kx
-        self._lqr_schedule_enabled = True
-        self._lqr_gains = (lut_kx[0], lut[5][1], lut[5][2])
+            self._lqr_weights = (qx, qy, qth, rv, rw)
+            self._lqr_k11 = lut_kx[0]
+            self._lqr_lut = lut
+            self._lqr_lut_kx = lut_kx
+            self._lqr_schedule_enabled = True
+            self._lqr_gains = (lut_kx[0], lut[5][1], lut[5][2])
+        finally:
+            self._lqr_workspace_release()
 
     @_require_open
     def get_lqr_weights(self):
@@ -1158,6 +1594,15 @@ class MDRobotBase:
         Symmetrically clamps actuator control effort to preserve trajectory curvature.
         Returns (v_cmd [mm/s], w_cmd [deg/s]).
         """
+        if self._lqr_workspace_is_busy():
+            raise RuntimeError("LQR solver workspace busy")
+
+        if not math.isfinite(self._x) or not math.isfinite(self._y) or not math.isfinite(self._theta):
+            raise ValueError("LQR controller received invalid pose or configuration")
+
+        if not math.isfinite(v_profile) or not math.isfinite(x_ref) or not math.isfinite(y_ref) or not math.isfinite(path_theta_deg):
+            raise ValueError("LQR controller received invalid pose or configuration")
+
         dx_ref = float(x_ref) - self._x
         dy_ref = float(y_ref) - self._y
 
@@ -1219,6 +1664,9 @@ class MDRobotBase:
             v_cmd_raw *= scale
             w_cmd_raw *= scale
 
+        if not math.isfinite(v_cmd_raw) or not math.isfinite(w_cmd_raw):
+            raise RuntimeError("LQR controller failed to compute a valid command")
+
         return (v_cmd_raw, w_cmd_raw)
 
     lqr_step = step_lqr
@@ -1249,7 +1697,10 @@ class MDRobotBase:
 
     @_require_open
     def set_fusion_alpha(self, alpha: float):
-        self._fusion_alpha = float(alpha)
+        a = float(alpha)
+        if not math.isfinite(a) or a < 0.0 or a > 1.0:
+            raise ValueError("fusion_alpha must be a finite float between 0.0 and 1.0")
+        self._fusion_alpha = a
 
     @_require_open
     def get_fusion_alpha(self) -> float:
@@ -1258,6 +1709,9 @@ class MDRobotBase:
     @_require_open
     def set_backlash_filter(self, enabled: bool):
         self._backlash_filter = bool(enabled)
+        if not self._backlash_filter:
+            self._backlash_left_accum = 0.0
+            self._backlash_right_accum = 0.0
 
     @_require_open
     def get_backlash_filter(self) -> bool:

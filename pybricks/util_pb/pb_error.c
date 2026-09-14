@@ -25,6 +25,12 @@ void pb_assert(pbio_error_t error) {
         case PBIO_SUCCESS:
             return;
         case PBIO_ERROR_FAILED:
+        case PBIO_ERROR_LQR_FAILED:
+        case PBIO_ERROR_ODOMETRY_FAILED:
+        case PBIO_ERROR_NAVIGATION_STALLED:
+        case PBIO_ERROR_TURN_STALLED:
+        case PBIO_ERROR_PIVOT_STALLED:
+        case PBIO_ERROR_TRAJECTORY_STALLED:
             mp_raise_msg(&mp_type_RuntimeError, NULL);
             __builtin_unreachable();
         case PBIO_ERROR_INVALID_ARG:
@@ -96,6 +102,12 @@ void pb_assert(pbio_error_t error) {
         case PBIO_SUCCESS:
             return;
         case PBIO_ERROR_FAILED:
+        case PBIO_ERROR_LQR_FAILED:
+        case PBIO_ERROR_ODOMETRY_FAILED:
+        case PBIO_ERROR_NAVIGATION_STALLED:
+        case PBIO_ERROR_TURN_STALLED:
+        case PBIO_ERROR_PIVOT_STALLED:
+        case PBIO_ERROR_TRAJECTORY_STALLED:
             mp_raise_msg(&mp_type_RuntimeError, (mp_rom_error_text_t)pbio_error_str(error));
             __builtin_unreachable();
         case PBIO_ERROR_INVALID_ARG:

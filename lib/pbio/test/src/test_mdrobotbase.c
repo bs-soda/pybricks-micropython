@@ -3151,9 +3151,15 @@ static pbio_error_t test_mdrobotbase_lqr_dare_optimal_controller(pbio_os_state_t
 
     float K_busy[2][3], P_busy[3][3], rho_busy = 0.0f;
     tt_uint_op(pbio_mdrobotbase_lqr_solve_dare_full(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, K_busy, P_busy, &rho_busy), ==, PBIO_ERROR_BUSY);
+    float kx_b = 0.0f, ky_b = 0.0f, kth_b = 0.0f, rho_b = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_solve_dare(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, &kx_b, &ky_b, &kth_b, &rho_b), ==, PBIO_ERROR_BUSY);
     tt_uint_op(pbio_mdrobotbase_set_lqr_weights(rb, 2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f), ==, PBIO_ERROR_BUSY);
     float res_busy = 0.0f;
     tt_uint_op(pbio_mdrobotbase_lqr_compute_riccati_residual(2500.0f, 5000.0f, 20.0f, 25.0f, 0.1f, 300.0f, P_ref, &res_busy), ==, PBIO_ERROR_BUSY);
+
+    // Initializing a new robot base when workspace is busy must return PBIO_ERROR_BUSY
+    pbio_mdrobotbase_t rb_busy;
+    tt_uint_op(pbio_mdrobotbase_init(&rb_busy, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_ERROR_BUSY);
 
     // Releasing busy flag immediately restores normal solver execution
     pbio_mdrobotbase_lqr_set_busy_for_testing(false);
@@ -3215,8 +3221,11 @@ static pbio_error_t test_mdrobotbase_soft_reset_deinit(pbio_os_state_t *state, v
     tt_want(rb1->lqr_lut_ky[0] != rb2->lqr_lut_ky[0]);
     tt_want(rb1->lqr_lut_kth[0] != rb2->lqr_lut_kth[0]);
 
-    // 2. Invoke soft-reset deinit hook
+    // 2. Lock LQR workspace and invoke soft-reset deinit hook
+    pbio_mdrobotbase_lqr_set_busy_for_testing(true);
+    tt_want(pbio_mdrobotbase_lqr_is_busy());
     pbio_mdrobotbase_deinit();
+    tt_want(!pbio_mdrobotbase_lqr_is_busy());
 
     // 3. Verify all pool slots were reclaimed and can be re-allocated afresh across 20 cycles
     for (int cycle = 0; cycle < 20; cycle++) {
@@ -3231,6 +3240,278 @@ static pbio_error_t test_mdrobotbase_soft_reset_deinit(pbio_os_state_t *state, v
         tt_uint_op(pbio_mdrobotbase_put_robotbase(rb1), ==, PBIO_SUCCESS);
         tt_uint_op(pbio_mdrobotbase_put_robotbase(rb2), ==, PBIO_SUCCESS);
     }
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+static pbio_error_t test_mdrobotbase_odometry_lqr_integration(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left, *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+    static lego_device_type_id_t id;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb, !=, NULL);
+
+    // 1. Backlash filter enable/disable & accumulator reset
+    rb->backlash_left_accum = 0.5f;
+    rb->backlash_right_accum = 0.8f;
+    tt_uint_op(pbio_mdrobotbase_set_backlash_filter(rb, false), ==, PBIO_SUCCESS);
+    tt_want(rb->backlash_left_accum == 0.0f);
+    tt_want(rb->backlash_right_accum == 0.0f);
+    tt_uint_op(pbio_mdrobotbase_set_backlash_filter(rb, true), ==, PBIO_SUCCESS);
+
+    // 2. Fusion alpha validation: finite and in [0, 1]
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, -0.01f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 1.01f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 1.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 0.5f), ==, PBIO_SUCCESS);
+
+    // 3. Reset state resets all accumulators & wraps theta
+    rb->backlash_left_accum = 0.7f;
+    rb->backlash_right_accum = 0.7f;
+    rb->turn_integral = 5.0f;
+    rb->dist_traveled = 120.0f;
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 10.0f, 20.0f, 270.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_want(rb->x == 10.0f);
+    tt_want(rb->y == 20.0f);
+    tt_want(rb->theta == -90.0f); // 270 wrapped to -90
+    tt_want(rb->backlash_left_accum == 0.0f);
+    tt_want(rb->backlash_right_accum == 0.0f);
+    tt_want(rb->turn_integral == 0.0f);
+    tt_want(rb->dist_traveled == 0.0f);
+
+    // 4. Turn in place invariance: robot center does not translate
+    tt_uint_op(pbio_mdrobotbase_set_backlash_filter(rb, false), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 0.0f), ==, PBIO_SUCCESS); // encoder-only for exact motor kinematics
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    rb->motion_type = PBIO_MDROBOTBASE_MOTION_TURN;
+    // Simulate spin turn: left motor rotates -180, right rotates +180
+    tt_uint_op(pbio_servo_run_angle(srv_left, 500, -180, PBIO_CONTROL_ON_COMPLETION_HOLD), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_run_angle(srv_right, 500, 180, PBIO_CONTROL_ON_COMPLETION_HOLD), ==, PBIO_SUCCESS);
+    PBIO_OS_AWAIT_UNTIL(state, pbio_control_is_done(&srv_left->control) && pbio_control_is_done(&srv_right->control));
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_want(pbio_test_int_is_close(rb->x, 0.0f, 0.001f));
+    tt_want(pbio_test_int_is_close(rb->y, 0.0f, 0.001f));
+    tt_want(rb->theta > 0.0f); // CCW turn increases theta
+
+    // 5. Pivot arc integration: pivot_left and pivot_right, positive and negative
+    rb->motion_type = PBIO_MDROBOTBASE_MOTION_PIVOT;
+
+    // 5a. Pivot left positive (+90 deg): locked left wheel, right wheel forward 360 deg
+    rb->pivot_left = true;
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_run_angle(srv_right, 500, 360, PBIO_CONTROL_ON_COMPLETION_HOLD), ==, PBIO_SUCCESS);
+    PBIO_OS_AWAIT_UNTIL(state, pbio_control_is_done(&srv_right->control));
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_want(pbio_test_int_is_close(rb->theta, 90.0f, 1.0f));
+    tt_want(pbio_test_int_is_close(rb->x, 56.0f, 1.0f));
+    tt_want(pbio_test_int_is_close(rb->y, 56.0f, 1.0f));
+
+    // 5b. Pivot left negative (-90 deg): locked left wheel, right wheel backward 360 deg
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_run_angle(srv_right, 500, -360, PBIO_CONTROL_ON_COMPLETION_HOLD), ==, PBIO_SUCCESS);
+    PBIO_OS_AWAIT_UNTIL(state, pbio_control_is_done(&srv_right->control));
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_want(pbio_test_int_is_close(rb->theta, -90.0f, 1.0f));
+    tt_want(pbio_test_int_is_close(rb->x, -56.0f, 1.0f));
+    tt_want(pbio_test_int_is_close(rb->y, 56.0f, 1.0f));
+
+    // 5c. Pivot right positive (+90 deg): locked right wheel, left wheel backward 360 deg
+    rb->pivot_left = false;
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_run_angle(srv_left, 500, -360, PBIO_CONTROL_ON_COMPLETION_HOLD), ==, PBIO_SUCCESS);
+    PBIO_OS_AWAIT_UNTIL(state, pbio_control_is_done(&srv_left->control));
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_want(pbio_test_int_is_close(rb->theta, 90.0f, 1.0f));
+    tt_want(pbio_test_int_is_close(rb->x, -56.0f, 1.0f));
+    tt_want(pbio_test_int_is_close(rb->y, -56.0f, 1.0f));
+
+    // 5d. Pivot right negative (-90 deg): locked right wheel, left wheel forward 360 deg
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_run_angle(srv_left, 500, 360, PBIO_CONTROL_ON_COMPLETION_HOLD), ==, PBIO_SUCCESS);
+    PBIO_OS_AWAIT_UNTIL(state, pbio_control_is_done(&srv_left->control));
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_want(pbio_test_int_is_close(rb->theta, -90.0f, 1.0f));
+    tt_want(pbio_test_int_is_close(rb->x, 56.0f, 1.0f));
+    tt_want(pbio_test_int_is_close(rb->y, -56.0f, 1.0f));
+
+    // 5e. Sensor fusion modes (gyro-only, blended)
+    // Gyro-only (alpha = 1.0f): wheel stationary, gyro moves -45 deg (CCW +45 deg)
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 1.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, -45.0f), ==, PBIO_SUCCESS);
+    tt_want(pbio_test_int_is_close(rb->theta, 45.0f, 0.1f));
+
+    // Blended (alpha = 0.5f): gyro delta = +40 deg, encoder delta = 0 deg -> theta = 20 deg
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 0.5f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, -40.0f), ==, PBIO_SUCCESS);
+    tt_want(pbio_test_int_is_close(rb->theta, 20.0f, 0.1f));
+
+    // 6. LQR tracking coordinate frame consistency
+    rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_set_lqr_preset(rb, PBIO_MDROBOTBASE_LQR_PRESET_BALANCED, false), ==, PBIO_SUCCESS);
+    float v_cmd = 0.0f, w_cmd = 0.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 100.0f, 10.0f, 0.0f, &v_cmd, &w_cmd), ==, PBIO_SUCCESS);
+    tt_want(v_cmd > 200.0f); // speed up along track (e_x > 0)
+    tt_want(w_cmd > 0.0f);   // turn left towards path (e_y > 0)
+
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+static pbio_error_t test_mdrobotbase_failclosed_odometry_lqr_propagation(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_left, *srv_right;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+    static lego_device_type_id_t id;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_left), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_left, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_right), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_right, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_left, srv_right, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_assert(rb != NULL);
+
+    // 1. Forced LQR busy rejection
+    pbio_mdrobotbase_lqr_set_busy_for_testing(true);
+    tt_want(pbio_mdrobotbase_lqr_is_busy());
+    float v_out = -999.0f, w_out = -999.0f;
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 100.0f, 10.0f, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_BUSY);
+    // Release busy state
+    pbio_mdrobotbase_lqr_set_busy_for_testing(false);
+    tt_want(!pbio_mdrobotbase_lqr_is_busy());
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 100.0f, 10.0f, 0.0f, &v_out, &w_out), ==, PBIO_SUCCESS);
+
+    // 2. Non-finite pose in LQR step must be rejected
+    rb->x = (float)NAN;
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 100.0f, 10.0f, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    rb->x = 0.0f;
+    rb->y = (float)INFINITY;
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 100.0f, 10.0f, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    rb->y = 0.0f;
+    rb->theta = (float)NAN;
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 100.0f, 10.0f, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    rb->theta = 0.0f;
+
+    // 3. Non-finite pose in update_state must be rejected
+    rb->x = (float)NAN;
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
+    rb->x = 0.0f;
+    rb->y = (float)INFINITY;
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
+    rb->y = 0.0f;
+    rb->theta = (float)NAN;
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
+    rb->theta = 0.0f;
+
+    // 4. Non-finite gyro heading in update_state must be rejected
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, (float)NAN), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, (float)INFINITY), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 5. Invalid arguments to pbio_mdrobotbase_lqr_step
+    tt_uint_op(pbio_mdrobotbase_lqr_step(NULL, 200.0f, 0.0f, 0.0f, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, (float)NAN, 0.0f, 0.0f, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, (float)NAN, 0.0f, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 0.0f, (float)INFINITY, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 0.0f, 0.0f, (float)NAN, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 0.0f, 0.0f, 0.0f, NULL, &w_out), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_lqr_step(rb, 200.0f, 0.0f, 0.0f, 0.0f, &v_out, NULL), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 6. Verify dedicated error code translation and string mapping
+    tt_str_op(pbio_error_str(PBIO_ERROR_LQR_FAILED), ==, "LQR controller failed to compute a valid command");
+    tt_str_op(pbio_error_str(PBIO_ERROR_ODOMETRY_FAILED), ==, "MDRobotBase odometry update failed");
+    tt_str_op(pbio_error_str(PBIO_ERROR_NAVIGATION_STALLED), ==, "MDRobotBase navigation stalled");
+    tt_str_op(pbio_error_str(PBIO_ERROR_TURN_STALLED), ==, "MDRobotBase turn stalled");
+    tt_str_op(pbio_error_str(PBIO_ERROR_PIVOT_STALLED), ==, "MDRobotBase pivot stalled");
+    tt_str_op(pbio_error_str(PBIO_ERROR_TRAJECTORY_STALLED), ==, "MDRobotBase trajectory stalled");
+    tt_assert(strcmp(pbio_error_str(PBIO_ERROR_LQR_FAILED), "Unknown error") != 0);
+    tt_assert(strcmp(pbio_error_str(PBIO_ERROR_ODOMETRY_FAILED), "Unknown error") != 0);
+    tt_assert(strcmp(pbio_error_str(PBIO_ERROR_NAVIGATION_STALLED), "Unknown error") != 0);
+    tt_assert(strcmp(pbio_error_str(PBIO_ERROR_TURN_STALLED), "Unknown error") != 0);
+    tt_assert(strcmp(pbio_error_str(PBIO_ERROR_PIVOT_STALLED), "Unknown error") != 0);
+    tt_assert(strcmp(pbio_error_str(PBIO_ERROR_TRAJECTORY_STALLED), "Unknown error") != 0);
+
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
+static pbio_error_t test_mdrobotbase_authoritative_device_validation_and_baseline_sync(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_a;
+    static pbio_servo_t *srv_b;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_a), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_a, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_b), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_b, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    // 1. Initial creation must have safe 0.0f baselines and state_initialized = false
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    pbio_control_state_t state_a, state_b;
+    tt_uint_op(pbio_servo_get_state_control(srv_a, &state_a), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_get_state_control(srv_b, &state_b), ==, PBIO_SUCCESS);
+    float expected_left = pbio_control_settings_ctl_to_app_long_float(&srv_a->control.settings, &state_a.position);
+    float expected_right = pbio_control_settings_ctl_to_app_long_float(&srv_b->control.settings, &state_b.position);
+    tt_want(rb->last_left_deg == expected_left);
+    tt_want(rb->last_right_deg == expected_right);
+    tt_want(rb->last_gyro_heading == 0.0f);
+
+    // 2. Even if update loop is not running (idle), update_state must succeed and latch baselines
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 45.0f), ==, PBIO_SUCCESS);
+    tt_want(rb->state_initialized);
+    tt_want(rb->last_gyro_heading == 45.0f);
+    tt_want(rb->x == 0.0f);
+    tt_want(rb->y == 0.0f);
+    tt_want(rb->theta == 0.0f);
+
+    // 3. Second update calculates valid delta
+    rb->fusion_alpha = 1.0f; // gyro-only for exact heading test
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 55.0f), ==, PBIO_SUCCESS);
+    // Heading increased by 10 deg -> theta becomes -10.0 deg
+    tt_want_int_op((int)(rb->theta * 100.0f), ==, -1000);
+
+    // 4. Reset state sets state_initialized = true
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 10.0f, 20.0f, 30.0f, 0.0f), ==, PBIO_SUCCESS);
+    tt_want(rb->state_initialized);
+    tt_want(rb->last_gyro_heading == 0.0f);
+    tt_want(rb->theta == 30.0f);
+
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
 
 end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
@@ -3268,5 +3549,8 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_lqr_closed_loop_convergence),
     PBIO_THREAD_TEST(test_mdrobotbase_lqr_dare_optimal_controller),
     PBIO_THREAD_TEST(test_mdrobotbase_soft_reset_deinit),
+    PBIO_THREAD_TEST(test_mdrobotbase_odometry_lqr_integration),
+    PBIO_THREAD_TEST(test_mdrobotbase_failclosed_odometry_lqr_propagation),
+    PBIO_THREAD_TEST(test_mdrobotbase_authoritative_device_validation_and_baseline_sync),
     END_OF_TESTCASES
 };

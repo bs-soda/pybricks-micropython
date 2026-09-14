@@ -25,7 +25,13 @@ typedef enum {
     PBIO_ERROR_AGAIN,           /**< Function should be called again later */
     PBIO_ERROR_INVALID_OP,      /**< Operation is not permitted in the current state */
     PBIO_ERROR_TIMEDOUT,        /**< The operation has timed out */
-    PBIO_ERROR_CANCELED         /**< The operation was canceled */
+    PBIO_ERROR_CANCELED,        /**< The operation was canceled */
+    PBIO_ERROR_LQR_FAILED,          /**< LQR controller computation failure */
+    PBIO_ERROR_ODOMETRY_FAILED,     /**< Odometry state integration failure */
+    PBIO_ERROR_NAVIGATION_STALLED,  /**< Navigation motion stalled */
+    PBIO_ERROR_TURN_STALLED,        /**< Turn motion stalled */
+    PBIO_ERROR_PIVOT_STALLED,       /**< Pivot motion stalled */
+    PBIO_ERROR_TRAJECTORY_STALLED   /**< Trajectory motion stalled */
 } pbio_error_t;
 
 const char *pbio_error_str(pbio_error_t err);

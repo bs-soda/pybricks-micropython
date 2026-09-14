@@ -30,7 +30,18 @@ typedef struct _pb_type_MDRobotBase_obj_t {
   pbio_mdrobotbase_t *rb;
   bool debug;
   pb_type_async_t *last_awaitable;
+  uint32_t startup_retry_start_ms;
+  bool motion_started;
+  pbio_error_t last_left_error;
+  pbio_error_t last_right_error;
+  bool last_control_loop_left;
+  bool last_control_loop_right;
 } pb_type_MDRobotBase_obj_t;
+
+static inline const char *pbio_error_str_safe(pbio_error_t err) {
+  const char *msg = pbio_error_str(err);
+  return msg ? msg : "success";
+}
 
 static inline pbio_mdrobotbase_t *pb_type_mdrobotbase_require_open(pb_type_MDRobotBase_obj_t *self) {
   if (!self->rb) {
@@ -40,6 +51,8 @@ static inline pbio_mdrobotbase_t *pb_type_mdrobotbase_require_open(pb_type_MDRob
 }
 
 static inline pbio_error_t pb_type_mdrobotbase_motion_start(pb_type_MDRobotBase_obj_t *self) {
+  self->startup_retry_start_ms = 0;
+  self->motion_started = false;
   return pbio_mdrobotbase_motion_start(self->rb);
 }
 
@@ -72,28 +85,6 @@ static inline pbio_error_t pb_type_mdrobotbase_mark_stalled(pb_type_MDRobotBase_
 static inline pbio_error_t pb_type_mdrobotbase_mark_timed_out(pb_type_MDRobotBase_obj_t *self) {
   return pb_type_mdrobotbase_motion_timeout(self);
 }
-
-
-static pbio_error_t update_state_and_debug(pb_type_MDRobotBase_obj_t *self,
-                                           float gyro_heading) {
-  pbio_error_t err = pbio_mdrobotbase_update_state(self->rb, gyro_heading);
-  if (err == PBIO_SUCCESS && self->debug) {
-    static uint32_t last_print = 0;
-    uint32_t now = pbdrv_clock_get_ms();
-    if (now - last_print >= 100) {
-      float x = 0.0f, y = 0.0f, theta = 0.0f;
-      if (pbio_mdrobotbase_get_pose(self->rb, &x, &y, &theta) == PBIO_SUCCESS) {
-        mp_printf(&mp_plat_print, "Pose: X=%.1f, Y=%.1f, Theta=%.1f\n",
-                  (double)x, (double)y, (double)theta);
-      }
-      last_print = now;
-    }
-  }
-  return err;
-}
-
-#define pbio_mdrobotbase_update_state(rb, gyro_heading)                        \
-  update_state_and_debug(self, gyro_heading)
 
 static float get_battery_compensation_factor(void) {
   // Low-level motor driver (pbio/src/dcmotor.c) already scales PWM duty cycle
@@ -204,6 +195,48 @@ static inline void mdrobotbase_motion_stop(pb_type_MDRobotBase_obj_t *self, bool
   self->rb->motion_in_progress = false;
 }
 
+static pbio_error_t pb_type_mdrobotbase_raise_motion_error(pb_type_MDRobotBase_obj_t *self, pbio_error_t err) {
+  if (err == PBIO_SUCCESS || err == PBIO_ERROR_AGAIN ||
+      err == PBIO_ERROR_TIMEDOUT || err == PBIO_ERROR_CANCELED) {
+    return err;
+  }
+
+  if (self) {
+    self->last_awaitable = NULL;
+    if (self->rb) {
+      self->rb->motion_in_progress = false;
+      self->rb->motion_type = PBIO_MDROBOTBASE_MOTION_NONE;
+    }
+  }
+
+  switch (err) {
+    case PBIO_ERROR_BUSY:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR solver workspace busy"));
+    case PBIO_ERROR_INVALID_ARG:
+      mp_raise_ValueError(MP_ERROR_TEXT("MDRobotBase odometry state is invalid"));
+    case PBIO_ERROR_FAILED:
+    case PBIO_ERROR_LQR_FAILED:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR controller failed to compute a valid command"));
+    case PBIO_ERROR_ODOMETRY_FAILED:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase odometry update failed"));
+    case PBIO_ERROR_NO_DEV:
+      mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected"));
+    case PBIO_ERROR_IO:
+      mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed"));
+    case PBIO_ERROR_NAVIGATION_STALLED:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase navigation stalled"));
+    case PBIO_ERROR_TURN_STALLED:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase turn stalled"));
+    case PBIO_ERROR_PIVOT_STALLED:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase pivot stalled"));
+    case PBIO_ERROR_TRAJECTORY_STALLED:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase trajectory stalled"));
+    default:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase motion failed with unclassified error"));
+      return err;
+  }
+}
+
 static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
                                               float dt_sec,
                                               uint32_t elapsed_ms,
@@ -244,7 +277,7 @@ static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
       if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 200.0f)) {
         pb_type_mdrobotbase_motion_stall(self);
         mdrobotbase_motion_stop(self, false);
-        return PBIO_ERROR_FAILED;
+        return PBIO_ERROR_TURN_STALLED;
       }
     }
 
@@ -369,7 +402,19 @@ static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
     float x_ref = self->rb->start_x + self->rb->dist_ref * cosf(self->rb->path_theta);
     float y_ref = self->rb->start_y + self->rb->dist_ref * sinf(self->rb->path_theta);
     float path_theta_deg = mdrobotbase_wrap_degrees(self->rb->path_theta * (180.0f / 3.14159265f));
-    pbio_mdrobotbase_lqr_step(self->rb, v_profile, x_ref, y_ref, path_theta_deg, &v_cmd, &w_cmd);
+    pbio_error_t lqr_err = pbio_mdrobotbase_lqr_step(
+        self->rb,
+        v_profile,
+        x_ref,
+        y_ref,
+        path_theta_deg,
+        &v_cmd,
+        &w_cmd);
+
+    if (lqr_err != PBIO_SUCCESS) {
+      mdrobotbase_motion_stop(self, true);
+      return pb_type_mdrobotbase_raise_motion_error(self, lqr_err);
+    }
   } else {
     float e_theta = mdrobotbase_wrap_degrees(ref_theta - self->rb->theta);
 
@@ -419,7 +464,7 @@ static pbio_error_t mdrobotbase_step_navigate(pb_type_MDRobotBase_obj_t *self,
     if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 250.0f)) {
       pb_type_mdrobotbase_motion_stall(self);
       mdrobotbase_motion_stop(self, false);
-      return PBIO_ERROR_FAILED;
+      return PBIO_ERROR_NAVIGATION_STALLED;
     }
   }
 
@@ -488,7 +533,7 @@ static pbio_error_t mdrobotbase_step_turn(pb_type_MDRobotBase_obj_t *self,
     if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
       pb_type_mdrobotbase_motion_stall(self);
       mdrobotbase_motion_stop(self, false);
-      return PBIO_ERROR_FAILED;
+      return PBIO_ERROR_TURN_STALLED;
     }
   }
 
@@ -561,7 +606,7 @@ static pbio_error_t mdrobotbase_step_pivot(pb_type_MDRobotBase_obj_t *self,
     if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 400.0f)) {
       pb_type_mdrobotbase_motion_stall(self);
       mdrobotbase_motion_stop(self, false);
-      return PBIO_ERROR_FAILED;
+      return PBIO_ERROR_PIVOT_STALLED;
     }
   }
 
@@ -635,6 +680,21 @@ static pbio_error_t mdrobotbase_step_trajectory(pb_type_MDRobotBase_obj_t *self,
   float left_vel = speed - w_rad * (track_mm / 2.0f);
   float right_vel = speed + w_rad * (track_mm / 2.0f);
 
+  float step = sqrtf((self->rb->x - self->rb->last_x) * (self->rb->x - self->rb->last_x) +
+                     (self->rb->y - self->rb->last_y) * (self->rb->y - self->rb->last_y));
+  self->rb->last_x = self->rb->x;
+  self->rb->last_y = self->rb->y;
+
+  if (elapsed_ms > 200) {
+    float v_raw = step / dt_sec;
+    bool is_stalled = (fabsf(speed) > 30.0f && fabsf(v_raw) < 10.0f);
+    if (mdrobotbase_evaluate_stall(self->rb, is_stalled, dt_sec, 250.0f)) {
+      pb_type_mdrobotbase_motion_stall(self);
+      mdrobotbase_motion_stop(self, false);
+      return PBIO_ERROR_TRAJECTORY_STALLED;
+    }
+  }
+
   mdrobotbase_drive_wheels(self, left_vel, right_vel, diam_left_mm, diam_right_mm);
   return PBIO_ERROR_AGAIN;
 }
@@ -649,16 +709,50 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     return PBIO_SUCCESS;
   }
 
-  if (!pbio_servo_update_loop_is_running(self->rb->left) ||
-      !pbio_servo_update_loop_is_running(self->rb->right)) {
-    return PBIO_ERROR_NO_DEV;
-  }
-
   // 1. Update Odometry State
   float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
-  pbio_mdrobotbase_update_state(self->rb, gyro_heading);
+  pbio_error_t odometry_err =
+      pbio_mdrobotbase_update_state(self->rb, gyro_heading);
+
+  if (odometry_err == PBIO_ERROR_AGAIN ||
+      odometry_err == PBIO_ERROR_BUSY) {
+    return PBIO_ERROR_AGAIN;
+  }
 
   uint32_t now = pbdrv_clock_get_ms();
+
+  // Transient readiness retry for initial startup / task scheduling delays.
+  // Retries up to 500ms for transient motor readiness (NO_DEV or IO) before failing.
+  if ((odometry_err == PBIO_ERROR_NO_DEV || odometry_err == PBIO_ERROR_IO) && !self->motion_started) {
+    if (self->startup_retry_start_ms == 0) {
+      self->startup_retry_start_ms = now;
+    }
+    if ((uint32_t)(now - self->startup_retry_start_ms) < 500) {
+      return PBIO_ERROR_AGAIN;
+    }
+  }
+
+  if (odometry_err != PBIO_SUCCESS) {
+    pbio_control_state_t st_l, st_r;
+    self->last_left_error = pbio_servo_get_state_control(self->rb->left, &st_l);
+    self->last_right_error = pbio_servo_get_state_control(self->rb->right, &st_r);
+    self->last_control_loop_left = pbio_servo_update_loop_is_running(self->rb->left);
+    self->last_control_loop_right = pbio_servo_update_loop_is_running(self->rb->right);
+
+    mdrobotbase_motion_stop(self, true);
+    return pb_type_mdrobotbase_raise_motion_error(self, odometry_err);
+  }
+
+  if (!self->motion_started) {
+    self->motion_started = true;
+    self->startup_retry_start_ms = 0;
+    self->rb->start_time_ms = now;
+    self->rb->last_step_time_ms = now;
+    self->rb->last_step_theta = self->rb->theta;
+    self->rb->last_x = self->rb->x;
+    self->rb->last_y = self->rb->y;
+  }
+
   uint32_t elapsed_ms = now - self->rb->start_time_ms;
 
   // Global motion timeout check
@@ -679,18 +773,28 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
   }
   self->rb->last_step_time_ms = now;
 
+  pbio_error_t step_err = PBIO_SUCCESS;
   switch (self->rb->motion_type) {
     case PBIO_MDROBOTBASE_MOTION_NAVIGATE:
-      return mdrobotbase_step_navigate(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+      step_err = mdrobotbase_step_navigate(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+      break;
     case PBIO_MDROBOTBASE_MOTION_TURN:
-      return mdrobotbase_step_turn(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+      step_err = mdrobotbase_step_turn(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+      break;
     case PBIO_MDROBOTBASE_MOTION_PIVOT:
-      return mdrobotbase_step_pivot(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+      step_err = mdrobotbase_step_pivot(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+      break;
     case PBIO_MDROBOTBASE_MOTION_TRAJECTORY:
-      return mdrobotbase_step_trajectory(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+      step_err = mdrobotbase_step_trajectory(self, dt_sec, elapsed_ms, comp, diam_left_mm, diam_right_mm, track_mm);
+      break;
     default:
       return PBIO_SUCCESS;
   }
+
+  if (step_err != PBIO_SUCCESS && step_err != PBIO_ERROR_AGAIN) {
+    return pb_type_mdrobotbase_raise_motion_error(self, step_err);
+  }
+  return step_err;
 }
 
 static mp_obj_t pb_type_mdrobotbase_wait_or_await(pb_type_MDRobotBase_obj_t *self) {
@@ -728,7 +832,14 @@ static mp_obj_t pb_type_MDRobotBase_set_lqr_gains(size_t n_args,
   float theta = mp_obj_get_float(k_theta_in);
   bool schedule = mp_obj_is_true(schedule_in);
 
-  pb_assert(pbio_mdrobotbase_set_lqr_gains(self->rb, x, y, theta, schedule));
+  pbio_error_t err = pbio_mdrobotbase_set_lqr_gains(self->rb, x, y, theta, schedule);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("LQR gains must be strictly positive finite values (k_x > 0, k_y > 0, k_theta > 0)"));
+  } else if (err == PBIO_ERROR_BUSY) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR solver workspace busy"));
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR gain configuration failed"));
+  }
 
   return mp_const_none;
 }
@@ -741,7 +852,9 @@ static mp_obj_t pb_type_MDRobotBase_get_lqr_gains(mp_obj_t self_in) {
   pb_type_mdrobotbase_require_open(self);
   float k_x, k_y, k_theta;
   bool schedule;
-  pb_assert(pbio_mdrobotbase_get_lqr_gains(self->rb, &k_x, &k_y, &k_theta, &schedule));
+  if (pbio_mdrobotbase_get_lqr_gains(self->rb, &k_x, &k_y, &k_theta, &schedule) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get LQR gains"));
+  }
   mp_obj_t gains[3];
   gains[0] = mp_obj_new_float_from_f(k_x);
   gains[1] = mp_obj_new_float_from_f(k_y);
@@ -774,8 +887,8 @@ static mp_obj_t pb_type_MDRobotBase_set_lqr_weights(size_t n_args,
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR solver workspace busy"));
   } else if (err == PBIO_ERROR_FAILED) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("DARE numerical solver failed to converge"));
-  } else {
-    pb_assert(err);
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR weight configuration failed"));
   }
 
   return mp_const_none;
@@ -788,7 +901,9 @@ static mp_obj_t pb_type_MDRobotBase_get_lqr_weights(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float qx, qy, qth, rv, rw;
-  pb_assert(pbio_mdrobotbase_get_lqr_weights(self->rb, &qx, &qy, &qth, &rv, &rw));
+  if (pbio_mdrobotbase_get_lqr_weights(self->rb, &qx, &qy, &qth, &rv, &rw) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get LQR weights"));
+  }
   mp_obj_t weights[5];
   weights[0] = mp_obj_new_float_from_f(qx);
   weights[1] = mp_obj_new_float_from_f(qy);
@@ -819,8 +934,8 @@ static mp_obj_t pb_type_MDRobotBase_set_lqr_preset(size_t n_args,
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR solver workspace busy"));
   } else if (err == PBIO_ERROR_FAILED) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("DARE numerical solver failed to converge for preset"));
-  } else {
-    pb_assert(err);
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR preset configuration failed"));
   }
 
   return mp_const_none;
@@ -840,8 +955,10 @@ static mp_obj_t pb_type_MDRobotBase_set_controller(size_t n_args,
   if (val != PBIO_MDROBOTBASE_CONTROLLER_PID && val != PBIO_MDROBOTBASE_CONTROLLER_LQR) {
     mp_raise_ValueError(MP_ERROR_TEXT("invalid controller type"));
   }
-  pb_assert(pbio_mdrobotbase_set_controller(
-      self->rb, (pbio_mdrobotbase_controller_t)val));
+  if (pbio_mdrobotbase_set_controller(
+      self->rb, (pbio_mdrobotbase_controller_t)val) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid controller type"));
+  }
 
   return mp_const_none;
 }
@@ -870,7 +987,12 @@ static mp_obj_t pb_type_MDRobotBase_set_pid_gains(size_t n_args,
   float i = mp_obj_get_float(ki_in);
   float d = mp_obj_get_float(kd_in);
 
-  pb_assert(pbio_mdrobotbase_set_pid_gains(self->rb, p, i, d));
+  pbio_error_t err = pbio_mdrobotbase_set_pid_gains(self->rb, p, i, d);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("PID gains must be non-negative finite numbers"));
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to set PID gains"));
+  }
 
   return mp_const_none;
 }
@@ -903,7 +1025,12 @@ static mp_obj_t pb_type_MDRobotBase_set_turn_pid_gains(size_t n_args,
   float i = mp_obj_get_float(ki_in);
   float d = mp_obj_get_float(kd_in);
 
-  pb_assert(pbio_mdrobotbase_set_turn_pid_gains(self->rb, p, i, d));
+  pbio_error_t err = pbio_mdrobotbase_set_turn_pid_gains(self->rb, p, i, d);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("turn PID gains must be non-negative finite numbers"));
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to set turn PID gains"));
+  }
 
   return mp_const_none;
 }
@@ -936,7 +1063,12 @@ pb_type_MDRobotBase_set_pivot_pid_gains(size_t n_args, const mp_obj_t *pos_args,
   float i = mp_obj_get_float(ki_in);
   float d = mp_obj_get_float(kd_in);
 
-  pb_assert(pbio_mdrobotbase_set_pivot_pid_gains(self->rb, p, i, d));
+  pbio_error_t err = pbio_mdrobotbase_set_pivot_pid_gains(self->rb, p, i, d);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("pivot PID gains must be non-negative finite numbers"));
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to set pivot PID gains"));
+  }
 
   return mp_const_none;
 }
@@ -968,7 +1100,12 @@ static mp_obj_t pb_type_MDRobotBase_set_pid_min_turn(size_t n_args,
   float mt = mp_obj_get_float(min_turn_in);
   float th = mp_obj_get_float(threshold_in);
 
-  pb_assert(pbio_mdrobotbase_set_pid_min_turn(self->rb, mt, th));
+  pbio_error_t err = pbio_mdrobotbase_set_pid_min_turn(self->rb, mt, th);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("min_turn and threshold must be non-negative finite numbers"));
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to set min turn"));
+  }
 
   return mp_const_none;
 }
@@ -992,17 +1129,34 @@ static mp_obj_t pb_type_MDRobotBase_reset_state(size_t n_args,
                                                 const mp_obj_t *pos_args,
                                                 mp_map_t *kw_args) {
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
-                       self, PB_ARG_REQUIRED(x), PB_ARG_REQUIRED(y),
-                       PB_ARG_REQUIRED(theta), PB_ARG_REQUIRED(gyro_heading));
+                       self,
+                       PB_ARG_DEFAULT_INT(x, 0),
+                       PB_ARG_DEFAULT_INT(y, 0),
+                       PB_ARG_DEFAULT_INT(theta, 0),
+                       PB_ARG_DEFAULT_NONE(gyro_heading));
   pb_type_mdrobotbase_require_open(self);
 
   float x_val = mp_obj_get_float(x_in);
   float y_val = mp_obj_get_float(y_in);
   float theta_val = mp_obj_get_float(theta_in);
-  float gyro_val = mp_obj_get_float(gyro_heading_in);
+  float gyro_val;
+  if (gyro_heading_in != mp_const_none) {
+    gyro_val = mp_obj_get_float(gyro_heading_in);
+  } else {
+    gyro_val = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
+  }
 
-  pb_assert(pbio_mdrobotbase_reset_state(self->rb, x_val, y_val, theta_val,
-                                         gyro_val));
+  pbio_error_t err = pbio_mdrobotbase_reset_state(self->rb, x_val, y_val, theta_val,
+                                                 gyro_val);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("state coordinates and gyro heading must be finite numbers"));
+  } else if (err == PBIO_ERROR_NO_DEV) {
+    mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected"));
+  } else if (err == PBIO_ERROR_IO) {
+    mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed"));
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase reset_state failed"));
+  }
 
   return mp_const_none;
 }
@@ -1014,12 +1168,27 @@ static mp_obj_t pb_type_MDRobotBase_update_state(size_t n_args,
                                                  const mp_obj_t *pos_args,
                                                  mp_map_t *kw_args) {
   PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
-                       self, PB_ARG_REQUIRED(gyro_heading));
+                       self,
+                       PB_ARG_DEFAULT_NONE(gyro_heading));
   pb_type_mdrobotbase_require_open(self);
 
-  float gyro_val = mp_obj_get_float(gyro_heading_in);
+  float gyro_val;
+  if (gyro_heading_in != mp_const_none) {
+    gyro_val = mp_obj_get_float(gyro_heading_in);
+  } else {
+    gyro_val = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
+  }
 
-  pb_assert(pbio_mdrobotbase_update_state(self->rb, gyro_val));
+  pbio_error_t err = pbio_mdrobotbase_update_state(self->rb, gyro_val);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("gyro_heading must be finite"));
+  } else if (err == PBIO_ERROR_NO_DEV) {
+    mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected"));
+  } else if (err == PBIO_ERROR_IO) {
+    mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed"));
+  } else if (err == PBIO_ERROR_ODOMETRY_FAILED || err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase odometry update failed"));
+  }
 
   return mp_const_none;
 }
@@ -1031,7 +1200,9 @@ static mp_obj_t pb_type_MDRobotBase_get_state(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float x = 0.0f, y = 0.0f, theta = 0.0f;
-  pb_assert(pbio_mdrobotbase_get_pose(self->rb, &x, &y, &theta));
+  if (pbio_mdrobotbase_get_pose(self->rb, &x, &y, &theta) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get MDRobotBase pose"));
+  }
   mp_obj_t state[3];
   state[0] = mp_obj_new_float_from_f(x);
   state[1] = mp_obj_new_float_from_f(y);
@@ -1041,23 +1212,88 @@ static mp_obj_t pb_type_MDRobotBase_get_state(mp_obj_t self_in) {
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_state_obj,
                                  pb_type_MDRobotBase_get_state);
 
-// pybricks.robotics.MDRobotBase.set_fusion_alpha
-static mp_obj_t pb_type_MDRobotBase_set_fusion_alpha(mp_obj_t self_in, mp_obj_t alpha_in) {
+// pybricks.robotics.MDRobotBase.get_diagnostics
+static mp_obj_t pb_type_MDRobotBase_get_diagnostics(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
+
+  pbio_control_state_t state_l, state_r;
+  pbio_error_t err_l = pbio_servo_get_state_control(self->rb->left, &state_l);
+  pbio_error_t err_r = pbio_servo_get_state_control(self->rb->right, &state_r);
+  bool loop_l = pbio_servo_update_loop_is_running(self->rb->left);
+  bool loop_r = pbio_servo_update_loop_is_running(self->rb->right);
+
+  if (err_l == PBIO_SUCCESS && self->last_left_error != PBIO_SUCCESS) {
+    err_l = self->last_left_error;
+  }
+  if (err_r == PBIO_SUCCESS && self->last_right_error != PBIO_SUCCESS) {
+    err_r = self->last_right_error;
+  }
+
+  if (self->debug) {
+    mp_printf(&mp_plat_print,
+              "[MDRobotBase Diagnostics]\n"
+              "  left_state_error: %d (%s)\n"
+              "  right_state_error: %d (%s)\n"
+              "  control_loop_left: %d\n"
+              "  control_loop_right: %d\n"
+              "  motion_type: %d\n"
+              "  controller_type: %d\n",
+              (int)err_l, pbio_error_str_safe(err_l),
+              (int)err_r, pbio_error_str_safe(err_r),
+              loop_l ? 1 : 0,
+              loop_r ? 1 : 0,
+              (int)self->rb->motion_type,
+              (int)self->rb->controller_type);
+  }
+
+  mp_map_elem_t info[] = {
+      {MP_OBJ_NEW_QSTR(MP_QSTR_left_state_error), mp_obj_new_int(err_l)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_right_state_error), mp_obj_new_int(err_r)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_control_loop_left), mp_obj_new_bool(loop_l)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_control_loop_right), mp_obj_new_bool(loop_r)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_motion_type), mp_obj_new_int(self->rb->motion_type)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_controller_type), mp_obj_new_int(self->rb->controller_type)},
+  };
+  mp_obj_t info_dict = mp_obj_new_dict(MP_ARRAY_SIZE(info));
+  for (size_t i = 0; i < MP_ARRAY_SIZE(info); i++) {
+    mp_obj_dict_store(info_dict, info[i].key, info[i].value);
+  }
+  return info_dict;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_diagnostics_obj,
+                                 pb_type_MDRobotBase_get_diagnostics);
+
+// pybricks.robotics.MDRobotBase.set_fusion_alpha
+static mp_obj_t pb_type_MDRobotBase_set_fusion_alpha(size_t n_args,
+                                                     const mp_obj_t *pos_args,
+                                                     mp_map_t *kw_args) {
+  PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
+                       self, PB_ARG_REQUIRED(alpha));
+  pb_type_mdrobotbase_require_open(self);
   float alpha = mp_obj_get_float(alpha_in);
-  pb_assert(pbio_mdrobotbase_set_fusion_alpha(self->rb, alpha));
+  if (!isfinite(alpha) || alpha < 0.0f || alpha > 1.0f) {
+    mp_raise_ValueError(MP_ERROR_TEXT("fusion_alpha must be a finite float between 0.0 and 1.0"));
+  }
+  pbio_error_t err = pbio_mdrobotbase_set_fusion_alpha(self->rb, alpha);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("fusion_alpha must be a finite float between 0.0 and 1.0"));
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to set fusion alpha"));
+  }
   return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_fusion_alpha_obj,
-                                 pb_type_MDRobotBase_set_fusion_alpha);
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_fusion_alpha_obj, 1,
+                                  pb_type_MDRobotBase_set_fusion_alpha);
 
 // pybricks.robotics.MDRobotBase.get_fusion_alpha
 static mp_obj_t pb_type_MDRobotBase_get_fusion_alpha(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float alpha;
-  pb_assert(pbio_mdrobotbase_get_fusion_alpha(self->rb, &alpha));
+  if (pbio_mdrobotbase_get_fusion_alpha(self->rb, &alpha) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get fusion alpha"));
+  }
   return mp_obj_new_float_from_f(alpha);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_fusion_alpha_obj,
@@ -1078,7 +1314,9 @@ static mp_obj_t pb_type_MDRobotBase_set_gear_ratio(mp_obj_t self_in, mp_obj_t ra
     mp_raise_ValueError(MP_ERROR_TEXT("gear ratio must be a positive non-zero finite value"));
   }
   #endif
-  pb_assert(pbio_mdrobotbase_set_gear_ratio(self->rb, ratio));
+  if (pbio_mdrobotbase_set_gear_ratio(self->rb, ratio) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid gear ratio"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_gear_ratio_obj,
@@ -1089,7 +1327,9 @@ static mp_obj_t pb_type_MDRobotBase_get_gear_ratio(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float ratio;
-  pb_assert(pbio_mdrobotbase_get_gear_ratio(self->rb, &ratio));
+  if (pbio_mdrobotbase_get_gear_ratio(self->rb, &ratio) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get gear ratio"));
+  }
   return mp_obj_new_float_from_f(ratio);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_gear_ratio_obj,
@@ -1996,23 +2236,32 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_follow_trajectory_obj, 1,
                                   pb_type_MDRobotBase_follow_trajectory);
 
 // pybricks.robotics.MDRobotBase.set_backlash_filter
-static mp_obj_t pb_type_MDRobotBase_set_backlash_filter(mp_obj_t self_in,
-                                                        mp_obj_t enabled_in) {
-  pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+static mp_obj_t pb_type_MDRobotBase_set_backlash_filter(size_t n_args,
+                                                        const mp_obj_t *pos_args,
+                                                        mp_map_t *kw_args) {
+  PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
+                       self, PB_ARG_REQUIRED(enabled));
   pb_type_mdrobotbase_require_open(self);
   bool enabled = mp_obj_is_true(enabled_in);
-  pb_assert(pbio_mdrobotbase_set_backlash_filter(self->rb, enabled));
+  pbio_error_t err = pbio_mdrobotbase_set_backlash_filter(self->rb, enabled);
+  if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid robot base instance"));
+  } else if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to set backlash filter"));
+  }
   return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_backlash_filter_obj,
-                                 pb_type_MDRobotBase_set_backlash_filter);
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_backlash_filter_obj, 1,
+                                  pb_type_MDRobotBase_set_backlash_filter);
 
 // pybricks.robotics.MDRobotBase.get_backlash_filter
 static mp_obj_t pb_type_MDRobotBase_get_backlash_filter(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   bool enabled = false;
-  pb_assert(pbio_mdrobotbase_get_backlash_filter(self->rb, &enabled));
+  if (pbio_mdrobotbase_get_backlash_filter(self->rb, &enabled) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get backlash filter"));
+  }
   return mp_obj_new_bool(enabled);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_backlash_filter_obj,
@@ -2030,7 +2279,9 @@ pb_type_MDRobotBase_set_backlash_limits(size_t n_args, const mp_obj_t *pos_args,
   float left = mp_obj_get_float(left_limit_in);
   float right = mp_obj_get_float(right_limit_in);
 
-  pb_assert(pbio_mdrobotbase_set_backlash_limits(self->rb, left, right));
+  if (pbio_mdrobotbase_set_backlash_limits(self->rb, left, right) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid backlash limits"));
+  }
 
   return mp_const_none;
 }
@@ -2043,7 +2294,9 @@ static mp_obj_t pb_type_MDRobotBase_get_backlash_limits(mp_obj_t self_in) {
   pb_type_mdrobotbase_require_open(self);
   float left = 0.0f;
   float right = 0.0f;
-  pb_assert(pbio_mdrobotbase_get_backlash_limits(self->rb, &left, &right));
+  if (pbio_mdrobotbase_get_backlash_limits(self->rb, &left, &right) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get backlash limits"));
+  }
   mp_obj_t limits[2] = {mp_obj_new_float_from_f(left),
                         mp_obj_new_float_from_f(right)};
   return mp_obj_new_tuple(2, limits);
@@ -2078,7 +2331,9 @@ pb_type_MDRobotBase_set_wheel_diameters(size_t n_args, const mp_obj_t *pos_args,
   int32_t left = pb_obj_get_scaled_int(left_diameter_in, 1000);
   int32_t right = pb_obj_get_scaled_int(right_diameter_in, 1000);
 
-  pb_assert(pbio_mdrobotbase_set_wheel_diameters(self->rb, left, right));
+  if (pbio_mdrobotbase_set_wheel_diameters(self->rb, left, right) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid wheel diameters"));
+  }
 
   return mp_const_none;
 }
@@ -2091,7 +2346,9 @@ static mp_obj_t pb_type_MDRobotBase_get_wheel_diameters(mp_obj_t self_in) {
   pb_type_mdrobotbase_require_open(self);
   int32_t left = 0;
   int32_t right = 0;
-  pb_assert(pbio_mdrobotbase_get_wheel_diameters(self->rb, &left, &right));
+  if (pbio_mdrobotbase_get_wheel_diameters(self->rb, &left, &right) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get wheel diameters"));
+  }
   mp_obj_t diams[2] = {mp_obj_new_float((float)left / 1000.0f),
                        mp_obj_new_float((float)right / 1000.0f)};
   return mp_obj_new_tuple(2, diams);
@@ -2105,7 +2362,9 @@ static mp_obj_t pb_type_MDRobotBase_set_max_angular_speed(mp_obj_t self_in,
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float speed = mp_obj_get_float(speed_in);
-  pb_assert(pbio_mdrobotbase_set_max_angular_speed(self->rb, speed));
+  if (pbio_mdrobotbase_set_max_angular_speed(self->rb, speed) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("speed must be positive finite number"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_max_angular_speed_obj,
@@ -2116,7 +2375,9 @@ static mp_obj_t pb_type_MDRobotBase_get_max_angular_speed(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float speed;
-  pb_assert(pbio_mdrobotbase_get_max_angular_speed(self->rb, &speed));
+  if (pbio_mdrobotbase_get_max_angular_speed(self->rb, &speed) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get max angular speed"));
+  }
   return mp_obj_new_float(speed);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_max_angular_speed_obj,
@@ -2128,7 +2389,9 @@ static mp_obj_t pb_type_MDRobotBase_set_max_turn_speed(mp_obj_t self_in,
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float speed = mp_obj_get_float(speed_in);
-  pb_assert(pbio_mdrobotbase_set_max_turn_speed(self->rb, speed));
+  if (pbio_mdrobotbase_set_max_turn_speed(self->rb, speed) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("speed must be positive finite number"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_max_turn_speed_obj,
@@ -2139,7 +2402,9 @@ static mp_obj_t pb_type_MDRobotBase_get_max_turn_speed(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float speed;
-  pb_assert(pbio_mdrobotbase_get_max_turn_speed(self->rb, &speed));
+  if (pbio_mdrobotbase_get_max_turn_speed(self->rb, &speed) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get max turn speed"));
+  }
   return mp_obj_new_float(speed);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_max_turn_speed_obj,
@@ -2151,7 +2416,9 @@ static mp_obj_t pb_type_MDRobotBase_set_max_pivot_speed(mp_obj_t self_in,
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float speed = mp_obj_get_float(speed_in);
-  pb_assert(pbio_mdrobotbase_set_max_pivot_speed(self->rb, speed));
+  if (pbio_mdrobotbase_set_max_pivot_speed(self->rb, speed) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("speed must be positive finite number"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(pb_type_MDRobotBase_set_max_pivot_speed_obj,
@@ -2162,7 +2429,9 @@ static mp_obj_t pb_type_MDRobotBase_get_max_pivot_speed(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   float speed;
-  pb_assert(pbio_mdrobotbase_get_max_pivot_speed(self->rb, &speed));
+  if (pbio_mdrobotbase_get_max_pivot_speed(self->rb, &speed) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get max pivot speed"));
+  }
   return mp_obj_new_float(speed);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_max_pivot_speed_obj,
@@ -2215,14 +2484,28 @@ static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type,
       pb_obj_get_scaled_int(wheel_diameter_right_in, 1000),
       pb_obj_get_scaled_int(axle_track_in, 1000));
   if (err != PBIO_SUCCESS) {
+    if (err == PBIO_ERROR_BUSY) {
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("motors already in use or LQR solver workspace busy"));
+    }
+    if (err == PBIO_ERROR_INVALID_ARG) {
+      mp_raise_ValueError(MP_ERROR_TEXT("invalid configuration arguments"));
+    }
     if (err == PBIO_ERROR_FAILED) {
       mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to initialize MDRobotBase controller"));
     }
-    pb_assert(err);
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to initialize MDRobotBase instance"));
   }
 
   self->debug = mp_obj_is_true(debug_in);
   self->last_awaitable = NULL;
+  self->startup_retry_start_ms = 0;
+  self->motion_started = false;
+
+  pbio_control_state_t st_l, st_r;
+  self->last_left_error = pbio_servo_get_state_control(srv_left, &st_l);
+  self->last_right_error = pbio_servo_get_state_control(srv_right, &st_r);
+  self->last_control_loop_left = pbio_servo_update_loop_is_running(srv_left);
+  self->last_control_loop_right = pbio_servo_update_loop_is_running(srv_right);
 
   return MP_OBJ_FROM_PTR(self);
 }
@@ -2231,7 +2514,9 @@ static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type,
 static mp_obj_t pb_type_MDRobotBase_reset_color_calibration(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
-  pb_assert(pbio_mdrobotbase_color_cal_reset(self->rb));
+  if (pbio_mdrobotbase_color_cal_reset(self->rb) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to reset color calibration"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_reset_color_calibration_obj,
@@ -2244,11 +2529,13 @@ static mp_obj_t pb_type_MDRobotBase_set_color_baseline(size_t n_args, const mp_o
                       PB_ARG_REQUIRED(base_s),
                       PB_ARG_REQUIRED(base_v));
   pb_type_mdrobotbase_require_open(self);
-  pb_assert(pbio_mdrobotbase_color_cal_set_baseline(
+  if (pbio_mdrobotbase_color_cal_set_baseline(
       self->rb,
       mp_obj_get_float(base_h_in),
       mp_obj_get_float(base_s_in),
-      mp_obj_get_float(base_v_in)));
+      mp_obj_get_float(base_v_in)) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid color baseline values"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_color_baseline_obj, 1,
@@ -2259,9 +2546,11 @@ static mp_obj_t pb_type_MDRobotBase_set_color_threshold(size_t n_args, const mp_
                       self,
                       PB_ARG_REQUIRED(threshold));
   pb_type_mdrobotbase_require_open(self);
-  pb_assert(pbio_mdrobotbase_color_cal_set_threshold(
+  if (pbio_mdrobotbase_color_cal_set_threshold(
       self->rb,
-      mp_obj_get_float(threshold_in)));
+      mp_obj_get_float(threshold_in)) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid color threshold"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_color_threshold_obj, 1,
@@ -2272,9 +2561,11 @@ static mp_obj_t pb_type_MDRobotBase_set_color_ambiguity_threshold(size_t n_args,
                       self,
                       PB_ARG_REQUIRED(threshold));
   pb_type_mdrobotbase_require_open(self);
-  pb_assert(pbio_mdrobotbase_color_cal_set_ambiguity_threshold(
+  if (pbio_mdrobotbase_color_cal_set_ambiguity_threshold(
       self->rb,
-      mp_obj_get_float(threshold_in)));
+      mp_obj_get_float(threshold_in)) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid ambiguity threshold"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_color_ambiguity_threshold_obj, 1,
@@ -2288,12 +2579,14 @@ static mp_obj_t pb_type_MDRobotBase_add_color_prototype(size_t n_args, const mp_
                       PB_ARG_REQUIRED(s),
                       PB_ARG_REQUIRED(v));
   pb_type_mdrobotbase_require_open(self);
-  pb_assert(pbio_mdrobotbase_color_cal_add_prototype(
+  if (pbio_mdrobotbase_color_cal_add_prototype(
       self->rb,
       (uint8_t)mp_obj_get_int(color_id_in),
       mp_obj_get_float(h_in),
       mp_obj_get_float(s_in),
-      mp_obj_get_float(v_in)));
+      mp_obj_get_float(v_in)) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid color prototype values"));
+  }
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_add_color_prototype_obj, 1,
@@ -2309,14 +2602,16 @@ static mp_obj_t pb_type_MDRobotBase_classify_color(size_t n_args, const mp_obj_t
   uint8_t matched_color_id = 0;
   float min_dist = 0.0f;
   float confidence = 0.0f;
-  pb_assert(pbio_mdrobotbase_color_classify_rgb(
+  if (pbio_mdrobotbase_color_classify_rgb(
       self->rb,
       mp_obj_get_float(c1_in),
       mp_obj_get_float(c2_in),
       mp_obj_get_float(c3_in),
       &matched_color_id,
       &min_dist,
-      &confidence));
+      &confidence) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid color classification input"));
+  }
 
   mp_obj_t tuple[3] = {
       MP_OBJ_NEW_SMALL_INT(matched_color_id),
@@ -2338,14 +2633,16 @@ static mp_obj_t pb_type_MDRobotBase_classify_color_rgb(size_t n_args, const mp_o
   uint8_t matched_color_id = 0;
   float min_dist = 0.0f;
   float confidence = 0.0f;
-  pb_assert(pbio_mdrobotbase_color_classify_rgb(
+  if (pbio_mdrobotbase_color_classify_rgb(
       self->rb,
       mp_obj_get_float(r_in),
       mp_obj_get_float(g_in),
       mp_obj_get_float(b_in),
       &matched_color_id,
       &min_dist,
-      &confidence));
+      &confidence) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid color classification input"));
+  }
 
   mp_obj_t tuple[3] = {
       MP_OBJ_NEW_SMALL_INT(matched_color_id),
@@ -2367,14 +2664,16 @@ static mp_obj_t pb_type_MDRobotBase_classify_color_hsv(size_t n_args, const mp_o
   uint8_t matched_color_id = 0;
   float min_dist = 0.0f;
   float confidence = 0.0f;
-  pb_assert(pbio_mdrobotbase_color_classify_hsv(
+  if (pbio_mdrobotbase_color_classify_hsv(
       self->rb,
       mp_obj_get_float(h_in),
       mp_obj_get_float(s_in),
       mp_obj_get_float(v_in),
       &matched_color_id,
       &min_dist,
-      &confidence));
+      &confidence) != PBIO_SUCCESS) {
+    mp_raise_ValueError(MP_ERROR_TEXT("invalid color classification input"));
+  }
 
   mp_obj_t tuple[3] = {
       MP_OBJ_NEW_SMALL_INT(matched_color_id),
@@ -2422,7 +2721,9 @@ static mp_obj_t pb_type_MDRobotBase_stalled(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   bool stalled = false;
-  pb_assert(pbio_mdrobotbase_is_stalled(self->rb, &stalled));
+  if (pbio_mdrobotbase_is_stalled(self->rb, &stalled) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get stall status"));
+  }
   return mp_obj_new_bool(stalled);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_stalled_obj,
@@ -2433,7 +2734,9 @@ static mp_obj_t pb_type_MDRobotBase_done(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   bool done = true;
-  pb_assert(pbio_mdrobotbase_is_done(self->rb, &done));
+  if (pbio_mdrobotbase_is_done(self->rb, &done) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get done status"));
+  }
   return mp_obj_new_bool(done);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_done_obj,
@@ -2444,7 +2747,9 @@ static mp_obj_t pb_type_MDRobotBase_status(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
   pbio_mdrobotbase_motion_status_t status = PBIO_MDROBOTBASE_STATUS_NONE;
-  pb_assert(pbio_mdrobotbase_get_motion_status(self->rb, &status));
+  if (pbio_mdrobotbase_get_motion_status(self->rb, &status) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get motion status"));
+  }
   return MP_OBJ_NEW_SMALL_INT(status);
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_status_obj,
@@ -2498,6 +2803,8 @@ static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
      MP_ROM_PTR(&pb_type_MDRobotBase_update_state_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_state),
      MP_ROM_PTR(&pb_type_MDRobotBase_get_state_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_diagnostics),
+     MP_ROM_PTR(&pb_type_MDRobotBase_get_diagnostics_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_fusion_alpha),
      MP_ROM_PTR(&pb_type_MDRobotBase_set_fusion_alpha_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_fusion_alpha),

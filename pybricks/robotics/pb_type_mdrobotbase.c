@@ -212,6 +212,8 @@ static pbio_error_t pb_type_mdrobotbase_raise_motion_error(pb_type_MDRobotBase_o
   switch (err) {
     case PBIO_ERROR_BUSY:
       mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR solver workspace busy"));
+    case PBIO_ERROR_IMU_FAILED:
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
     case PBIO_ERROR_INVALID_ARG:
       mp_raise_ValueError(MP_ERROR_TEXT("MDRobotBase odometry state is invalid"));
     case PBIO_ERROR_FAILED:
@@ -711,6 +713,26 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
 
   // 1. Update Odometry State
   float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
+  bool imu_ready = isfinite(gyro_heading) && pbio_imu_is_ready();
+
+  if (self->rb->fusion_alpha > 0.0f && !imu_ready) {
+    uint32_t now = pbdrv_clock_get_ms();
+    if (!self->motion_started) {
+      if (self->startup_retry_start_ms == 0) {
+        self->startup_retry_start_ms = now;
+      }
+      if ((uint32_t)(now - self->startup_retry_start_ms) < 500) {
+        return PBIO_ERROR_AGAIN;
+      }
+    }
+    mdrobotbase_motion_stop(self, true);
+    return pb_type_mdrobotbase_raise_motion_error(self, PBIO_ERROR_IMU_FAILED);
+  }
+
+  if (self->rb->fusion_alpha == 0.0f && !imu_ready) {
+    gyro_heading = 0.0f;
+  }
+
   pbio_error_t odometry_err =
       pbio_mdrobotbase_update_state(self->rb, gyro_heading);
 
@@ -722,8 +744,8 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
   uint32_t now = pbdrv_clock_get_ms();
 
   // Transient readiness retry for initial startup / task scheduling delays.
-  // Retries up to 500ms for transient motor readiness (NO_DEV or IO) before failing.
-  if ((odometry_err == PBIO_ERROR_NO_DEV || odometry_err == PBIO_ERROR_IO) && !self->motion_started) {
+  // Retries up to 500ms for transient motor readiness (NO_DEV or IO) or IMU failure before failing.
+  if ((odometry_err == PBIO_ERROR_NO_DEV || odometry_err == PBIO_ERROR_IO || odometry_err == PBIO_ERROR_IMU_FAILED) && !self->motion_started) {
     if (self->startup_retry_start_ms == 0) {
       self->startup_retry_start_ms = now;
     }
@@ -1143,12 +1165,17 @@ static mp_obj_t pb_type_MDRobotBase_reset_state(size_t n_args,
   if (gyro_heading_in != mp_const_none) {
     gyro_val = mp_obj_get_float(gyro_heading_in);
   } else {
+    if (self->rb->fusion_alpha > 0.0f && !pbio_imu_is_ready()) {
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
+    }
     gyro_val = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
   }
 
   pbio_error_t err = pbio_mdrobotbase_reset_state(self->rb, x_val, y_val, theta_val,
                                                  gyro_val);
-  if (err == PBIO_ERROR_INVALID_ARG) {
+  if (err == PBIO_ERROR_IMU_FAILED) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
+  } else if (err == PBIO_ERROR_INVALID_ARG) {
     mp_raise_ValueError(MP_ERROR_TEXT("state coordinates and gyro heading must be finite numbers"));
   } else if (err == PBIO_ERROR_NO_DEV) {
     mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected"));
@@ -1176,12 +1203,17 @@ static mp_obj_t pb_type_MDRobotBase_update_state(size_t n_args,
   if (gyro_heading_in != mp_const_none) {
     gyro_val = mp_obj_get_float(gyro_heading_in);
   } else {
+    if (self->rb->fusion_alpha > 0.0f && !pbio_imu_is_ready()) {
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
+    }
     gyro_val = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
   }
 
   pbio_error_t err = pbio_mdrobotbase_update_state(self->rb, gyro_val);
-  if (err == PBIO_ERROR_INVALID_ARG) {
-    mp_raise_ValueError(MP_ERROR_TEXT("gyro_heading must be finite"));
+  if (err == PBIO_ERROR_IMU_FAILED) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
+  } else if (err == PBIO_ERROR_INVALID_ARG) {
+    mp_raise_ValueError(MP_ERROR_TEXT("MDRobotBase odometry state is invalid"));
   } else if (err == PBIO_ERROR_NO_DEV) {
     mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected"));
   } else if (err == PBIO_ERROR_IO) {

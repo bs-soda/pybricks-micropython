@@ -27,6 +27,7 @@ void pb_assert(pbio_error_t error) {
         case PBIO_ERROR_FAILED:
         case PBIO_ERROR_LQR_FAILED:
         case PBIO_ERROR_ODOMETRY_FAILED:
+        case PBIO_ERROR_IMU_FAILED:
         case PBIO_ERROR_NAVIGATION_STALLED:
         case PBIO_ERROR_TURN_STALLED:
         case PBIO_ERROR_PIVOT_STALLED:
@@ -104,6 +105,7 @@ void pb_assert(pbio_error_t error) {
         case PBIO_ERROR_FAILED:
         case PBIO_ERROR_LQR_FAILED:
         case PBIO_ERROR_ODOMETRY_FAILED:
+        case PBIO_ERROR_IMU_FAILED:
         case PBIO_ERROR_NAVIGATION_STALLED:
         case PBIO_ERROR_TURN_STALLED:
         case PBIO_ERROR_PIVOT_STALLED:

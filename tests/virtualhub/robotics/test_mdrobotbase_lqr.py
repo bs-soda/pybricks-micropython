@@ -1787,6 +1787,95 @@ class TestMDRobotBaseOdometryLQRIntegration(unittest.TestCase):
             motor_c._io_error = False
             robot.close()
 
+    def test_imu_heading_unavailable_raises_runtime_error(self):
+        """When fusion_alpha > 0, unavailable/NaN IMU heading raises RuntimeError('MDRobotBase IMU heading unavailable')."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            robot.set_fusion_alpha(0.8)
+            with self.assertRaises(RuntimeError) as ctx:
+                robot.update_state(float('nan'))
+            self.assertIn("MDRobotBase IMU heading unavailable", str(ctx.exception))
+            self.assertNotIn("LQR controller received invalid pose or configuration", str(ctx.exception))
+
+            with self.assertRaises(RuntimeError) as ctx2:
+                robot.reset_state(0.0, 0.0, 0.0, float('nan'))
+            self.assertIn("MDRobotBase IMU heading unavailable", str(ctx2.exception))
+        finally:
+            robot.close()
+
+    def test_imu_heading_unavailable_startup_retry_recovers(self):
+        """When IMU is temporarily unavailable during startup, it retries within 500ms and succeeds once ready."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            robot.set_fusion_alpha(0.8)
+            robot._imu_ready = False
+
+            async def make_imu_ready():
+                await asyncio.sleep(0.030)  # 30ms < 500ms window
+                robot._imu_ready = True
+
+            async def run_motion():
+                t = asyncio.create_task(make_imu_ready())
+                await robot.navigate_to_goal(100.0, 0.0)
+                await t
+
+            asyncio.run(run_motion())
+            x, y, theta = robot.get_state()
+            self.assertAlmostEqual(x, 100.0, places=1)
+            self.assertFalse(robot._motion_in_progress)
+        finally:
+            robot.close()
+
+    def test_imu_heading_unavailable_startup_retry_times_out(self):
+        """When IMU remains unavailable through the 500ms startup window, motion fails closed with RuntimeError."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            robot.set_fusion_alpha(0.8)
+            robot._imu_ready = False
+
+            with self.assertRaises(RuntimeError) as ctx:
+                asyncio.run(robot.navigate_to_goal(100.0, 0.0))
+            self.assertIn("MDRobotBase IMU heading unavailable", str(ctx.exception))
+            self.assertFalse(robot._motion_in_progress)
+        finally:
+            robot.close()
+
+    def test_encoder_only_fallback_when_fusion_alpha_zero(self):
+        """When fusion_alpha == 0.0, non-finite IMU heading falls back to encoder-only odometry without error."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            robot.set_fusion_alpha(0.0)
+            self.assertEqual(robot.get_fusion_alpha(), 0.0)
+            robot.set_backlash_filter(False)
+
+            # update_state with NaN gyro heading should succeed cleanly
+            robot.update_state(float('nan'))
+
+            # Move motors and update state with NaN gyro heading
+            motor_c._angle += 360.0
+            motor_d._angle += 360.0
+            robot.update_state(float('nan'))
+
+            expected_dist = math.pi * 56.0
+            x, y, theta = robot.get_state()
+            self.assertAlmostEqual(x, expected_dist, places=1)
+
+            # Navigation with IMU not ready should succeed in encoder-only mode
+            robot._imu_ready = False
+            asyncio.run(robot.navigate_to_goal(expected_dist + 50.0, 0.0))
+            x2, y2, theta2 = robot.get_state()
+            self.assertAlmostEqual(x2, expected_dist + 50.0, places=1)
+        finally:
+            robot.close()
+
 
 if __name__ == "__main__":
     unittest.main()

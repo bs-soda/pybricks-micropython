@@ -498,8 +498,12 @@ class MDRobotBase:
             self._theta += 360.0
         if gyro_heading is not None:
             if not math.isfinite(gyro_heading):
-                raise ValueError("gyro_heading must be finite")
-            self._last_gyro_heading = float(gyro_heading)
+                if self._fusion_alpha > 0.0:
+                    raise RuntimeError("MDRobotBase IMU heading unavailable")
+                else:
+                    self._last_gyro_heading = 0.0
+            else:
+                self._last_gyro_heading = float(gyro_heading)
         else:
             self._last_gyro_heading = self._theta
         if (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
@@ -566,7 +570,10 @@ class MDRobotBase:
             raise TypeError("update_state takes either 1 argument (gyro_heading) or 3 arguments (x, y, theta)")
 
         if not math.isfinite(gyro_val):
-            raise ValueError("gyro_heading must be finite")
+            if self._fusion_alpha > 0.0:
+                raise RuntimeError("MDRobotBase IMU heading unavailable")
+            else:
+                gyro_val = self._last_gyro_heading if math.isfinite(self._last_gyro_heading) else 0.0
 
         # Read motor encoder positions
         left_deg = float(self.left_motor.angle()) if hasattr(self.left_motor, "angle") else 0.0
@@ -578,7 +585,7 @@ class MDRobotBase:
             self._encoders_initialized = True
 
         if not self._state_initialized:
-            self._last_gyro_heading = gyro_val
+            self._last_gyro_heading = gyro_val if math.isfinite(gyro_val) else 0.0
             self._state_initialized = True
 
         d_left_ticks = left_deg - self._last_left_deg
@@ -622,12 +629,15 @@ class MDRobotBase:
         d_right = (d_right_ticks / 360.0) * math.pi * self._wheel_diameter_right
         d_center = (d_left + d_right) / 2.0
 
-        delta_theta_gyro = -(gyro_val - self._last_gyro_heading)
-        while delta_theta_gyro > 180.0:
-            delta_theta_gyro -= 360.0
-        while delta_theta_gyro < -180.0:
-            delta_theta_gyro += 360.0
-        self._last_gyro_heading = gyro_val
+        if self._fusion_alpha > 0.0 and math.isfinite(gyro_val):
+            delta_theta_gyro = -(gyro_val - self._last_gyro_heading)
+            while delta_theta_gyro > 180.0:
+                delta_theta_gyro -= 360.0
+            while delta_theta_gyro < -180.0:
+                delta_theta_gyro += 360.0
+            self._last_gyro_heading = gyro_val
+        else:
+            delta_theta_gyro = 0.0
 
         delta_theta_enc_rad = (d_right - d_left) / self._axle_track
         delta_theta_enc_deg = delta_theta_enc_rad * (180.0 / math.pi)
@@ -1003,12 +1013,18 @@ class MDRobotBase:
                                 (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
                                 (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
                                 (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+                    is_imu_failed = False
+                    if self._fusion_alpha > 0.0:
+                        if hasattr(self, "_imu_ready") and not self._imu_ready:
+                            is_imu_failed = True
+                        if hasattr(self, "_imu_heading") and not math.isfinite(self._imu_heading):
+                            is_imu_failed = True
 
-                    if is_io or is_no_dev:
+                    if is_io or is_no_dev or is_imu_failed:
                         if not getattr(self, "_motion_started", False):
                             if getattr(self, "_startup_retry_start_time", None) is None:
                                 self._startup_retry_start_time = time.monotonic()
-                            while (is_io or is_no_dev) and (time.monotonic() - self._startup_retry_start_time < 0.300):
+                            while (is_io or is_no_dev or is_imu_failed) and (time.monotonic() - self._startup_retry_start_time < 0.500):
                                 await asyncio.sleep(0.005)
                                 is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
                                         (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
@@ -1016,6 +1032,16 @@ class MDRobotBase:
                                             (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
                                             (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
                                             (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+                                is_imu_failed = False
+                                if self._fusion_alpha > 0.0:
+                                    if hasattr(self, "_imu_ready") and not self._imu_ready:
+                                        is_imu_failed = True
+                                    if hasattr(self, "_imu_heading") and not math.isfinite(self._imu_heading):
+                                        is_imu_failed = True
+
+                        if is_imu_failed:
+                            self.stop()
+                            raise RuntimeError("MDRobotBase IMU heading unavailable")
 
                         if is_io:
                             self.stop()
@@ -1132,12 +1158,18 @@ class MDRobotBase:
                                 (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
                                 (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
                                 (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+                    is_imu_failed = False
+                    if self._fusion_alpha > 0.0:
+                        if hasattr(self, "_imu_ready") and not self._imu_ready:
+                            is_imu_failed = True
+                        if hasattr(self, "_imu_heading") and not math.isfinite(self._imu_heading):
+                            is_imu_failed = True
 
-                    if is_io or is_no_dev:
+                    if is_io or is_no_dev or is_imu_failed:
                         if not getattr(self, "_motion_started", False):
                             if getattr(self, "_startup_retry_start_time", None) is None:
                                 self._startup_retry_start_time = time.monotonic()
-                            while (is_io or is_no_dev) and (time.monotonic() - self._startup_retry_start_time < 0.300):
+                            while (is_io or is_no_dev or is_imu_failed) and (time.monotonic() - self._startup_retry_start_time < 0.500):
                                 await asyncio.sleep(0.005)
                                 is_io = (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
                                         (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error)
@@ -1145,6 +1177,16 @@ class MDRobotBase:
                                             (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
                                             (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
                                             (hasattr(self.right_motor, "connected") and not self.right_motor.connected)
+                                is_imu_failed = False
+                                if self._fusion_alpha > 0.0:
+                                    if hasattr(self, "_imu_ready") and not self._imu_ready:
+                                        is_imu_failed = True
+                                    if hasattr(self, "_imu_heading") and not math.isfinite(self._imu_heading):
+                                        is_imu_failed = True
+
+                        if is_imu_failed:
+                            self.stop()
+                            raise RuntimeError("MDRobotBase IMU heading unavailable")
 
                         if is_io:
                             self.stop()

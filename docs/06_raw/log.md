@@ -4,6 +4,21 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T10:30:00+07:00` — **G-MDRB-036 IMU Heading Validity, Dedicated Error Classification & Encoder-Only Fallback Certification**
+  - Remediated the remaining review finding and hardware verification gap identified by Codex:
+    1. **Dedicated Error Code (`PBIO_ERROR_IMU_FAILED`):** Added to `lib/pbio/include/pbio/error.h`, mapped to `"MDRobotBase IMU heading unavailable"` in `lib/pbio/src/error.c`, and exposed as `RuntimeError("MDRobotBase IMU heading unavailable")` in `pybricks/util_pb/pb_error.c` and `pybricks/robotics/pb_type_mdrobotbase.c`. Eliminated the misleading message `"LQR controller received invalid pose or configuration"` on IMU failure.
+    2. **IMU Readiness & 500 ms Startup Retry:** In `pb_type_mdrobotbase_motion_iterate_once()`, motion iteration checks both `isfinite(gyro_heading)` and `pbio_imu_is_ready()`. If `fusion_alpha > 0.0f` and the IMU is not ready during initial startup (`!self->motion_started`), retries within the 500 ms monotonic clock window. If unready after 500 ms, stops motors fail-closed and raises `PBIO_ERROR_IMU_FAILED`.
+    3. **Seamless Encoder-Only Odometry Fallback:** When `fusion_alpha == 0.0f`, non-finite or unavailable IMU readings are cleanly bypassed without error. Heading updates strictly via differential wheel encoder ticks ($\Delta\theta = \Delta\theta_{\text{enc}}$), allowing full robot operation without gyro reliance.
+    4. **Empirical Verification & Quality Gates:**
+       - 35/35 Native PBIO mdrobotbase tests passed (100%).
+       - 95/95 Native PBIO subsystem tests passed (100%).
+       - 69/69 VirtualHub LQR tests passed (100%).
+       - 140/140 All VirtualHub Python tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` build (`.text`: 354,176 B, `.data`: 736 B, `.bss`: 43,600 B).
+       - `git diff --check` passed cleanly with 0 whitespace issues.
+       - `bash scripts/ci/governance-check.sh` passed with all submodules and commit formatting verified.
+  - Audit report exported to [`docs/06_raw/20260914_103000_g_mdrb_036_imu_heading_validity_and_encoder_fallback_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_103000_g_mdrb_036_imu_heading_validity_and_encoder_fallback_certification.md).
+
 - `2026-09-14T09:25:00+07:00` — **G-MDRB-036 Runtime Diagnostics, Startup Retry Window & NaN Baseline Hardening Certification**
   - Remediated all 4 review concerns to achieve clean hardware execution and production reliability:
     1. **Decoupled Diagnostics from Runtime Paths:** Completely eliminated `mp_printf()` from `pb_type_MDRobotBase_make_new()`, first-iteration paths, and odometry failure paths. Sensor connection and loop states are stored in dedicated struct fields (`last_left_error`, `last_right_error`, `last_control_loop_left`, `last_control_loop_right`). Formatted string printing occurs strictly on-demand when `robot.get_diagnostics()` is explicitly called.

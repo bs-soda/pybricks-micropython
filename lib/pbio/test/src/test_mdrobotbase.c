@@ -1380,7 +1380,7 @@ static pbio_error_t test_mdrobotbase_numerical_robustness(pbio_os_state_t *state
     tt_uint_op(pbio_mdrobotbase_reset_state(rb, NAN, 0.0f, 0.0f, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, INFINITY, 0.0f, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
     tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, -INFINITY, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
-    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, NAN), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, NAN), ==, PBIO_ERROR_IMU_FAILED);
     tt_uint_op(pbio_mdrobotbase_reset_state(rb, 10.0f, 20.0f, 30.0f, 0.0f), ==, PBIO_SUCCESS);
     tt_want(rb->x == 10.0f);
     tt_want(rb->y == 20.0f);
@@ -3430,9 +3430,9 @@ static pbio_error_t test_mdrobotbase_failclosed_odometry_lqr_propagation(pbio_os
     tt_uint_op(pbio_mdrobotbase_update_state(rb, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
     rb->theta = 0.0f;
 
-    // 4. Non-finite gyro heading in update_state must be rejected
-    tt_uint_op(pbio_mdrobotbase_update_state(rb, (float)NAN), ==, PBIO_ERROR_INVALID_ARG);
-    tt_uint_op(pbio_mdrobotbase_update_state(rb, (float)INFINITY), ==, PBIO_ERROR_INVALID_ARG);
+    // 4. Non-finite gyro heading in update_state must return PBIO_ERROR_IMU_FAILED when fusion_alpha > 0
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, (float)NAN), ==, PBIO_ERROR_IMU_FAILED);
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, (float)INFINITY), ==, PBIO_ERROR_IMU_FAILED);
 
     // 5. Invalid arguments to pbio_mdrobotbase_lqr_step
     tt_uint_op(pbio_mdrobotbase_lqr_step(NULL, 200.0f, 0.0f, 0.0f, 0.0f, &v_out, &w_out), ==, PBIO_ERROR_INVALID_ARG);
@@ -3517,6 +3517,58 @@ end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }
 
+static pbio_error_t test_mdrobotbase_imu_heading_error_and_encoder_fallback(pbio_os_state_t *state, void *context) {
+    static pbio_servo_t *srv_a;
+    static pbio_servo_t *srv_b;
+    static pbio_mdrobotbase_t *rb;
+    static pbio_port_t *port;
+
+    PBIO_OS_ASYNC_BEGIN(state);
+
+    // 1. Verify error string mapping
+    tt_str_op(pbio_error_str(PBIO_ERROR_IMU_FAILED), ==, "MDRobotBase IMU heading unavailable");
+
+    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_A, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_a), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_a, id, PBIO_DIRECTION_COUNTERCLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_port_get_servo(port, &id, &srv_b), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_servo_setup(srv_b, id, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
+
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+
+    // 2. When fusion_alpha > 0 (default is 0.8), NaN gyro heading returns PBIO_ERROR_IMU_FAILED
+    tt_want(rb->fusion_alpha > 0.0f);
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, NAN), ==, PBIO_ERROR_IMU_FAILED);
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, NAN), ==, PBIO_ERROR_IMU_FAILED);
+
+    // Invalid coordinates still return PBIO_ERROR_INVALID_ARG
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, NAN, 0.0f, 0.0f, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, NAN, 0.0f, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, NAN, 0.0f), ==, PBIO_ERROR_INVALID_ARG);
+
+    // 3. Encoder-only fallback when fusion_alpha == 0.0f
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 0.0f), ==, PBIO_SUCCESS);
+    tt_want(rb->fusion_alpha == 0.0f);
+
+    // reset_state with NaN gyro heading should succeed and default to 0.0f
+    tt_uint_op(pbio_mdrobotbase_reset_state(rb, 0.0f, 0.0f, 0.0f, NAN), ==, PBIO_SUCCESS);
+    tt_want(rb->last_gyro_heading == 0.0f);
+    tt_want(rb->theta == 0.0f);
+
+    // update_state with NaN gyro heading should succeed cleanly in encoder-only mode
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, NAN), ==, PBIO_SUCCESS);
+    tt_want(rb->state_initialized);
+    tt_want(rb->theta == 0.0f);
+
+    tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
+
+end:
+    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
+}
+
 struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_basics),
     PBIO_THREAD_TEST(test_mdrobotbase_motion_state),
@@ -3552,5 +3604,6 @@ struct testcase_t pbio_mdrobotbase_tests[] = {
     PBIO_THREAD_TEST(test_mdrobotbase_odometry_lqr_integration),
     PBIO_THREAD_TEST(test_mdrobotbase_failclosed_odometry_lqr_propagation),
     PBIO_THREAD_TEST(test_mdrobotbase_authoritative_device_validation_and_baseline_sync),
+    PBIO_THREAD_TEST(test_mdrobotbase_imu_heading_error_and_encoder_fallback),
     END_OF_TESTCASES
 };

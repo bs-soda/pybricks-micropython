@@ -28,6 +28,7 @@ typedef enum {
     PBIO_ERROR_CANCELED,        /**< The operation was canceled */
     PBIO_ERROR_LQR_FAILED,          /**< LQR controller computation failure */
     PBIO_ERROR_ODOMETRY_FAILED,     /**< Odometry state integration failure */
+    PBIO_ERROR_IMU_FAILED,          /**< IMU heading unavailable or invalid */
     PBIO_ERROR_NAVIGATION_STALLED,  /**< Navigation motion stalled */
     PBIO_ERROR_TURN_STALLED,        /**< Turn motion stalled */
     PBIO_ERROR_PIVOT_STALLED,       /**< Pivot motion stalled */

@@ -1128,8 +1128,14 @@ pbio_error_t pbio_mdrobotbase_get_pivot_pid_gains(pbio_mdrobotbase_t *rb, float 
 }
 
 pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float y, float theta, float gyro_heading) {
-    if (!rb || !rb->left || !rb->right || !isfinite(x) || !isfinite(y) || !isfinite(theta) || !isfinite(gyro_heading)) {
+    if (!rb || !rb->left || !rb->right || !isfinite(x) || !isfinite(y) || !isfinite(theta)) {
         return PBIO_ERROR_INVALID_ARG;
+    }
+    if (rb->fusion_alpha > 0.0f && !isfinite(gyro_heading)) {
+        return PBIO_ERROR_IMU_FAILED;
+    }
+    if (!isfinite(gyro_heading)) {
+        gyro_heading = 0.0f;
     }
 
     pbio_control_state_t state_l, state_r;
@@ -1180,9 +1186,13 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
 }
 
 pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_heading) {
-    if (!rb || !rb->left || !rb->right || !isfinite(gyro_heading) ||
+    if (!rb || !rb->left || !rb->right ||
         !isfinite(rb->x) || !isfinite(rb->y) || !isfinite(rb->theta)) {
         return PBIO_ERROR_INVALID_ARG;
+    }
+
+    if (rb->fusion_alpha > 0.0f && !isfinite(gyro_heading)) {
+        return PBIO_ERROR_IMU_FAILED;
     }
 
     pbio_control_state_t state_l, state_r;
@@ -1214,7 +1224,7 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     if (!rb->state_initialized || isnan(rb->last_left_deg) || isnan(rb->last_right_deg)) {
         rb->last_left_deg = left_deg;
         rb->last_right_deg = right_deg;
-        rb->last_gyro_heading = gyro_heading;
+        rb->last_gyro_heading = isfinite(gyro_heading) ? gyro_heading : 0.0f;
         rb->state_initialized = true;
         return PBIO_SUCCESS;
     }
@@ -1271,11 +1281,13 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     float d_right = (d_right_ticks / 360.0f) * 3.14159265f * diam_right_mm;
     float d_center = (d_left + d_right) / 2.0f;
 
-    float delta_theta_gyro = -(gyro_heading - rb->last_gyro_heading);
-    while (delta_theta_gyro > 180.0f) delta_theta_gyro -= 360.0f;
-    while (delta_theta_gyro < -180.0f) delta_theta_gyro += 360.0f;
-
-    rb->last_gyro_heading = gyro_heading;
+    float delta_theta_gyro = 0.0f;
+    if (isfinite(gyro_heading)) {
+        delta_theta_gyro = -(gyro_heading - rb->last_gyro_heading);
+        while (delta_theta_gyro > 180.0f) delta_theta_gyro -= 360.0f;
+        while (delta_theta_gyro < -180.0f) delta_theta_gyro += 360.0f;
+        rb->last_gyro_heading = gyro_heading;
+    }
 
     float delta_theta_enc_rad = (d_right - d_left) / track_mm;
     float delta_theta_enc_deg = delta_theta_enc_rad * (180.0f / 3.14159265f);

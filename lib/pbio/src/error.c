@@ -40,6 +40,8 @@ const char *pbio_error_str(pbio_error_t err) {
             return "LQR controller failed to compute a valid command";
         case PBIO_ERROR_ODOMETRY_FAILED:
             return "MDRobotBase odometry update failed";
+        case PBIO_ERROR_IMU_FAILED:
+            return "MDRobotBase IMU heading unavailable";
         case PBIO_ERROR_NAVIGATION_STALLED:
             return "MDRobotBase navigation stalled";
         case PBIO_ERROR_TURN_STALLED:

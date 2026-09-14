@@ -196,6 +196,8 @@ typedef struct _pbio_mdrobotbase_t {
     uint32_t right_state_failures;
     uint32_t left_failure_start_ms;
     uint32_t right_failure_start_ms;
+    pbio_error_t last_left_error;
+    pbio_error_t last_right_error;
     float fusion_alpha;
     float gear_ratio;
     float last_accel_x;
@@ -352,6 +354,7 @@ pbio_error_t pbio_mdrobotbase_set_gear_ratio(pbio_mdrobotbase_t *rb, float ratio
 pbio_error_t pbio_mdrobotbase_get_gear_ratio(pbio_mdrobotbase_t *rb, float *ratio);
 pbio_error_t pbio_mdrobotbase_get_motion_status(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t *status);
 pbio_error_t pbio_mdrobotbase_get_failure_counters(const pbio_mdrobotbase_t *rb, uint32_t *left_failures, uint32_t *right_failures);
+pbio_error_t pbio_mdrobotbase_get_last_errors(const pbio_mdrobotbase_t *rb, pbio_error_t *left_error, pbio_error_t *right_error);
 
 // Per-motor failure retry persistence window: 500 ms or 20 consecutive ticks
 #define PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS (500)

@@ -718,6 +718,19 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     return PBIO_SUCCESS;
   }
 
+  // Handle servo disconnection like master DriveBase
+  bool loop_l = pbio_servo_update_loop_is_running(self->rb->left);
+  bool loop_r = pbio_servo_update_loop_is_running(self->rb->right);
+  self->last_control_loop_left = loop_l;
+  self->last_control_loop_right = loop_r;
+  if (!loop_l || !loop_r) {
+    self->last_left_error = loop_l ? PBIO_SUCCESS : PBIO_ERROR_NO_DEV;
+    self->last_right_error = loop_r ? PBIO_SUCCESS : PBIO_ERROR_NO_DEV;
+    mdrobotbase_motion_stop(self, true);
+    char bad_port = (!loop_l) ? (char)self->left_port : (char)self->right_port;
+    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c disconnected)"), bad_port);
+  }
+
   // 1. Update Odometry State & Per-Motor Guardianship
   float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
   bool imu_ready = isfinite(gyro_heading) && pbio_imu_is_ready();
@@ -735,21 +748,23 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
   uint32_t now = pbdrv_clock_get_ms();
 
   if (odometry_err != PBIO_SUCCESS) {
-    pbio_control_state_t st_l, st_r;
-    self->last_left_error = pbio_servo_get_state_control(self->rb->left, &st_l);
-    self->last_right_error = pbio_servo_get_state_control(self->rb->right, &st_r);
+    pbio_mdrobotbase_get_last_errors(self->rb, &self->last_left_error, &self->last_right_error);
     self->last_control_loop_left = pbio_servo_update_loop_is_running(self->rb->left);
     self->last_control_loop_right = pbio_servo_update_loop_is_running(self->rb->right);
 
     mdrobotbase_motion_stop(self, true);
     if (odometry_err == PBIO_ERROR_NO_DEV) {
       char bad_port;
-      if (self->rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS) {
+      if (self->rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS && self->last_left_error != PBIO_SUCCESS) {
         bad_port = (char)self->left_port;
-      } else if (self->rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS) {
+      } else if (self->rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS && self->last_right_error != PBIO_SUCCESS) {
+        bad_port = (char)self->right_port;
+      } else if (self->last_left_error != PBIO_SUCCESS) {
+        bad_port = (char)self->left_port;
+      } else if (self->last_right_error != PBIO_SUCCESS) {
         bad_port = (char)self->right_port;
       } else {
-        bad_port = (self->last_left_error != PBIO_SUCCESS) ? (char)self->left_port : (char)self->right_port;
+        bad_port = (char)self->right_port;
       }
       mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (odometry Port %c disconnected)"), bad_port);
     }
@@ -1295,25 +1310,25 @@ static mp_obj_t pb_type_MDRobotBase_get_diagnostics(mp_obj_t self_in) {
   pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
   pb_type_mdrobotbase_require_open(self);
 
-  pbio_control_state_t state_l, state_r;
-  pbio_error_t err_l = pbio_servo_get_state_control(self->rb->left, &state_l);
-  pbio_error_t err_r = pbio_servo_get_state_control(self->rb->right, &state_r);
+  pbio_error_t err_l = self->rb->last_left_error;
+  pbio_error_t err_r = self->rb->last_right_error;
   bool loop_l = pbio_servo_update_loop_is_running(self->rb->left);
   bool loop_r = pbio_servo_update_loop_is_running(self->rb->right);
-
-  if (err_l == PBIO_SUCCESS && self->last_left_error != PBIO_SUCCESS) {
-    err_l = self->last_left_error;
-  }
-  if (err_r == PBIO_SUCCESS && self->last_right_error != PBIO_SUCCESS) {
-    err_r = self->last_right_error;
-  }
 
   uint32_t left_fails = 0, right_fails = 0;
   pbio_mdrobotbase_get_failure_counters(self->rb, &left_fails, &right_fails);
 
+  const char *str_l = pbio_error_str_safe(err_l);
+  const char *str_r = pbio_error_str_safe(err_r);
+
+  char l_port_str[2] = {self->left_port ? (char)self->left_port : '?', '\0'};
+  char r_port_str[2] = {self->right_port ? (char)self->right_port : '?', '\0'};
+
   if (self->debug) {
     mp_printf(&mp_plat_print,
               "[MDRobotBase Diagnostics]\n"
+              "  left_port: %s\n"
+              "  right_port: %s\n"
               "  left_state_error: %d (%s)\n"
               "  right_state_error: %d (%s)\n"
               "  left_state_failures: %u\n"
@@ -1322,8 +1337,10 @@ static mp_obj_t pb_type_MDRobotBase_get_diagnostics(mp_obj_t self_in) {
               "  control_loop_right: %d\n"
               "  motion_type: %d\n"
               "  controller_type: %d\n",
-              (int)err_l, pbio_error_str_safe(err_l),
-              (int)err_r, pbio_error_str_safe(err_r),
+              l_port_str,
+              r_port_str,
+              (int)err_l, str_l,
+              (int)err_r, str_r,
               (unsigned int)left_fails,
               (unsigned int)right_fails,
               loop_l ? 1 : 0,
@@ -1337,8 +1354,12 @@ static mp_obj_t pb_type_MDRobotBase_get_diagnostics(mp_obj_t self_in) {
       {MP_OBJ_NEW_QSTR(MP_QSTR_right_state_error), mp_obj_new_int(err_r)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_left_state_failures), mp_obj_new_int(left_fails)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_right_state_failures), mp_obj_new_int(right_fails)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_left_error_str), mp_obj_new_str(str_l, strlen(str_l))},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_right_error_str), mp_obj_new_str(str_r, strlen(str_r))},
       {MP_OBJ_NEW_QSTR(MP_QSTR_control_loop_left), mp_obj_new_bool(loop_l)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_control_loop_right), mp_obj_new_bool(loop_r)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_left_port), mp_obj_new_str(l_port_str, 1)},
+      {MP_OBJ_NEW_QSTR(MP_QSTR_right_port), mp_obj_new_str(r_port_str, 1)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_motion_type), mp_obj_new_int(self->rb->motion_type)},
       {MP_OBJ_NEW_QSTR(MP_QSTR_controller_type), mp_obj_new_int(self->rb->controller_type)},
   };
@@ -2620,14 +2641,13 @@ static mp_obj_t pb_type_MDRobotBase_make_new(const mp_obj_type_t *type,
 
   pb_type_Motor_obj_t *motor_l = (pb_type_Motor_obj_t *)pb_obj_get_base_class_obj(left_motor_in, &pb_type_Motor);
   pb_type_Motor_obj_t *motor_r = (pb_type_Motor_obj_t *)pb_obj_get_base_class_obj(right_motor_in, &pb_type_Motor);
-  self->left_port = motor_l->port_id;
-  self->right_port = motor_r->port_id;
+  self->left_port = motor_l ? motor_l->port_id : 0;
+  self->right_port = motor_r ? motor_r->port_id : 0;
 
-  pbio_control_state_t st_l, st_r;
-  self->last_left_error = pbio_servo_get_state_control(srv_left, &st_l);
-  self->last_right_error = pbio_servo_get_state_control(srv_right, &st_r);
-  self->last_control_loop_left = pbio_servo_update_loop_is_running(srv_left);
-  self->last_control_loop_right = pbio_servo_update_loop_is_running(srv_right);
+  self->last_left_error = PBIO_SUCCESS;
+  self->last_right_error = PBIO_SUCCESS;
+  self->last_control_loop_left = srv_left ? pbio_servo_update_loop_is_running(srv_left) : false;
+  self->last_control_loop_right = srv_right ? pbio_servo_update_loop_is_running(srv_right) : false;
 
   return MP_OBJ_FROM_PTR(self);
 }

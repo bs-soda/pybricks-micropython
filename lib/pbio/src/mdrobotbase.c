@@ -132,15 +132,8 @@ pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, p
     rb->right_state_failures = 0;
     rb->left_failure_start_ms = 0;
     rb->right_failure_start_ms = 0;
-
-    // Latch baseline positions if servos are ready, but preserve state_initialized = false
-    // so first valid update_state establishes encoder and gyro baselines atomically.
-    pbio_control_state_t state_l, state_r;
-    if (pbio_servo_get_state_control(left, &state_l) == PBIO_SUCCESS &&
-        pbio_servo_get_state_control(right, &state_r) == PBIO_SUCCESS) {
-        rb->last_left_deg = pbio_control_settings_ctl_to_app_long_float(&left->control.settings, &state_l.position);
-        rb->last_right_deg = pbio_control_settings_ctl_to_app_long_float(&right->control.settings, &state_r.position);
-    }
+    rb->last_left_error = PBIO_SUCCESS;
+    rb->last_right_error = PBIO_SUCCESS;
     rb->fusion_alpha = 0.95f;
     rb->gear_ratio = 1.0f;
     rb->last_accel_x = 0.0f;
@@ -1148,27 +1141,10 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
     pbio_control_state_t state_l, state_r;
     pbio_error_t err_l = pbio_servo_get_state_control(rb->left, &state_l);
     pbio_error_t err_r = pbio_servo_get_state_control(rb->right, &state_r);
+    rb->last_left_error = err_l;
+    rb->last_right_error = err_r;
 
     if (err_l != PBIO_SUCCESS || err_r != PBIO_SUCCESS) {
-        bool left_running = pbio_servo_update_loop_is_running(rb->left);
-        bool right_running = pbio_servo_update_loop_is_running(rb->right);
-
-        if (!left_running || !right_running) {
-            return PBIO_ERROR_AGAIN;
-        }
-
-        if (err_l == PBIO_ERROR_NO_DEV || err_r == PBIO_ERROR_NO_DEV) {
-            return PBIO_ERROR_AGAIN;
-        }
-        if (err_l == PBIO_ERROR_IO || err_r == PBIO_ERROR_IO) {
-            return PBIO_ERROR_IO;
-        }
-        if (err_l == PBIO_ERROR_AGAIN || err_r == PBIO_ERROR_AGAIN) {
-            return PBIO_ERROR_AGAIN;
-        }
-        if (err_l == PBIO_ERROR_BUSY || err_r == PBIO_ERROR_BUSY) {
-            return PBIO_ERROR_BUSY;
-        }
         return (err_l != PBIO_SUCCESS) ? err_l : err_r;
     }
 
@@ -1214,18 +1190,8 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     pbio_control_state_t state_l, state_r;
     pbio_error_t err_l = pbio_servo_get_state_control(rb->left, &state_l);
     pbio_error_t err_r = pbio_servo_get_state_control(rb->right, &state_r);
-
-    // If either motor reported an error, attempt self-healing if the update loop was paused
-    if (err_l != PBIO_SUCCESS) {
-        if (pbio_servo_update_loop_is_running(rb->left)) {
-            err_l = pbio_servo_get_state_control(rb->left, &state_l);
-        }
-    }
-    if (err_r != PBIO_SUCCESS) {
-        if (pbio_servo_update_loop_is_running(rb->right)) {
-            err_r = pbio_servo_get_state_control(rb->right, &state_r);
-        }
-    }
+    rb->last_left_error = err_l;
+    rb->last_right_error = err_r;
 
     uint32_t now = pbdrv_clock_get_ms();
 
@@ -1592,6 +1558,15 @@ pbio_error_t pbio_mdrobotbase_get_failure_counters(const pbio_mdrobotbase_t *rb,
     }
     *left_failures = rb->left_state_failures;
     *right_failures = rb->right_state_failures;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_last_errors(const pbio_mdrobotbase_t *rb, pbio_error_t *left_error, pbio_error_t *right_error) {
+    if (!rb || !left_error || !right_error) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *left_error = rb->last_left_error;
+    *right_error = rb->last_right_error;
     return PBIO_SUCCESS;
 }
 

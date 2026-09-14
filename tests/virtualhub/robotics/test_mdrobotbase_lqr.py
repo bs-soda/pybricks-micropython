@@ -1669,12 +1669,16 @@ class TestMDRobotBaseOdometryLQRIntegration(unittest.TestCase):
         self.assertIn("right_error_str", diag)
         self.assertIn("control_loop_left", diag)
         self.assertIn("control_loop_right", diag)
+        self.assertIn("left_port", diag)
+        self.assertIn("right_port", diag)
         self.assertIn("motion_type", diag)
         self.assertIn("controller_type", diag)
         self.assertEqual(diag["left_state_error"], 0)
         self.assertEqual(diag["right_state_error"], 0)
         self.assertEqual(diag["left_error_str"], "success")
         self.assertEqual(diag["right_error_str"], "success")
+        self.assertEqual(diag["left_port"], "A")
+        self.assertEqual(diag["right_port"], "B")
 
     def test_startup_with_debug_enabled_and_safe_diagnostics(self):
         """Target-level startup test with debug=True exercises safe error string formatting without crashing."""

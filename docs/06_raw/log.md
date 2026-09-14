@@ -4,6 +4,21 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T16:05:00+07:00` — **Master Motor Lifecycle Restoration & Port B Regression Resolution**
+  - Resolved user report on live physical hardware running `m.py`: `OSError: MDRobotBase motor is not connected (odometry Port B disconnected)`:
+    1. **Restored Master Servo Lifecycle:** Fully reverted `lib/pbio/src/servo.c` and `lib/pbio/test/src/test_servo.c` to a 100% bitwise-identical match with `master`. All 3 native servo unit tests pass cleanly.
+    2. **Removed Unverified Servo Reads from `init()` and `make_new`:** Removed eager servo reads in `pbio_mdrobotbase_init()` and `pb_type_MDRobotBase_make_new`. Baselines start at `last_left_deg = NAN`, `last_right_deg = NAN`, `state_initialized = false`.
+    3. **Atomic Dual-Servo Baseline Synchronization:** Baselines for encoders and gyro are established atomically only when both left and right servo reads succeed in `update_state()`.
+    4. **Transient Error Retries:** Transient communication hiccups return `PBIO_ERROR_AGAIN` allowing async event loops to poll without interrupting motor motion or raising false disconnection errors.
+    5. **Preserved Original Error Codes:** Added `last_left_error` and `last_right_error` to `pbio_mdrobotbase_t`. Motion iterator and diagnostics query these recorded errors directly via `pbio_mdrobotbase_get_last_errors()`, preventing error overwrites.
+    6. **Empirical Quality Verification:**
+       - 36/36 Native PBIO C tests passed (100%).
+       - 3/3 Native Servo C tests passed (100%).
+       - 146/146 VirtualHub tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` and `primehub` firmware builds.
+       - Clean `git diff --check`.
+  - Detailed certification report exported to [`docs/06_raw/20260914_160500_master_motor_lifecycle_restoration_and_port_b_regression_fix.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_160500_master_motor_lifecycle_restoration_and_port_b_regression_fix.md).
+
 - `2026-09-14T15:30:00+07:00` — **MDRobotBase Odometry Strict Persistence Window & Continuous Loop Self-Healing Certification**
   - Resolved user report on live LEGO PrimeHub running `m.py`: `OSError: MDRobotBase motor is not connected (odometry Port B disconnected)`:
     1. **Eliminated Premature Loop-Stopped Disjunction in `pbio_mdrobotbase_update_state`:** In `lib/pbio/src/mdrobotbase.c:L1245-L1256`, removed `(left_loop_stopped || ...)` and `(right_loop_stopped || ...)`. When a transient read glitch occurred, `right_loop_stopped` became `true` on tick 1, bypassing the entire 500ms / 20-tick persistent failure threshold. Replaced with strict conjunction requiring failure duration $\ge 500\,\text{ms}$ AND $\ge 20\,\text{ticks}$ before declaring `PBIO_ERROR_NO_DEV`. Transient errors return `PBIO_ERROR_AGAIN` to yield and retry.

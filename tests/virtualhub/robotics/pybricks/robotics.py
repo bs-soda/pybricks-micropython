@@ -766,8 +766,13 @@ class MDRobotBase:
         left_str = err_str_map.get(left_err, "Unknown error")
         right_str = err_str_map.get(right_err, "Unknown error")
 
+        left_port = getattr(self.left_motor.port, "name", str(self.left_motor.port))[-1] if hasattr(self.left_motor, "port") else "C"
+        right_port = getattr(self.right_motor.port, "name", str(self.right_motor.port))[-1] if hasattr(self.right_motor, "port") else "D"
+
         if getattr(self, "_debug", False):
             print(f"[MDRobotBase Diagnostics]\n"
+                  f"  left_port: {left_port}\n"
+                  f"  right_port: {right_port}\n"
                   f"  left_state_error: {left_err} ({left_str})\n"
                   f"  right_state_error: {right_err} ({right_str})\n"
                   f"  control_loop_left: {1 if getattr(self.left_motor, '_run_update_loop', False) else 0}\n"
@@ -784,6 +789,8 @@ class MDRobotBase:
             "right_error_str": right_str,
             "control_loop_left": bool(getattr(self.left_motor, "_run_update_loop", False)),
             "control_loop_right": bool(getattr(self.right_motor, "_run_update_loop", False)),
+            "left_port": left_port,
+            "right_port": right_port,
             "motion_type": int(self._status),
             "controller_type": int(getattr(self, "_controller", 0)),
         }

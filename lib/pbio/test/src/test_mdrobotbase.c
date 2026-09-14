@@ -3488,13 +3488,15 @@ static pbio_error_t test_mdrobotbase_authoritative_device_validation_and_baselin
     tt_uint_op(pbio_servo_get_state_control(srv_b, &state_b), ==, PBIO_SUCCESS);
     float expected_left = pbio_control_settings_ctl_to_app_long_float(&srv_a->control.settings, &state_a.position);
     float expected_right = pbio_control_settings_ctl_to_app_long_float(&srv_b->control.settings, &state_b.position);
-    tt_want(rb->last_left_deg == expected_left);
-    tt_want(rb->last_right_deg == expected_right);
+    tt_want(isnan(rb->last_left_deg));
+    tt_want(isnan(rb->last_right_deg));
     tt_want(rb->last_gyro_heading == 0.0f);
 
     // 2. Even if update loop is not running (idle), update_state must succeed and latch baselines
     tt_uint_op(pbio_mdrobotbase_update_state(rb, 45.0f), ==, PBIO_SUCCESS);
     tt_want(rb->state_initialized);
+    tt_want(rb->last_left_deg == expected_left);
+    tt_want(rb->last_right_deg == expected_right);
     tt_want(rb->last_gyro_heading == 45.0f);
     tt_want(rb->x == 0.0f);
     tt_want(rb->y == 0.0f);

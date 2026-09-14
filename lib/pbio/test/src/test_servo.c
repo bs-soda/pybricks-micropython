@@ -178,40 +178,9 @@ end:
     PBIO_OS_ASYNC_END(PBIO_SUCCESS);
 }
 
-static pbio_error_t test_servo_update_loop_self_healing(pbio_os_state_t *state, void *context) {
-    static pbio_servo_t *srv;
-    static pbio_port_t *port;
-
-    PBIO_OS_ASYNC_BEGIN(state);
-
-    lego_device_type_id_t id = LEGO_DEVICE_TYPE_ID_ANY_ENCODED_MOTOR;
-    tt_uint_op(pbio_port_get_port(PBIO_PORT_ID_B, &port), ==, PBIO_SUCCESS);
-    tt_uint_op(pbio_port_get_servo(port, &id, &srv), ==, PBIO_SUCCESS);
-    tt_uint_op(pbio_servo_setup(srv, LEGO_DEVICE_TYPE_ID_SPIKE_M_MOTOR, PBIO_DIRECTION_CLOCKWISE, 1000, true, 0), ==, PBIO_SUCCESS);
-
-    // Initial state: update loop is running
-    tt_want(pbio_servo_update_loop_is_running(srv));
-
-    // Simulate update loop stopped (e.g. from transient UART packet loss)
-    srv->run_update_loop = false;
-    tt_want(!srv->run_update_loop);
-
-    // Calling pbio_servo_update_loop_is_running on healthy motor must self-heal and re-arm
-    tt_want(pbio_servo_update_loop_is_running(srv));
-    tt_want(srv->run_update_loop);
-
-    // Motor commands should succeed immediately
-    tt_uint_op(pbio_servo_run_forever(srv, 200), ==, PBIO_SUCCESS);
-    tt_uint_op(pbio_servo_stop(srv, PBIO_CONTROL_ON_COMPLETION_COAST), ==, PBIO_SUCCESS);
-
-end:
-    PBIO_OS_ASYNC_END(PBIO_SUCCESS);
-}
-
 struct testcase_t pbio_servo_tests[] = {
     PBIO_THREAD_TEST(test_servo_basics),
     PBIO_THREAD_TEST(test_servo_stall),
     PBIO_THREAD_TEST(test_servo_gearing),
-    PBIO_THREAD_TEST(test_servo_update_loop_self_healing),
     END_OF_TESTCASES
 };

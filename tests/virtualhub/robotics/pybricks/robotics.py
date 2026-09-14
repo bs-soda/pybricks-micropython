@@ -521,15 +521,23 @@ class MDRobotBase:
             self._last_gyro_heading = self._theta
         if not getattr(self, "_imu_ready", True):
             self._imu_latch_needed = True
-        if (hasattr(self.left_motor, "_io_error") and self.left_motor._io_error) or \
-           (hasattr(self.right_motor, "_io_error") and self.right_motor._io_error):
-            raise OSError("MDRobotBase motor communication failed")
+        is_l_io = bool(getattr(self.left_motor, "_io_error", False))
+        is_r_io = bool(getattr(self.right_motor, "_io_error", False))
+        is_l_no_dev = bool(getattr(self.left_motor, "_closed", False) or (hasattr(self.left_motor, "connected") and not self.left_motor.connected))
+        is_r_no_dev = bool(getattr(self.right_motor, "_closed", False) or (hasattr(self.right_motor, "connected") and not self.right_motor.connected))
 
-        if (hasattr(self.left_motor, "_closed") and self.left_motor._closed) or \
-           (hasattr(self.right_motor, "_closed") and self.right_motor._closed) or \
-           (hasattr(self.left_motor, "connected") and not self.left_motor.connected) or \
-           (hasattr(self.right_motor, "connected") and not self.right_motor.connected):
-            raise OSError("MDRobotBase motor is not connected")
+        if is_l_no_dev:
+            p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
+            raise OSError(f"MDRobotBase motor is not connected: Port {p}")
+        if is_r_no_dev:
+            p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
+            raise OSError(f"MDRobotBase motor is not connected: Port {p}")
+        if is_l_io:
+            p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
+            raise OSError(f"MDRobotBase motor communication failed: Port {p}")
+        if is_r_io:
+            p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
+            raise OSError(f"MDRobotBase motor communication failed: Port {p}")
 
         self._left_state_failures = 0
         self._right_state_failures = 0
@@ -596,10 +604,18 @@ class MDRobotBase:
         )
 
         if left_persistent or right_persistent:
-            if (left_persistent and is_l_no_dev) or (right_persistent and is_r_no_dev):
-                raise OSError("MDRobotBase motor is not connected")
-            if (left_persistent and is_l_io) or (right_persistent and is_r_io):
-                raise OSError("MDRobotBase motor communication failed")
+            if left_persistent and is_l_no_dev:
+                p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
+                raise OSError(f"MDRobotBase motor is not connected: Port {p}")
+            if right_persistent and is_r_no_dev:
+                p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
+                raise OSError(f"MDRobotBase motor is not connected: Port {p}")
+            if left_persistent and is_l_io:
+                p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
+                raise OSError(f"MDRobotBase motor communication failed: Port {p}")
+            if right_persistent and is_r_io:
+                p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
+                raise OSError(f"MDRobotBase motor communication failed: Port {p}")
 
         if is_l_io or is_r_io or is_l_no_dev or is_r_no_dev or is_l_busy or is_r_busy:
             # Transient failure: return early without raising error
@@ -1150,10 +1166,18 @@ class MDRobotBase:
 
                         if left_persistent or right_persistent:
                             self.stop()
-                            if (left_persistent and is_l_no_dev) or (right_persistent and is_r_no_dev):
-                                raise OSError("MDRobotBase motor is not connected")
-                            if (left_persistent and is_l_io) or (right_persistent and is_r_io):
-                                raise OSError("MDRobotBase motor communication failed")
+                            if left_persistent and is_l_no_dev:
+                                p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
+                                raise OSError(f"MDRobotBase motor is not connected: Port {p}")
+                            if right_persistent and is_r_no_dev:
+                                p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
+                                raise OSError(f"MDRobotBase motor is not connected: Port {p}")
+                            if left_persistent and is_l_io:
+                                p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
+                                raise OSError(f"MDRobotBase motor communication failed: Port {p}")
+                            if right_persistent and is_r_io:
+                                p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
+                                raise OSError(f"MDRobotBase motor communication failed: Port {p}")
 
                         await asyncio.sleep(0.005)
 
@@ -1307,10 +1331,18 @@ class MDRobotBase:
 
                         if left_persistent or right_persistent:
                             self.stop()
-                            if (left_persistent and is_l_no_dev) or (right_persistent and is_r_no_dev):
-                                raise OSError("MDRobotBase motor is not connected")
-                            if (left_persistent and is_l_io) or (right_persistent and is_r_io):
-                                raise OSError("MDRobotBase motor communication failed")
+                            if left_persistent and is_l_no_dev:
+                                p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
+                                raise OSError(f"MDRobotBase motor is not connected: Port {p}")
+                            if right_persistent and is_r_no_dev:
+                                p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
+                                raise OSError(f"MDRobotBase motor is not connected: Port {p}")
+                            if left_persistent and is_l_io:
+                                p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
+                                raise OSError(f"MDRobotBase motor communication failed: Port {p}")
+                            if right_persistent and is_r_io:
+                                p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
+                                raise OSError(f"MDRobotBase motor communication failed: Port {p}")
 
                         await asyncio.sleep(0.005)
 

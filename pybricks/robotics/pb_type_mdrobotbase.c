@@ -212,26 +212,38 @@ static pbio_error_t pb_type_mdrobotbase_raise_motion_error(pb_type_MDRobotBase_o
     }
   }
 
+  char bad_port = '?';
+  if (self) {
+    if (self->rb && self->rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS && self->last_left_error != PBIO_SUCCESS && self->left_port) {
+      bad_port = (char)self->left_port;
+    } else if (self->rb && self->rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS && self->last_right_error != PBIO_SUCCESS && self->right_port) {
+      bad_port = (char)self->right_port;
+    } else if (self->last_left_error != PBIO_SUCCESS && self->left_port) {
+      bad_port = (char)self->left_port;
+    } else if (self->last_right_error != PBIO_SUCCESS && self->right_port) {
+      bad_port = (char)self->right_port;
+    } else if (self->left_port) {
+      bad_port = (char)self->left_port;
+    } else if (self->right_port) {
+      bad_port = (char)self->right_port;
+    }
+  }
+
   switch (err) {
     case PBIO_ERROR_BUSY:
       mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR solver workspace busy"));
     case PBIO_ERROR_IMU_FAILED:
       mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
     case PBIO_ERROR_INVALID_ARG:
+    case PBIO_ERROR_ODOMETRY_FAILED:
       mp_raise_ValueError(MP_ERROR_TEXT("MDRobotBase odometry state is invalid"));
     case PBIO_ERROR_FAILED:
     case PBIO_ERROR_LQR_FAILED:
-      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("LQR controller failed to compute a valid command"));
-    case PBIO_ERROR_ODOMETRY_FAILED:
-      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase odometry update failed"));
+      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase LQR controller failed"));
     case PBIO_ERROR_NO_DEV:
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c or %c)"),
-                        self->left_port ? (char)self->left_port : '?',
-                        self->right_port ? (char)self->right_port : '?');
+      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected: Port %c"), bad_port);
     case PBIO_ERROR_IO:
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed (Port %c or %c)"),
-                        self->left_port ? (char)self->left_port : '?',
-                        self->right_port ? (char)self->right_port : '?');
+      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed: Port %c"), bad_port);
     case PBIO_ERROR_NAVIGATION_STALLED:
       mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase navigation stalled"));
     case PBIO_ERROR_TURN_STALLED:
@@ -718,19 +730,6 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     return PBIO_SUCCESS;
   }
 
-  // Handle servo disconnection like master DriveBase
-  bool loop_l = pbio_servo_update_loop_is_running(self->rb->left);
-  bool loop_r = pbio_servo_update_loop_is_running(self->rb->right);
-  self->last_control_loop_left = loop_l;
-  self->last_control_loop_right = loop_r;
-  if (!loop_l || !loop_r) {
-    self->last_left_error = loop_l ? PBIO_SUCCESS : PBIO_ERROR_NO_DEV;
-    self->last_right_error = loop_r ? PBIO_SUCCESS : PBIO_ERROR_NO_DEV;
-    mdrobotbase_motion_stop(self, true);
-    char bad_port = (!loop_l) ? (char)self->left_port : (char)self->right_port;
-    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c disconnected)"), bad_port);
-  }
-
   // 1. Update Odometry State & Per-Motor Guardianship
   float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
   bool imu_ready = isfinite(gyro_heading) && pbio_imu_is_ready();
@@ -753,21 +752,6 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
     self->last_control_loop_right = pbio_servo_update_loop_is_running(self->rb->right);
 
     mdrobotbase_motion_stop(self, true);
-    if (odometry_err == PBIO_ERROR_NO_DEV) {
-      char bad_port;
-      if (self->rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS && self->last_left_error != PBIO_SUCCESS) {
-        bad_port = (char)self->left_port;
-      } else if (self->rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS && self->last_right_error != PBIO_SUCCESS) {
-        bad_port = (char)self->right_port;
-      } else if (self->last_left_error != PBIO_SUCCESS) {
-        bad_port = (char)self->left_port;
-      } else if (self->last_right_error != PBIO_SUCCESS) {
-        bad_port = (char)self->right_port;
-      } else {
-        bad_port = (char)self->right_port;
-      }
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (odometry Port %c disconnected)"), bad_port);
-    }
     return pb_type_mdrobotbase_raise_motion_error(self, odometry_err);
   }
 
@@ -1201,27 +1185,17 @@ static mp_obj_t pb_type_MDRobotBase_reset_state(size_t n_args,
   } else if (err == PBIO_ERROR_INVALID_ARG) {
     mp_raise_ValueError(MP_ERROR_TEXT("state coordinates and gyro heading must be finite numbers"));
   } else if (err == PBIO_ERROR_NO_DEV) {
-    bool left_ok = pbio_servo_update_loop_is_running(self->rb->left);
-    bool right_ok = pbio_servo_update_loop_is_running(self->rb->right);
-    if (!left_ok && !right_ok) {
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Ports %c and %c)"),
-                        self->left_port ? (char)self->left_port : '?',
-                        self->right_port ? (char)self->right_port : '?');
-    } else if (!left_ok) {
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c)"),
-                        self->left_port ? (char)self->left_port : '?');
-    } else if (!right_ok) {
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c)"),
-                        self->right_port ? (char)self->right_port : '?');
-    } else {
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c or %c)"),
-                        self->left_port ? (char)self->left_port : '?',
-                        self->right_port ? (char)self->right_port : '?');
-    }
+    char bad_port = (self->rb->last_left_error != PBIO_SUCCESS && self->left_port) ? (char)self->left_port :
+                    (self->rb->last_right_error != PBIO_SUCCESS && self->right_port) ? (char)self->right_port :
+                    self->left_port ? (char)self->left_port :
+                    self->right_port ? (char)self->right_port : '?';
+    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected: Port %c"), bad_port);
   } else if (err == PBIO_ERROR_IO) {
-    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed (Port %c or %c)"),
-                      self->left_port ? (char)self->left_port : '?',
-                      self->right_port ? (char)self->right_port : '?');
+    char bad_port = (self->rb->last_left_error != PBIO_SUCCESS && self->left_port) ? (char)self->left_port :
+                    (self->rb->last_right_error != PBIO_SUCCESS && self->right_port) ? (char)self->right_port :
+                    self->left_port ? (char)self->left_port :
+                    self->right_port ? (char)self->right_port : '?';
+    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed: Port %c"), bad_port);
   } else if (err != PBIO_SUCCESS) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase reset_state failed"));
   }
@@ -1252,34 +1226,24 @@ static mp_obj_t pb_type_MDRobotBase_update_state(size_t n_args,
   pbio_error_t err = pbio_mdrobotbase_update_state(self->rb, gyro_val);
   if (err == PBIO_ERROR_IMU_FAILED) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
-  } else if (err == PBIO_ERROR_INVALID_ARG) {
+  } else if (err == PBIO_ERROR_INVALID_ARG || err == PBIO_ERROR_ODOMETRY_FAILED) {
     mp_raise_ValueError(MP_ERROR_TEXT("MDRobotBase odometry state is invalid"));
   } else if (err == PBIO_ERROR_NO_DEV) {
-    bool left_ok = pbio_servo_update_loop_is_running(self->rb->left);
-    bool right_ok = pbio_servo_update_loop_is_running(self->rb->right);
-    if (!left_ok && !right_ok) {
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Ports %c and %c)"),
-                        self->left_port ? (char)self->left_port : '?',
-                        self->right_port ? (char)self->right_port : '?');
-    } else if (!left_ok) {
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c)"),
-                        self->left_port ? (char)self->left_port : '?');
-    } else if (!right_ok) {
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c)"),
-                        self->right_port ? (char)self->right_port : '?');
-    } else {
-      mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected (Port %c or %c)"),
-                        self->left_port ? (char)self->left_port : '?',
-                        self->right_port ? (char)self->right_port : '?');
-    }
+    char bad_port = (self->rb->last_left_error != PBIO_SUCCESS && self->left_port) ? (char)self->left_port :
+                    (self->rb->last_right_error != PBIO_SUCCESS && self->right_port) ? (char)self->right_port :
+                    self->left_port ? (char)self->left_port :
+                    self->right_port ? (char)self->right_port : '?';
+    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected: Port %c"), bad_port);
   } else if (err == PBIO_ERROR_IO) {
-    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed (Port %c or %c)"),
-                      self->left_port ? (char)self->left_port : '?',
-                      self->right_port ? (char)self->right_port : '?');
+    char bad_port = (self->rb->last_left_error != PBIO_SUCCESS && self->left_port) ? (char)self->left_port :
+                    (self->rb->last_right_error != PBIO_SUCCESS && self->right_port) ? (char)self->right_port :
+                    self->left_port ? (char)self->left_port :
+                    self->right_port ? (char)self->right_port : '?';
+    mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed: Port %c"), bad_port);
   } else if (err == PBIO_ERROR_AGAIN || err == PBIO_ERROR_BUSY) {
     // Transient failure: retry on next cycle without raising error
     return mp_const_none;
-  } else if (err == PBIO_ERROR_ODOMETRY_FAILED || err != PBIO_SUCCESS) {
+  } else if (err != PBIO_SUCCESS) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase odometry update failed"));
   }
 

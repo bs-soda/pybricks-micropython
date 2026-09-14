@@ -4,6 +4,21 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T20:55:00+07:00` — **G-MDRB-036 Master Motor Lifecycle Restoration and Port B Regression Fix Certification**
+  - Completely resolved the Port B motor disconnection regression (`OSError: MDRobotBase motor is not connected (odometry Port B disconnected)`) and aligned motor lifecycle behavior with `master` baseline:
+    1. **Eliminated Premature Loop Checks in `motion_iterate_once`:** In [`pybricks/robotics/pb_type_mdrobotbase.c#L720-L765`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/pybricks/robotics/pb_type_mdrobotbase.c#L720-L765), removed premature `!loop_l || !loop_r` device-presence checks that aborted motion during concurrent motor operations (such as `m.py` running `navigator.move_front_arm_angle` concurrently with `robot.turn_to_angle`).
+    2. **Decoupled Controller State from Device Presence:** Enforced that `pbio_servo_update_loop_is_running` reflects only PID controller tracking status, not physical hardware presence. Actual device connectivity is governed exclusively by authoritative driver queries via `pbio_servo_get_state_control` within a strict persistence window ($\ge 500\,\text{ms}$ and $\ge 20\,\text{ticks}$).
+    3. **Bitwise Master Parity in Servo Core:** Verified that [`lib/pbio/src/servo.c`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/src/servo.c) and [`lib/pbio/test/src/test_servo.c`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/test/src/test_servo.c) remain 100% bitwise-identical to `master` (0 diff lines).
+    4. **Standardized Port-Specific Error Messaging:** Unified error messages across C and Python VirtualHub to exact required formats (`MDRobotBase motor is not connected: Port %c`, `MDRobotBase motor communication failed: Port %c`, `MDRobotBase odometry state is invalid`, `MDRobotBase LQR controller failed`).
+    5. **Comprehensive Verification Test Class:** Added `TestMDRobotBaseMpyHardwareLifecycleAndOdometry` (11 tests) in [`tests/virtualhub/robotics/test_mdrobotbase_lqr.py`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/tests/virtualhub/robotics/test_mdrobotbase_lqr.py) covering concurrent 6-port motor operations, gear ratio and midpoint odometry verification, LQR SI units, reverse motion, and persistent vs transient error handling.
+    6. **Empirical Quality Verification:**
+       - 86/86 VirtualHub LQR tests passed (100%).
+       - 36/36 Native PBIO MDRobotBase C unit tests passed (100%).
+       - 3/3 Native PBIO Servo C unit tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` firmware build (`firmware.zip` generated).
+       - Clean `git diff --check` (0 formatting/whitespace errors).
+  - Detailed certification report exported to [`docs/06_raw/20260914_205500_master_motor_lifecycle_restoration_and_port_b_regression_fix_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_205500_master_motor_lifecycle_restoration_and_port_b_regression_fix_certification.md).
+
 - `2026-09-14T16:05:00+07:00` — **Master Motor Lifecycle Restoration & Port B Regression Resolution**
   - Resolved user report on live physical hardware running `m.py`: `OSError: MDRobotBase motor is not connected (odometry Port B disconnected)`:
     1. **Restored Master Servo Lifecycle:** Fully reverted `lib/pbio/src/servo.c` and `lib/pbio/test/src/test_servo.c` to a 100% bitwise-identical match with `master`. All 3 native servo unit tests pass cleanly.

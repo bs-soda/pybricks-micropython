@@ -2027,5 +2027,334 @@ class TestMDRobotBaseOdometryLQRIntegration(unittest.TestCase):
             robot.close()
 
 
+
+class TestMDRobotBaseMpyHardwareLifecycleAndOdometry(unittest.TestCase):
+    """
+    Test suite certifying exact m.py robot configuration, lifecycle compatibility,
+    and odometry / LQR invariants per G-MDRB-036 acceptance criteria.
+    """
+
+    def setUp(self):
+        MDRobotBase.deinit_all()
+
+    def tearDown(self):
+        MDRobotBase.deinit_all()
+
+    def test_port_a_and_port_b_connect_successfully(self):
+        """Port A and Port B connect successfully without error or false disconnection."""
+        motor_a = Motor(Port.A)
+        motor_b = Motor(Port.B)
+        robot = MDRobotBase(
+            left_motor=motor_a,
+            right_motor=motor_b,
+            wheel_diameter=56.0,
+            axle_track=112.0
+        )
+        try:
+            robot.reset_state(0.0, 0.0, 0.0)
+            self.assertFalse(robot._is_closed)
+            x, y, theta = robot.get_state()[:3]
+            self.assertEqual((x, y, theta), (0.0, 0.0, 0.0))
+        finally:
+            robot.close()
+
+    def test_exact_motor_setup_from_m_py(self):
+        """Exact motor setup and gains from m.py configure without errors."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+        front_arm = Motor(Port.E)
+        back_arm = Motor(Port.A)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+            robot.reset_state(2150.0, 555.0, 0.0, 0.0)
+            robot.set_max_angular_speed(1000.0)
+            robot.set_controller(1)  # 1 = LQR
+            robot.set_pid_gains(10.0, 0.0, 0.1)
+            robot.set_lqr_gains(k_x=1.5, k_y=2.5, k_theta=8.0)
+            robot.set_backlash_filter(True)
+            robot.set_backlash_limits(left_limit=1.2, right_limit=1.2)
+
+            self.assertEqual(robot.get_gear_ratio(), 0.53)
+            self.assertEqual(robot.get_controller(), 1)
+            self.assertEqual(robot.get_lqr_gains(), (1.5, 2.5, 8.0))
+            x, y, theta = robot.get_state()[:3]
+            self.assertEqual(x, 2150.0)
+            self.assertEqual(y, 555.0)
+            self.assertEqual(theta, 0.0)
+        finally:
+            robot.close()
+
+    def test_first_odometry_update_has_zero_displacement(self):
+        """First odometry update after reset_state establishes baseline with zero displacement."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+        left_motor._angle = 450.0
+        right_motor._angle = 980.0
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+            robot.reset_state(100.0, 200.0, 30.0, 30.0)
+            # First tick update with no motor motion
+            robot.update_state(30.0)
+            x, y, theta = robot.get_state()[:3]
+            self.assertAlmostEqual(x, 100.0, places=4)
+            self.assertAlmostEqual(y, 200.0, places=4)
+            self.assertAlmostEqual(theta, 30.0, places=4)
+        finally:
+            robot.close()
+
+    def test_forward_motion_advances_x(self):
+        """Forward motion advances x coordinate according to wheel diameter and gear ratio."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+            robot.set_backlash_filter(False)
+            robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            # Rotate both motors forward by 100 degrees
+            left_motor._angle += 100.0
+            right_motor._angle += 100.0
+            robot.update_state(0.0)
+
+            expected_dist = (100.0 / 0.53 / 360.0) * math.pi * 63.4
+            x, y, theta = robot.get_state()[:3]
+            self.assertAlmostEqual(x, expected_dist, delta=1.0)
+            self.assertAlmostEqual(y, 0.0, delta=0.5)
+            self.assertAlmostEqual(theta, 0.0, delta=0.5)
+        finally:
+            robot.close()
+
+    def test_left_right_wheel_motion_produces_correct_heading(self):
+        """Right-more-than-left increases heading; left-more-than-right decreases heading."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+            robot.set_backlash_filter(False)
+            robot.set_fusion_alpha(0.0)  # Pure encoder odometry
+            robot.reset_state(0.0, 0.0, 0.0, 0.0)
+
+            # Advance right wheel by 50 deg, keep left wheel at 0
+            right_motor._angle += 50.0
+            robot.update_state(0.0)
+
+            d_right = (50.0 / 0.53 / 360.0) * math.pi * 63.4
+            d_left = 0.0
+            expected_d_theta_deg = ((d_right - d_left) / 160.0) * (180.0 / math.pi)
+
+            x, y, theta = robot.get_state()[:3]
+            self.assertGreater(theta, 0.0)
+            self.assertAlmostEqual(theta, expected_d_theta_deg, delta=1.5)
+
+            # Advance left wheel by 100 deg (left > right now)
+            left_motor._angle += 100.0
+            robot.update_state(0.0)
+            x2, y2, theta2 = robot.get_state()[:3]
+            self.assertLess(theta2, theta)
+        finally:
+            robot.close()
+
+    def test_port_b_remains_valid_during_navigation(self):
+        """Port B remains valid throughout autonomous navigation without disconnection error."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+            robot.reset_state(2150.0, 555.0, 0.0, 0.0)
+            robot.set_controller(1)  # LQR
+            robot.set_lqr_gains(k_x=1.5, k_y=2.5, k_theta=8.0)
+
+            # Navigate forward by 50mm
+            asyncio.run(robot.navigate_to_goal(2200.0, 555.0, speed_mm_s=200.0))
+            self.assertFalse(robot._motion_in_progress)
+            x, y, theta = robot.get_state()[:3]
+            self.assertAlmostEqual(x, 2200.0, delta=2.0)
+            self.assertAlmostEqual(y, 555.0, delta=2.0)
+        finally:
+            robot.close()
+
+    def test_lqr_navigation_follows_same_pose_convention(self):
+        """LQR navigation follows the same global frame pose convention as odometry."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+            robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            robot.set_controller(1)
+            robot.set_lqr_gains(k_x=1.5, k_y=2.5, k_theta=8.0)
+
+            asyncio.run(robot.navigate_to_goal(150.0, 50.0, speed_mm_s=250.0))
+            self.assertFalse(robot._motion_in_progress)
+            x, y, theta = robot.get_state()[:3]
+            self.assertAlmostEqual(x, 150.0, delta=3.0)
+            self.assertAlmostEqual(y, 50.0, delta=3.0)
+        finally:
+            robot.close()
+
+    def test_forward_and_reverse_motion(self):
+        """Both forward and reverse navigation succeed with correct sign kinematics."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+            robot.reset_state(100.0, 100.0, 0.0, 0.0)
+            robot.set_controller(1)
+            robot.set_lqr_gains(k_x=1.5, k_y=2.5, k_theta=8.0)
+
+            # Forward
+            asyncio.run(robot.navigate_to_goal(180.0, 100.0, speed_mm_s=200.0, backward=False))
+            self.assertAlmostEqual(robot.get_state()[0], 180.0, delta=2.0)
+
+            # Reverse (backward=True)
+            asyncio.run(robot.navigate_to_goal(100.0, 100.0, speed_mm_s=200.0, backward=True))
+            self.assertAlmostEqual(robot.get_state()[0], 100.0, delta=2.0)
+        finally:
+            robot.close()
+
+    def test_gyro_only_encoder_only_and_fused_odometry(self):
+        """Verify gyro-only (alpha=1), encoder-only (alpha=0), and fused (alpha=0.95) modes."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+
+            # 1. Gyro-only (alpha = 1.0)
+            robot.set_fusion_alpha(1.0)
+            robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            # Turn wheels differentially but keep gyro heading at 0
+            right_motor._angle += 50.0
+            robot.update_state(0.0)
+            self.assertAlmostEqual(robot.get_state()[2], 0.0, delta=0.01)
+            # Now rotate gyro heading to 25 deg
+            robot.update_state(-25.0)
+            self.assertAlmostEqual(robot.get_state()[2], 25.0, delta=0.5)
+
+            # 2. Encoder-only (alpha = 0.0)
+            robot.set_fusion_alpha(0.0)
+            robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            # Rotate gyro heading but do not move wheels
+            robot.update_state(45.0)
+            self.assertAlmostEqual(robot.get_state()[2], 0.0, delta=0.01)
+
+            # 3. Fused (alpha = 0.95)
+            robot.set_fusion_alpha(0.95)
+            self.assertAlmostEqual(robot.get_fusion_alpha(), 0.95, delta=0.001)
+        finally:
+            robot.close()
+
+    def test_no_false_motor_disconnected_error(self):
+        """Transient communication glitch on Port B is retried and never falsely reported disconnected."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            # Simulate 5 transient glitches (< 20 threshold)
+            right_motor._io_error = True
+            for _ in range(5):
+                robot.update_state(0.0)
+            self.assertEqual(robot.get_failure_counters()[1], 5)
+
+            # Bus recovers
+            right_motor._io_error = False
+            robot.update_state(0.0)
+            self.assertEqual(robot.get_failure_counters(), (0, 0))
+        finally:
+            robot.close()
+
+    def test_real_disconnected_port_b_still_produces_clear_error(self):
+        """Real disconnected Port B motor raises exact 'MDRobotBase motor is not connected: Port B'."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            right_motor.connected = False
+
+            with self.assertRaises(OSError) as ctx:
+                asyncio.run(robot.navigate_to_goal(100.0, 0.0))
+            self.assertIn("MDRobotBase motor is not connected: Port B", str(ctx.exception))
+        finally:
+            right_motor.connected = True
+            robot.close()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -125,6 +125,8 @@ pbio_error_t pbio_mdrobotbase_init(pbio_mdrobotbase_t *rb, pbio_servo_t *left, p
     rb->last_right_deg = NAN;
     rb->last_gyro_heading = 0.0f;
     rb->state_initialized = false;
+    rb->imu_ready = true;
+    rb->imu_latch_needed = false;
 
     // Latch baseline positions if servos are ready, but preserve state_initialized = false
     // so first valid update_state establishes encoder and gyro baselines atomically.
@@ -1131,7 +1133,7 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
     if (!rb || !rb->left || !rb->right || !isfinite(x) || !isfinite(y) || !isfinite(theta)) {
         return PBIO_ERROR_INVALID_ARG;
     }
-    if (rb->fusion_alpha > 0.0f && !isfinite(gyro_heading)) {
+    if (rb->fusion_alpha > 0.0f && rb->imu_ready && !isfinite(gyro_heading)) {
         return PBIO_ERROR_IMU_FAILED;
     }
     if (!isfinite(gyro_heading)) {
@@ -1171,6 +1173,7 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
     rb->last_left_deg = left_deg;
     rb->last_right_deg = right_deg;
     rb->last_gyro_heading = gyro_heading;
+    rb->imu_latch_needed = !rb->imu_ready;
     rb->last_accel_x = 0.0f;
     rb->state_initialized = true;
     rb->backlash_left_accum = 0.0f;
@@ -1191,7 +1194,7 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
         return PBIO_ERROR_INVALID_ARG;
     }
 
-    if (rb->fusion_alpha > 0.0f && !isfinite(gyro_heading)) {
+    if (rb->fusion_alpha > 0.0f && rb->imu_ready && !isfinite(gyro_heading)) {
         return PBIO_ERROR_IMU_FAILED;
     }
 
@@ -1224,7 +1227,8 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     if (!rb->state_initialized || isnan(rb->last_left_deg) || isnan(rb->last_right_deg)) {
         rb->last_left_deg = left_deg;
         rb->last_right_deg = right_deg;
-        rb->last_gyro_heading = isfinite(gyro_heading) ? gyro_heading : 0.0f;
+        rb->last_gyro_heading = (rb->imu_ready && isfinite(gyro_heading)) ? gyro_heading : 0.0f;
+        rb->imu_latch_needed = !rb->imu_ready;
         rb->state_initialized = true;
         return PBIO_SUCCESS;
     }
@@ -1281,8 +1285,14 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     float d_right = (d_right_ticks / 360.0f) * 3.14159265f * diam_right_mm;
     float d_center = (d_left + d_right) / 2.0f;
 
+    float effective_alpha = (rb->imu_ready && isfinite(gyro_heading)) ? rb->fusion_alpha : 0.0f;
+
     float delta_theta_gyro = 0.0f;
-    if (isfinite(gyro_heading)) {
+    if (rb->imu_ready && isfinite(gyro_heading)) {
+        if (rb->imu_latch_needed) {
+            rb->last_gyro_heading = gyro_heading;
+            rb->imu_latch_needed = false;
+        }
         delta_theta_gyro = -(gyro_heading - rb->last_gyro_heading);
         while (delta_theta_gyro > 180.0f) delta_theta_gyro -= 360.0f;
         while (delta_theta_gyro < -180.0f) delta_theta_gyro += 360.0f;
@@ -1292,7 +1302,7 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     float delta_theta_enc_rad = (d_right - d_left) / track_mm;
     float delta_theta_enc_deg = delta_theta_enc_rad * (180.0f / 3.14159265f);
 
-    float delta_theta = rb->fusion_alpha * delta_theta_gyro + (1.0f - rb->fusion_alpha) * delta_theta_enc_deg;
+    float delta_theta = effective_alpha * delta_theta_gyro + (1.0f - effective_alpha) * delta_theta_enc_deg;
 
     if (rb->motion_type == PBIO_MDROBOTBASE_MOTION_TURN) {
         // Pure spin turn: center point does not translate linearly
@@ -1461,6 +1471,30 @@ pbio_error_t pbio_mdrobotbase_get_fusion_alpha(pbio_mdrobotbase_t *rb, float *al
         return PBIO_ERROR_INVALID_ARG;
     }
     *alpha = rb->fusion_alpha;
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_set_imu_ready(pbio_mdrobotbase_t *rb, bool ready) {
+    if (!rb) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    if (!ready) {
+        rb->imu_ready = false;
+        rb->imu_latch_needed = true;
+    } else {
+        if (!rb->imu_ready) {
+            rb->imu_latch_needed = true;
+        }
+        rb->imu_ready = true;
+    }
+    return PBIO_SUCCESS;
+}
+
+pbio_error_t pbio_mdrobotbase_get_imu_ready(pbio_mdrobotbase_t *rb, bool *ready) {
+    if (!rb || !ready) {
+        return PBIO_ERROR_INVALID_ARG;
+    }
+    *ready = rb->imu_ready;
     return PBIO_SUCCESS;
 }
 

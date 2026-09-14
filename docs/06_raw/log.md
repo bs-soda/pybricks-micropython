@@ -4,6 +4,22 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T11:50:00+07:00` — **G-MDRB-036 MDRobotBase Dynamic Automatic Encoder Fallback & IMU Readiness Certification**
+  - Addressed Codex review finding on commit `b018f9dc` regarding IMU readiness startup halt under default `fusion_alpha = 0.95`:
+    1. **Dynamic Automatic Encoder Fallback:** Eliminated the rigid requirement where `fusion_alpha > 0.0f` caused motion to abort after 500 ms with `RuntimeError("MDRobotBase IMU heading unavailable")` when `!pbio_imu_is_ready()`. Implemented dynamic fallback where `effective_alpha = (rb->imu_ready && isfinite(gyro_heading)) ? rb->fusion_alpha : 0.0f;`, enabling seamless encoder-only odometry whenever the IMU is unready or calibrating, even under default `fusion_alpha = 0.95`.
+    2. **Atomic IMU Readiness Baseline Latching:** Added `imu_ready` and `imu_latch_needed` state tracking to `pbio_mdrobotbase_t`. On the exact tick where `imu_ready` transitions to `true`, `last_gyro_heading` is atomically latched to `gyro_heading`, ensuring $\Delta\theta_{\text{gyro}} = 0.0$ on the first fused step and eliminating angular heading jumps.
+    3. **Preserved Explicit Error Classification:** Retained dedicated `PBIO_ERROR_IMU_FAILED` (`RuntimeError("MDRobotBase IMU heading unavailable")`) strictly for corrupt/non-finite gyro inputs explicitly passed to odometry methods, while keeping the 500 ms monotonic startup retry window dedicated to physical motor connectivity (`PBIO_ERROR_NO_DEV`, `PBIO_ERROR_IO`).
+    4. **Public Readiness Control & Inspection:** Added `set_imu_ready(bool)` and `get_imu_ready()` to both C PBIO / MicroPython APIs and VirtualHub Python mock layer for deterministic hardware and unit test control.
+    5. **Empirical Quality Gates:**
+       - 35/35 Native PBIO mdrobotbase tests passed (100%).
+       - 95/95 All native PBIO C tests passed (100%).
+       - 71/71 VirtualHub LQR tests passed (100%).
+       - 141/141 All VirtualHub Python tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` build (`.text`: 354,800 B, `.data`: 736 B, `.bss`: 43,600 B).
+       - `git diff --check` passed cleanly with 0 whitespace issues.
+       - `bash scripts/ci/governance-check.sh` passed with all submodules and commit formatting verified.
+  - Audit report exported to [`docs/06_raw/20260914_115000_g_mdrb_036_automatic_encoder_fallback_and_dynamic_imu_readiness_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_115000_g_mdrb_036_automatic_encoder_fallback_and_dynamic_imu_readiness_certification.md).
+
 - `2026-09-14T10:30:00+07:00` — **G-MDRB-036 IMU Heading Validity, Dedicated Error Classification & Encoder-Only Fallback Certification**
   - Remediated the remaining review finding and hardware verification gap identified by Codex:
     1. **Dedicated Error Code (`PBIO_ERROR_IMU_FAILED`):** Added to `lib/pbio/include/pbio/error.h`, mapped to `"MDRobotBase IMU heading unavailable"` in `lib/pbio/src/error.c`, and exposed as `RuntimeError("MDRobotBase IMU heading unavailable")` in `pybricks/util_pb/pb_error.c` and `pybricks/robotics/pb_type_mdrobotbase.c`. Eliminated the misleading message `"LQR controller received invalid pose or configuration"` on IMU failure.

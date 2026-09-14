@@ -1830,18 +1830,48 @@ class TestMDRobotBaseOdometryLQRIntegration(unittest.TestCase):
         finally:
             robot.close()
 
-    def test_imu_heading_unavailable_startup_retry_times_out(self):
-        """When IMU remains unavailable through the 500ms startup window, motion fails closed with RuntimeError."""
+    def test_automatic_encoder_fallback_when_imu_unready_default_fusion(self):
+        """When IMU remains unready under default fusion_alpha, motion automatically falls back to encoder odometry and succeeds."""
+        motor_c = Motor(Port.C)
+        motor_d = Motor(Port.D)
+        robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
+        try:
+            self.assertGreater(robot.get_fusion_alpha(), 0.0)
+            robot.set_imu_ready(False)
+            self.assertFalse(robot.get_imu_ready())
+
+            # Navigation with unready IMU should succeed via automatic encoder fallback
+            asyncio.run(robot.navigate_to_goal(100.0, 0.0))
+            x, y, theta = robot.get_state()
+            self.assertAlmostEqual(x, 100.0, places=1)
+            self.assertFalse(robot._motion_in_progress)
+        finally:
+            robot.close()
+
+    def test_dynamic_imu_transition_atomic_baseline_latch(self):
+        """When IMU becomes ready mid-motion, baseline heading is latched atomically without angle discontinuity."""
         motor_c = Motor(Port.C)
         motor_d = Motor(Port.D)
         robot = MDRobotBase(motor_c, motor_d, 56.0, 112.0)
         try:
             robot.set_fusion_alpha(0.8)
-            robot._imu_ready = False
+            robot.set_imu_ready(False)
+            robot._imu_heading = 45.0
 
-            with self.assertRaises(RuntimeError) as ctx:
-                asyncio.run(robot.navigate_to_goal(100.0, 0.0))
-            self.assertIn("MDRobotBase IMU heading unavailable", str(ctx.exception))
+            async def make_imu_ready_mid_motion():
+                await asyncio.sleep(0.020)
+                robot.set_imu_ready(True)
+
+            async def run_motion():
+                t = asyncio.create_task(make_imu_ready_mid_motion())
+                await robot.navigate_to_goal(100.0, 0.0)
+                await t
+
+            asyncio.run(run_motion())
+            x, y, theta = robot.get_state()
+            self.assertAlmostEqual(x, 100.0, places=1)
+            # The heading should not jump 45 degrees when IMU becomes ready
+            self.assertAlmostEqual(theta, 0.0, delta=2.0)
             self.assertFalse(robot._motion_in_progress)
         finally:
             robot.close()

@@ -3563,6 +3563,29 @@ static pbio_error_t test_mdrobotbase_imu_heading_error_and_encoder_fallback(pbio
     tt_want(rb->state_initialized);
     tt_want(rb->theta == 0.0f);
 
+    // 4. Dynamic automatic encoder fallback when imu_ready == false under fusion_alpha > 0.0f
+    tt_uint_op(pbio_mdrobotbase_set_fusion_alpha(rb, 0.95f), ==, PBIO_SUCCESS);
+    tt_want(rb->fusion_alpha == 0.95f);
+    bool ready_flag = false;
+    tt_uint_op(pbio_mdrobotbase_get_imu_ready(rb, &ready_flag), ==, PBIO_SUCCESS);
+    tt_want(ready_flag == true);
+
+    // Unready IMU triggers automatic encoder fallback even if gyro is NaN
+    tt_uint_op(pbio_mdrobotbase_set_imu_ready(rb, false), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_get_imu_ready(rb, &ready_flag), ==, PBIO_SUCCESS);
+    tt_want(ready_flag == false);
+    tt_want(rb->imu_latch_needed == true);
+
+    // update_state succeeds cleanly under encoder fallback
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, NAN), ==, PBIO_SUCCESS);
+    tt_want(rb->imu_latch_needed == true);
+
+    // When IMU becomes ready, next update latches baseline atomically and clears latch_needed
+    tt_uint_op(pbio_mdrobotbase_set_imu_ready(rb, true), ==, PBIO_SUCCESS);
+    tt_uint_op(pbio_mdrobotbase_update_state(rb, 45.0f), ==, PBIO_SUCCESS);
+    tt_want(rb->imu_latch_needed == false);
+    tt_want(rb->last_gyro_heading == 45.0f);
+
     tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
 
 end:

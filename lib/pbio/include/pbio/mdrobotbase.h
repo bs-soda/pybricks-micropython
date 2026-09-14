@@ -190,6 +190,8 @@ typedef struct _pbio_mdrobotbase_t {
     float last_right_deg;
     float last_gyro_heading;
     bool state_initialized;
+    bool imu_ready;
+    bool imu_latch_needed;
     float fusion_alpha;
     float gear_ratio;
     float last_accel_x;
@@ -340,6 +342,8 @@ pbio_error_t pbio_mdrobotbase_set_wheel_diameters(pbio_mdrobotbase_t *rb, int32_
 pbio_error_t pbio_mdrobotbase_get_wheel_diameters(pbio_mdrobotbase_t *rb, int32_t *left, int32_t *right);
 pbio_error_t pbio_mdrobotbase_set_fusion_alpha(pbio_mdrobotbase_t *rb, float alpha);
 pbio_error_t pbio_mdrobotbase_get_fusion_alpha(pbio_mdrobotbase_t *rb, float *alpha);
+pbio_error_t pbio_mdrobotbase_set_imu_ready(pbio_mdrobotbase_t *rb, bool ready);
+pbio_error_t pbio_mdrobotbase_get_imu_ready(pbio_mdrobotbase_t *rb, bool *ready);
 pbio_error_t pbio_mdrobotbase_set_gear_ratio(pbio_mdrobotbase_t *rb, float ratio);
 pbio_error_t pbio_mdrobotbase_get_gear_ratio(pbio_mdrobotbase_t *rb, float *ratio);
 pbio_error_t pbio_mdrobotbase_get_motion_status(const pbio_mdrobotbase_t *rb, pbio_mdrobotbase_motion_status_t *status);

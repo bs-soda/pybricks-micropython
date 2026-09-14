@@ -714,24 +714,7 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
   // 1. Update Odometry State
   float gyro_heading = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
   bool imu_ready = isfinite(gyro_heading) && pbio_imu_is_ready();
-
-  if (self->rb->fusion_alpha > 0.0f && !imu_ready) {
-    uint32_t now = pbdrv_clock_get_ms();
-    if (!self->motion_started) {
-      if (self->startup_retry_start_ms == 0) {
-        self->startup_retry_start_ms = now;
-      }
-      if ((uint32_t)(now - self->startup_retry_start_ms) < 500) {
-        return PBIO_ERROR_AGAIN;
-      }
-    }
-    mdrobotbase_motion_stop(self, true);
-    return pb_type_mdrobotbase_raise_motion_error(self, PBIO_ERROR_IMU_FAILED);
-  }
-
-  if (self->rb->fusion_alpha == 0.0f && !imu_ready) {
-    gyro_heading = 0.0f;
-  }
+  pbio_mdrobotbase_set_imu_ready(self->rb, imu_ready);
 
   pbio_error_t odometry_err =
       pbio_mdrobotbase_update_state(self->rb, gyro_heading);
@@ -744,8 +727,8 @@ static pbio_error_t pb_type_mdrobotbase_motion_iterate_once(pbio_os_state_t *sta
   uint32_t now = pbdrv_clock_get_ms();
 
   // Transient readiness retry for initial startup / task scheduling delays.
-  // Retries up to 500ms for transient motor readiness (NO_DEV or IO) or IMU failure before failing.
-  if ((odometry_err == PBIO_ERROR_NO_DEV || odometry_err == PBIO_ERROR_IO || odometry_err == PBIO_ERROR_IMU_FAILED) && !self->motion_started) {
+  // Retries up to 500ms for transient motor readiness (NO_DEV or IO) before failing.
+  if ((odometry_err == PBIO_ERROR_NO_DEV || odometry_err == PBIO_ERROR_IO) && !self->motion_started) {
     if (self->startup_retry_start_ms == 0) {
       self->startup_retry_start_ms = now;
     }
@@ -1165,10 +1148,9 @@ static mp_obj_t pb_type_MDRobotBase_reset_state(size_t n_args,
   if (gyro_heading_in != mp_const_none) {
     gyro_val = mp_obj_get_float(gyro_heading_in);
   } else {
-    if (self->rb->fusion_alpha > 0.0f && !pbio_imu_is_ready()) {
-      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
-    }
-    gyro_val = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
+    bool imu_ready = pbio_imu_is_ready();
+    pbio_mdrobotbase_set_imu_ready(self->rb, imu_ready);
+    gyro_val = imu_ready ? pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D) : 0.0f;
   }
 
   pbio_error_t err = pbio_mdrobotbase_reset_state(self->rb, x_val, y_val, theta_val,
@@ -1203,10 +1185,9 @@ static mp_obj_t pb_type_MDRobotBase_update_state(size_t n_args,
   if (gyro_heading_in != mp_const_none) {
     gyro_val = mp_obj_get_float(gyro_heading_in);
   } else {
-    if (self->rb->fusion_alpha > 0.0f && !pbio_imu_is_ready()) {
-      mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
-    }
-    gyro_val = pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D);
+    bool imu_ready = pbio_imu_is_ready();
+    pbio_mdrobotbase_set_imu_ready(self->rb, imu_ready);
+    gyro_val = imu_ready ? pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D) : 0.0f;
   }
 
   pbio_error_t err = pbio_mdrobotbase_update_state(self->rb, gyro_val);
@@ -1330,6 +1311,36 @@ static mp_obj_t pb_type_MDRobotBase_get_fusion_alpha(mp_obj_t self_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_fusion_alpha_obj,
                                  pb_type_MDRobotBase_get_fusion_alpha);
+
+// pybricks.robotics.MDRobotBase.set_imu_ready
+static mp_obj_t pb_type_MDRobotBase_set_imu_ready(size_t n_args,
+                                                  const mp_obj_t *pos_args,
+                                                  mp_map_t *kw_args) {
+  PB_PARSE_ARGS_METHOD(n_args, pos_args, kw_args, pb_type_MDRobotBase_obj_t,
+                       self, PB_ARG_REQUIRED(ready));
+  pb_type_mdrobotbase_require_open(self);
+  bool ready = mp_obj_is_true(ready_in);
+  pbio_error_t err = pbio_mdrobotbase_set_imu_ready(self->rb, ready);
+  if (err != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to set IMU readiness"));
+  }
+  return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pb_type_MDRobotBase_set_imu_ready_obj, 1,
+                                  pb_type_MDRobotBase_set_imu_ready);
+
+// pybricks.robotics.MDRobotBase.get_imu_ready
+static mp_obj_t pb_type_MDRobotBase_get_imu_ready(mp_obj_t self_in) {
+  pb_type_MDRobotBase_obj_t *self = MP_OBJ_TO_PTR(self_in);
+  pb_type_mdrobotbase_require_open(self);
+  bool ready = false;
+  if (pbio_mdrobotbase_get_imu_ready(self->rb, &ready) != PBIO_SUCCESS) {
+    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to get IMU readiness"));
+  }
+  return mp_obj_new_bool(ready);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pb_type_MDRobotBase_get_imu_ready_obj,
+                                 pb_type_MDRobotBase_get_imu_ready);
 
 // pybricks.robotics.MDRobotBase.set_gear_ratio
 static mp_obj_t pb_type_MDRobotBase_set_gear_ratio(mp_obj_t self_in, mp_obj_t ratio_in) {
@@ -2841,6 +2852,10 @@ static const mp_rom_map_elem_t pb_type_MDRobotBase_locals_dict_table[] = {
      MP_ROM_PTR(&pb_type_MDRobotBase_set_fusion_alpha_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_fusion_alpha),
      MP_ROM_PTR(&pb_type_MDRobotBase_get_fusion_alpha_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_imu_ready),
+     MP_ROM_PTR(&pb_type_MDRobotBase_set_imu_ready_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_imu_ready),
+     MP_ROM_PTR(&pb_type_MDRobotBase_get_imu_ready_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_gear_ratio),
      MP_ROM_PTR(&pb_type_MDRobotBase_set_gear_ratio_obj)},
     {MP_ROM_QSTR(MP_QSTR_get_gear_ratio),

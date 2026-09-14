@@ -4,6 +4,14 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T13:35:00+07:00` — **Master vs Feature Architectural Diff & Motor Connection Deep-Dive Analysis**
+  - Conducted an exhaustive cross-branch deep dive between `master` (stable release) and `feature/mdrobotbase-enhancement`:
+    1. **Master Silent Failure Audit:** Discovered that in `master:pybricks/robotics/pb_type_mdrobotbase.c:L83`, `pbio_mdrobotbase_update_state(self->rb, gyro_heading)` return code was completely discarded. Motor presence was checked only via `pbio_servo_update_loop_is_running(srv)`. Transient UART LUMP `PBIO_ERROR_NO_DEV` returns were silently swallowed, allowing the robot to appear connected while odometry ran open-loop.
+    2. **Feature Fast-Tripping Disjunction Bug Audit:** In commit `70ab7e93`, `odometry_err` was surfaced and checked against `(elapsed >= 500ms || failures >= 20)`. Because async micro-steps run at ~2ms intervals, 20 ticks completed in only 40ms, tripping the persistence check and raising `OSError: MDRobotBase motor is not connected` long before the 500ms timeout.
+    3. **Official Pybricks Parity Audit:** Verified parity with official Pybricks `DriveBase` (`lib/pbio/src/drivebase.c` and `pybricks/robotics/pb_type_drivebase.c`), where motor disconnection is solely governed by `pbio_servo_update_loop_is_running(srv)` updated by the kernel task `pbio_servo_update_all()`.
+    4. **Remediation & Quality Verification:** Confirmed that commit `0b0c4b84` resolves the bug with strict `&&` conjunction, 500ms `reset_state` polling loop, 36/36 PBIO native tests, 146/146 VirtualHub tests, and clean bare-metal ARM Cortex-M4 `primehub_f4` build.
+  - Detailed architectural report exported to [`docs/06_raw/20260914_133500_master_vs_feature_architectural_diff_and_motor_connection_deep_dive.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_133500_master_vs_feature_architectural_diff_and_motor_connection_deep_dive.md).
+
 - `2026-09-14T13:07:00+07:00` — **G-MDRB-036 Strict Persistence Window & Startup Readiness Retry Certification**
   - Resolved the persistent false "MDRobotBase motor is not connected" regression on live PrimeHub hardware:
     1. **Strict Conjunction Requirement (`&&`):** Eliminated the premature persistence trigger caused by the logical `||` in `left_persistent` / `right_persistent`. Because async loops spin in microseconds on ARM Cortex-M4, 20 iterations occurred in < 2 ms. Enforced that non-stopped servo loops require BOTH elapsed monotonic time $\ge 500$ ms AND $\ge 20$ consecutive failure ticks before reporting disconnection.

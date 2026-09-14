@@ -1154,7 +1154,7 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
         bool right_running = pbio_servo_update_loop_is_running(rb->right);
 
         if (!left_running || !right_running) {
-            return PBIO_ERROR_NO_DEV;
+            return PBIO_ERROR_AGAIN;
         }
 
         if (err_l == PBIO_ERROR_NO_DEV || err_r == PBIO_ERROR_NO_DEV) {

@@ -112,8 +112,11 @@ class MDRobotBase:
         right_motor: Motor,
         *args,
         wheel_diameter: float = 56.0,
+        wheel_diameter_left: Optional[float] = None,
+        wheel_diameter_right: Optional[float] = None,
         axle_track: float = 112.0,
         debug: bool = False,
+        **kwargs,
     ):
         self.left_motor = left_motor
         self.right_motor = right_motor
@@ -167,6 +170,10 @@ class MDRobotBase:
             else:
                 self._wheel_diameter_left = float(args[0])
                 self._wheel_diameter_right = float(args[0])
+            self._axle_track = float(axle_track)
+        elif wheel_diameter_left is not None and wheel_diameter_right is not None:
+            self._wheel_diameter_left = float(wheel_diameter_left)
+            self._wheel_diameter_right = float(wheel_diameter_right)
             self._axle_track = float(axle_track)
         else:
             if isinstance(wheel_diameter, (tuple, list)):
@@ -869,6 +876,12 @@ class MDRobotBase:
         speed_deg_s: float = 200.0,
         tolerance: float = 1.0,
         timeout_ms: Optional[int] = None,
+        then: Any = None,
+        accel_angle: Optional[float] = None,
+        start_speed: Optional[float] = None,
+        decel_angle: Optional[float] = None,
+        end_speed: Optional[float] = None,
+        **kwargs,
     ):
         """Turns in-place to an absolute heading angle in degrees."""
         if not isinstance(target_angle, (int, float)) or not math.isfinite(target_angle):
@@ -947,6 +960,12 @@ class MDRobotBase:
         tolerance: float = 1.0,
         pivot_side: str = "left",
         timeout_ms: Optional[int] = None,
+        then: Any = None,
+        accel_angle: Optional[float] = None,
+        start_speed: Optional[float] = None,
+        decel_angle: Optional[float] = None,
+        end_speed: Optional[float] = None,
+        **kwargs,
     ):
         """Pivot turns around one wheel to an absolute heading."""
         if not isinstance(target_angle, (int, float)) or not math.isfinite(target_angle):
@@ -1018,14 +1037,35 @@ class MDRobotBase:
     @_require_open
     def navigate_to_goal(
         self,
-        x: Any,
-        y: Any,
+        *args,
+        x: Any = None,
+        y: Any = None,
+        goal_x: Any = None,
+        goal_y: Any = None,
+        goal_theta: Optional[float] = None,
         speed_mm_s: float = 200.0,
+        start_speed_mm_s: Optional[float] = None,
+        end_speed_mm_s: Optional[float] = None,
+        accel_dist_mm: Optional[float] = None,
+        decel_dist_mm: Optional[float] = None,
+        use_ramping: bool = False,
+        backward: bool = False,
+        tolerance_dist: Optional[float] = None,
         timeout_ms: Optional[int] = None,
+        then: Any = None,
+        kick_speed_mm_s: Optional[float] = None,
+        kick_time_ms: Optional[float] = None,
         accel_mm_s2: float = 200.0,
         decel_mm_s2: float = 200.0,
+        **kwargs,
     ):
         """Dispatches navigation to target Cartesian coordinates."""
+        target_x = args[0] if len(args) > 0 else (goal_x if goal_x is not None else x)
+        target_y = args[1] if len(args) > 1 else (goal_y if goal_y is not None else y)
+        if target_x is None or target_y is None:
+            raise ValueError("navigate_to_goal requires target x and y coordinates")
+        x = target_x
+        y = target_y
         if not isinstance(x, (int, float)) or not math.isfinite(x):
             raise TypeError("x coordinate must be a finite number")
         if not isinstance(y, (int, float)) or not math.isfinite(y):
@@ -1146,6 +1186,8 @@ class MDRobotBase:
                 if self._status != 3 and self._status != 4:
                     self._x = float(x)
                     self._y = float(y)
+                    if goal_theta is not None:
+                        self._theta = float(goal_theta)
                     self._status = 2
             except asyncio.CancelledError:
                 pass
@@ -1334,7 +1376,10 @@ class MDRobotBase:
         NOTE: This legacy/manual mode does NOT guarantee mathematical DARE optimality or spectral-radius bounds.
         For optimal tracking, use set_lqr_weights() or set_lqr_preset().
         """
-        if len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) >= 3:
+        if "k_x" in kwargs and "k_y" in kwargs and "k_theta" in kwargs:
+            k_x, k_y, k_theta = kwargs["k_x"], kwargs["k_y"], kwargs["k_theta"]
+            schedule = kwargs.get("schedule", True)
+        elif len(args) == 1 and isinstance(args[0], (list, tuple)) and len(args[0]) >= 3:
             k_x, k_y, k_theta = args[0][0], args[0][1], args[0][2]
             schedule = args[0][3] if len(args[0]) > 3 else kwargs.get("schedule", True)
         elif len(args) >= 3:
@@ -1850,8 +1895,17 @@ class MDRobotBase:
         return self._backlash_filter
 
     @_require_open
-    def set_backlash_limits(self, min_limit: float, max_limit: float):
-        self._backlash_limits = (float(min_limit), float(max_limit))
+    def set_backlash_limits(self, *args, **kwargs):
+        if len(args) == 2:
+            left, right = args
+        elif len(args) == 1 and isinstance(args[0], (tuple, list)):
+            left, right = args[0]
+        else:
+            left = kwargs.get("left_limit", kwargs.get("min_limit", None))
+            right = kwargs.get("right_limit", kwargs.get("max_limit", None))
+            if left is None or right is None:
+                raise ValueError("set_backlash_limits requires left_limit and right_limit")
+        self._backlash_limits = (float(left), float(right))
 
     @_require_open
     def get_backlash_limits(self) -> Tuple[float, float]:

@@ -4,6 +4,19 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T14:45:00+07:00` — **MDRobotBase Motor Connection Resilience & Port Diagnostics Certification**
+  - Resolved user report of `OSError: MDRobotBase motor is not connected` when running robot navigation script `m.py`:
+    1. **Eliminated Premature Break on Tick 0:** In `pb_type_MDRobotBase_reset_state`, removed the early loop break on `PBIO_ERROR_NO_DEV` when `!pbio_servo_update_loop_is_running(srv)`. Hardened the retry window to 1000ms with `mp_hal_delay_ms(5)` and `pbio_os_request_poll()` so the kernel event loop has ample time to complete initial UART handshakes.
+    2. **Startup Grace Period in Native C Engine:** In `pbio_mdrobotbase_reset_state()`, returning `PBIO_ERROR_AGAIN` instead of premature `PBIO_ERROR_NO_DEV` when motor loops are initializing allows caller retry loops to poll safely.
+    3. **Port-Specific Diagnostic Messaging:** Added `left_port` and `right_port` (`pbio_port_id_t`) tracking to `pb_type_MDRobotBase_obj_t`. When a genuine disconnection occurs after timeout, the error explicitly reports the affected port: `MDRobotBase motor is not connected (Port F)` or `(Port B)`.
+    4. **Unified API Parameter Contracts:** Updated VirtualHub `MDRobotBase` to achieve 100% parameter parity with Native C for `wheel_diameter_left`/`right`, `set_lqr_gains(k_x=..., k_y=..., k_theta=...)`, `set_backlash_limits(left_limit=..., right_limit=...)`, `turn_to_angle(then=..., ...)`, and `navigate_to_goal(goal_x=..., goal_y=..., goal_theta=..., backward=..., then=...)`.
+    5. **Empirical Quality Verification:**
+       - 36/36 Native PBIO C tests passed (100%).
+       - 146/146 VirtualHub tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` and `primehub` firmware compilation with exit code 0.
+       - Direct verification of `m.py` initialization, turn, and navigation in Python.
+  - Detailed certification report exported to [`docs/06_raw/20260914_144500_mdrobotbase_motor_connection_resilience_and_port_diagnostics_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_144500_mdrobotbase_motor_connection_resilience_and_port_diagnostics_certification.md).
+
 - `2026-09-14T13:35:00+07:00` — **Master vs Feature Architectural Diff & Motor Connection Deep-Dive Analysis**
   - Conducted an exhaustive cross-branch deep dive between `master` (stable release) and `feature/mdrobotbase-enhancement`:
     1. **Master Silent Failure Audit:** Discovered that in `master:pybricks/robotics/pb_type_mdrobotbase.c:L83`, `pbio_mdrobotbase_update_state(self->rb, gyro_heading)` return code was completely discarded. Motor presence was checked only via `pbio_servo_update_loop_is_running(srv)`. Transient UART LUMP `PBIO_ERROR_NO_DEV` returns were silently swallowed, allowing the robot to appear connected while odometry ran open-loop.

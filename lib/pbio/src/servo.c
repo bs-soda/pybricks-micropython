@@ -459,6 +459,13 @@ pbio_error_t pbio_servo_get_state_control(pbio_servo_t *srv, pbio_control_state_
         return err;
     }
 
+    // If update loop was inactive (e.g. following a transient bus hiccup),
+    // self-heal and re-enable it since the physical tacho is now communicating.
+    if (!srv->run_update_loop && pbio_parent_equals(&srv->dcmotor->parent, srv)) {
+        pbio_observer_reset(&srv->observer, &state->position);
+        pbio_servo_update_loop_set_state(srv, true);
+    }
+
     // Get estimated state
     pbio_observer_get_estimated_state(&srv->observer, &state->speed, &state->position_estimate, &state->speed_estimate);
 

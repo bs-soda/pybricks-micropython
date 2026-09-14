@@ -1215,6 +1215,18 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
     pbio_error_t err_l = pbio_servo_get_state_control(rb->left, &state_l);
     pbio_error_t err_r = pbio_servo_get_state_control(rb->right, &state_r);
 
+    // If either motor reported an error, attempt self-healing if the update loop was paused
+    if (err_l != PBIO_SUCCESS) {
+        if (pbio_servo_update_loop_is_running(rb->left)) {
+            err_l = pbio_servo_get_state_control(rb->left, &state_l);
+        }
+    }
+    if (err_r != PBIO_SUCCESS) {
+        if (pbio_servo_update_loop_is_running(rb->right)) {
+            err_r = pbio_servo_get_state_control(rb->right, &state_r);
+        }
+    }
+
     uint32_t now = pbdrv_clock_get_ms();
 
     // Per-motor consecutive failure tracking and timestamp latching
@@ -1238,21 +1250,19 @@ pbio_error_t pbio_mdrobotbase_update_state(pbio_mdrobotbase_t *rb, float gyro_he
         }
     }
 
-    bool left_loop_stopped = !pbio_servo_update_loop_is_running(rb->left);
-    bool right_loop_stopped = !pbio_servo_update_loop_is_running(rb->right);
-
-    // Evaluate whether either motor has exceeded the confirmed persistent failure window
+    // Evaluate whether either motor has exceeded the confirmed persistent failure window.
+    // Transient communication hiccups (e.g. UART LUMP packet drops or temporary bus stalls)
+    // are retried via PBIO_ERROR_AGAIN. Only failure persisting >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS
+    // AND >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS is classified as a physical disconnection.
     bool left_persistent = (err_l != PBIO_SUCCESS) &&
-        (left_loop_stopped ||
-         (rb->left_failure_start_ms > 0 &&
-          (uint32_t)(now - rb->left_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS &&
-          rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS));
+        (rb->left_failure_start_ms > 0 &&
+         (uint32_t)(now - rb->left_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS &&
+         rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS);
 
     bool right_persistent = (err_r != PBIO_SUCCESS) &&
-        (right_loop_stopped ||
-         (rb->right_failure_start_ms > 0 &&
-          (uint32_t)(now - rb->right_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS &&
-          rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS));
+        (rb->right_failure_start_ms > 0 &&
+         (uint32_t)(now - rb->right_failure_start_ms) >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_MS &&
+         rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS);
 
     if (left_persistent || right_persistent) {
         pbio_error_t p_err_l = left_persistent ? err_l : PBIO_SUCCESS;

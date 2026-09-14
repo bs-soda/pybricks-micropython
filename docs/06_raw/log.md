@@ -4,6 +4,18 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T15:30:00+07:00` — **MDRobotBase Odometry Strict Persistence Window & Continuous Loop Self-Healing Certification**
+  - Resolved user report on live LEGO PrimeHub running `m.py`: `OSError: MDRobotBase motor is not connected (odometry Port B disconnected)`:
+    1. **Eliminated Premature Loop-Stopped Disjunction in `pbio_mdrobotbase_update_state`:** In `lib/pbio/src/mdrobotbase.c:L1245-L1256`, removed `(left_loop_stopped || ...)` and `(right_loop_stopped || ...)`. When a transient read glitch occurred, `right_loop_stopped` became `true` on tick 1, bypassing the entire 500ms / 20-tick persistent failure threshold. Replaced with strict conjunction requiring failure duration $\ge 500\,\text{ms}$ AND $\ge 20\,\text{ticks}$ before declaring `PBIO_ERROR_NO_DEV`. Transient errors return `PBIO_ERROR_AGAIN` to yield and retry.
+    2. **Continuous Observer & Loop Self-Healing in `pbio_servo_get_state_control`:** In `lib/pbio/src/servo.c:L452-L466`, if `run_update_loop` was stopped due to transient packet jitter, reading the physical tacho angle successfully now automatically resets the observer and sets `run_update_loop = true`, resuming kernel servo updates immediately.
+    3. **Eliminated Redundant Check 0 in `motion_iterate_once`:** In `pybricks/robotics/pb_type_mdrobotbase.c:L718-L768`, eliminated the duplicate `!pbio_servo_update_loop_is_running` check that lacked mid-motion grace periods. Delegated motor presence guardianship completely to `pbio_mdrobotbase_update_state()`. Updated `bad_port` diagnostics to inspect `left_state_failures` vs `right_state_failures`.
+    4. **Empirical Quality Verification:**
+       - 97/97 Native PBIO C tests passed (100%).
+       - 146/146 VirtualHub tests passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` and `primehub` firmware builds.
+       - Clean `git diff --check`.
+  - Detailed certification report exported to [`docs/06_raw/20260914_153000_odometry_strict_persistence_window_and_self_healing_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_153000_odometry_strict_persistence_window_and_self_healing_certification.md).
+
 - `2026-09-14T15:10:00+07:00` — **G-MDRB-036 Servo Update Loop Self-Healing & Startup Grace Window Certification**
   - Resolved physical PrimeHub hardware defect where right motor on Port B stopped during startup of `turn_to_angle`:
     1. **Transient Error Filter in Kernel Servo Loop:** In `lib/pbio/src/servo.c:L184-L198` (`pbio_servo_update_all`), prevented the kernel from permanently killing `srv->run_update_loop` when `pbio_servo_update` returns `PBIO_ERROR_AGAIN` or `PBIO_ERROR_BUSY`.

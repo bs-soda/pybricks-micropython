@@ -3514,6 +3514,13 @@ static pbio_error_t test_mdrobotbase_authoritative_device_validation_and_baselin
     tt_want(rb->last_gyro_heading == 0.0f);
     tt_want(rb->theta == 30.0f);
 
+    // 5. Re-binding identical servos maintains active servo lifecycle without intrusive stops
+    pbio_mdrobotbase_t *rb_rebind = NULL;
+    tt_uint_op(pbio_mdrobotbase_get_robotbase(&rb_rebind, srv_a, srv_b, 56000, 56000, 112000), ==, PBIO_SUCCESS);
+    tt_ptr_op(rb_rebind, ==, rb);
+    tt_want(pbio_servo_update_loop_is_running(srv_a));
+    tt_want(pbio_servo_update_loop_is_running(srv_b));
+
     tt_uint_op(pbio_mdrobotbase_put_robotbase(rb), ==, PBIO_SUCCESS);
 
 end:

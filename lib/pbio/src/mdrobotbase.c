@@ -236,13 +236,8 @@ pbio_error_t pbio_mdrobotbase_get_robotbase(pbio_mdrobotbase_t **rb_address, pbi
     int slot = -1;
     if (exact_slot >= 0) {
         slot = exact_slot;
-        // Cancel any pending motion on the re-bound slot
-        if (mdrobotbases[slot].left) {
-            pbio_servo_stop(mdrobotbases[slot].left, PBIO_CONTROL_ON_COMPLETION_COAST);
-        }
-        if (mdrobotbases[slot].right) {
-            pbio_servo_stop(mdrobotbases[slot].right, PBIO_CONTROL_ON_COMPLETION_COAST);
-        }
+        // Reset motion state on re-bound slot without altering servo lifecycle
+        pbio_mdrobotbase_motion_reset(&mdrobotbases[slot]);
     } else {
         // Scan for the first free pool slot
         for (int i = 0; i < PBIO_CONFIG_NUM_MDROBOTBASES; i++) {
@@ -1143,6 +1138,39 @@ pbio_error_t pbio_mdrobotbase_reset_state(pbio_mdrobotbase_t *rb, float x, float
     pbio_error_t err_r = pbio_servo_get_state_control(rb->right, &state_r);
     rb->last_left_error = err_l;
     rb->last_right_error = err_r;
+
+    if (err_l == PBIO_ERROR_NO_DEV || err_r == PBIO_ERROR_NO_DEV) {
+        return PBIO_ERROR_NO_DEV;
+    }
+    if (err_l == PBIO_ERROR_IO || err_r == PBIO_ERROR_IO) {
+        return PBIO_ERROR_IO;
+    }
+
+    if (err_l == PBIO_ERROR_AGAIN || err_l == PBIO_ERROR_BUSY ||
+        err_r == PBIO_ERROR_AGAIN || err_r == PBIO_ERROR_BUSY) {
+        rb->x = x;
+        rb->y = y;
+        rb->theta = pbio_mdrobotbase_wrap_degrees(theta);
+        rb->last_left_deg = NAN;
+        rb->last_right_deg = NAN;
+        rb->last_gyro_heading = gyro_heading;
+        rb->imu_latch_needed = !rb->imu_ready;
+        rb->last_accel_x = 0.0f;
+        rb->state_initialized = false;
+        rb->backlash_left_accum = 0.0f;
+        rb->backlash_right_accum = 0.0f;
+        rb->turn_integral = 0.0f;
+        rb->stall_time_ms = 0.0f;
+        rb->dist_traveled = 0.0f;
+        rb->last_x = x;
+        rb->last_y = y;
+        rb->last_step_theta = rb->theta;
+        rb->left_state_failures = 0;
+        rb->right_state_failures = 0;
+        rb->left_failure_start_ms = 0;
+        rb->right_failure_start_ms = 0;
+        return PBIO_SUCCESS;
+    }
 
     if (err_l != PBIO_SUCCESS || err_r != PBIO_SUCCESS) {
         return (err_l != PBIO_SUCCESS) ? err_l : err_r;

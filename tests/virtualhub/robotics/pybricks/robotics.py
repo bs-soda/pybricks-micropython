@@ -525,6 +525,8 @@ class MDRobotBase:
         is_r_io = bool(getattr(self.right_motor, "_io_error", False))
         is_l_no_dev = bool(getattr(self.left_motor, "_closed", False) or (hasattr(self.left_motor, "connected") and not self.left_motor.connected))
         is_r_no_dev = bool(getattr(self.right_motor, "_closed", False) or (hasattr(self.right_motor, "connected") and not self.right_motor.connected))
+        is_l_busy = bool(getattr(self.left_motor, "_transient_busy", False))
+        is_r_busy = bool(getattr(self.right_motor, "_transient_busy", False))
 
         if is_l_no_dev:
             p = getattr(getattr(self.left_motor, "port", None), "name", str(getattr(self.left_motor, "port", "A")))
@@ -538,6 +540,13 @@ class MDRobotBase:
         if is_r_io:
             p = getattr(getattr(self.right_motor, "port", None), "name", str(getattr(self.right_motor, "port", "B")))
             raise OSError(f"MDRobotBase motor communication failed: Port {p}")
+
+        if is_l_busy or is_r_busy:
+            self._last_left_deg = float("nan")
+            self._last_right_deg = float("nan")
+            self._encoders_initialized = False
+            self._state_initialized = False
+            return
 
         self._left_state_failures = 0
         self._right_state_failures = 0

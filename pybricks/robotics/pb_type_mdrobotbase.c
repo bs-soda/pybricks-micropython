@@ -214,18 +214,40 @@ static pbio_error_t pb_type_mdrobotbase_raise_motion_error(pb_type_MDRobotBase_o
 
   char bad_port = '?';
   if (self) {
-    if (self->rb && self->rb->left_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS && self->last_left_error != PBIO_SUCCESS && self->left_port) {
-      bad_port = (char)self->left_port;
-    } else if (self->rb && self->rb->right_state_failures >= PBIO_MDROBOTBASE_STATE_FAIL_PERSIST_TICKS && self->last_right_error != PBIO_SUCCESS && self->right_port) {
-      bad_port = (char)self->right_port;
-    } else if (self->last_left_error != PBIO_SUCCESS && self->left_port) {
-      bad_port = (char)self->left_port;
-    } else if (self->last_right_error != PBIO_SUCCESS && self->right_port) {
-      bad_port = (char)self->right_port;
-    } else if (self->left_port) {
-      bad_port = (char)self->left_port;
-    } else if (self->right_port) {
-      bad_port = (char)self->right_port;
+    if (err == PBIO_ERROR_NO_DEV) {
+      if (self->last_left_error == PBIO_ERROR_NO_DEV && self->left_port) {
+        bad_port = (char)self->left_port;
+      } else if (self->last_right_error == PBIO_ERROR_NO_DEV && self->right_port) {
+        bad_port = (char)self->right_port;
+      } else if (self->rb && self->rb->last_left_error == PBIO_ERROR_NO_DEV && self->left_port) {
+        bad_port = (char)self->left_port;
+      } else if (self->rb && self->rb->last_right_error == PBIO_ERROR_NO_DEV && self->right_port) {
+        bad_port = (char)self->right_port;
+      } else if (self->left_port) {
+        bad_port = (char)self->left_port;
+      } else if (self->right_port) {
+        bad_port = (char)self->right_port;
+      }
+    } else if (err == PBIO_ERROR_IO) {
+      if (self->last_left_error == PBIO_ERROR_IO && self->left_port) {
+        bad_port = (char)self->left_port;
+      } else if (self->last_right_error == PBIO_ERROR_IO && self->right_port) {
+        bad_port = (char)self->right_port;
+      } else if (self->rb && self->rb->last_left_error == PBIO_ERROR_IO && self->left_port) {
+        bad_port = (char)self->left_port;
+      } else if (self->rb && self->rb->last_right_error == PBIO_ERROR_IO && self->right_port) {
+        bad_port = (char)self->right_port;
+      } else if (self->left_port) {
+        bad_port = (char)self->left_port;
+      } else if (self->right_port) {
+        bad_port = (char)self->right_port;
+      }
+    } else {
+      if (self->last_left_error != PBIO_SUCCESS && self->left_port) {
+        bad_port = (char)self->left_port;
+      } else if (self->last_right_error != PBIO_SUCCESS && self->right_port) {
+        bad_port = (char)self->right_port;
+      }
     }
   }
 
@@ -1160,41 +1182,23 @@ static mp_obj_t pb_type_MDRobotBase_reset_state(size_t n_args,
     gyro_val = imu_ready ? pbio_imu_get_heading(PBIO_IMU_HEADING_TYPE_1D) : 0.0f;
   }
 
-  uint32_t start_ms = pbdrv_clock_get_ms();
-  pbio_error_t err;
-  while (true) {
-    err = pbio_mdrobotbase_reset_state(self->rb, x_val, y_val, theta_val,
-                                       gyro_val);
-    if (err == PBIO_SUCCESS ||
-        err == PBIO_ERROR_INVALID_ARG ||
-        err == PBIO_ERROR_IMU_FAILED) {
-      break;
-    }
-    uint32_t now = pbdrv_clock_get_ms();
-    if ((uint32_t)(now - start_ms) >= 1000) {
-      if (err == PBIO_ERROR_AGAIN) {
-        err = PBIO_ERROR_NO_DEV;
-      }
-      break;
-    }
-    pbio_os_request_poll();
-    mp_hal_delay_ms(5);
-  }
+  pbio_error_t err = pbio_mdrobotbase_reset_state(self->rb, x_val, y_val, theta_val,
+                                                 gyro_val);
   if (err == PBIO_ERROR_IMU_FAILED) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase IMU heading unavailable"));
   } else if (err == PBIO_ERROR_INVALID_ARG) {
     mp_raise_ValueError(MP_ERROR_TEXT("state coordinates and gyro heading must be finite numbers"));
   } else if (err == PBIO_ERROR_NO_DEV) {
-    char bad_port = (self->rb->last_left_error != PBIO_SUCCESS && self->left_port) ? (char)self->left_port :
-                    (self->rb->last_right_error != PBIO_SUCCESS && self->right_port) ? (char)self->right_port :
-                    self->left_port ? (char)self->left_port :
-                    self->right_port ? (char)self->right_port : '?';
+    char bad_port = (self->rb->last_left_error == PBIO_ERROR_NO_DEV && self->left_port) ? (char)self->left_port :
+                    (self->rb->last_right_error == PBIO_ERROR_NO_DEV && self->right_port) ? (char)self->right_port :
+                    (self->left_port ? (char)self->left_port :
+                     self->right_port ? (char)self->right_port : '?');
     mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected: Port %c"), bad_port);
   } else if (err == PBIO_ERROR_IO) {
-    char bad_port = (self->rb->last_left_error != PBIO_SUCCESS && self->left_port) ? (char)self->left_port :
-                    (self->rb->last_right_error != PBIO_SUCCESS && self->right_port) ? (char)self->right_port :
-                    self->left_port ? (char)self->left_port :
-                    self->right_port ? (char)self->right_port : '?';
+    char bad_port = (self->rb->last_left_error == PBIO_ERROR_IO && self->left_port) ? (char)self->left_port :
+                    (self->rb->last_right_error == PBIO_ERROR_IO && self->right_port) ? (char)self->right_port :
+                    (self->left_port ? (char)self->left_port :
+                     self->right_port ? (char)self->right_port : '?');
     mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed: Port %c"), bad_port);
   } else if (err != PBIO_SUCCESS) {
     mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("MDRobotBase reset_state failed"));
@@ -1229,16 +1233,16 @@ static mp_obj_t pb_type_MDRobotBase_update_state(size_t n_args,
   } else if (err == PBIO_ERROR_INVALID_ARG || err == PBIO_ERROR_ODOMETRY_FAILED) {
     mp_raise_ValueError(MP_ERROR_TEXT("MDRobotBase odometry state is invalid"));
   } else if (err == PBIO_ERROR_NO_DEV) {
-    char bad_port = (self->rb->last_left_error != PBIO_SUCCESS && self->left_port) ? (char)self->left_port :
-                    (self->rb->last_right_error != PBIO_SUCCESS && self->right_port) ? (char)self->right_port :
-                    self->left_port ? (char)self->left_port :
-                    self->right_port ? (char)self->right_port : '?';
+    char bad_port = (self->rb->last_left_error == PBIO_ERROR_NO_DEV && self->left_port) ? (char)self->left_port :
+                    (self->rb->last_right_error == PBIO_ERROR_NO_DEV && self->right_port) ? (char)self->right_port :
+                    (self->left_port ? (char)self->left_port :
+                     self->right_port ? (char)self->right_port : '?');
     mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor is not connected: Port %c"), bad_port);
   } else if (err == PBIO_ERROR_IO) {
-    char bad_port = (self->rb->last_left_error != PBIO_SUCCESS && self->left_port) ? (char)self->left_port :
-                    (self->rb->last_right_error != PBIO_SUCCESS && self->right_port) ? (char)self->right_port :
-                    self->left_port ? (char)self->left_port :
-                    self->right_port ? (char)self->right_port : '?';
+    char bad_port = (self->rb->last_left_error == PBIO_ERROR_IO && self->left_port) ? (char)self->left_port :
+                    (self->rb->last_right_error == PBIO_ERROR_IO && self->right_port) ? (char)self->right_port :
+                    (self->left_port ? (char)self->left_port :
+                     self->right_port ? (char)self->right_port : '?');
     mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("MDRobotBase motor communication failed: Port %c"), bad_port);
   } else if (err == PBIO_ERROR_AGAIN || err == PBIO_ERROR_BUSY) {
     // Transient failure: retry on next cycle without raising error

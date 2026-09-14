@@ -2355,6 +2355,70 @@ class TestMDRobotBaseMpyHardwareLifecycleAndOdometry(unittest.TestCase):
             right_motor.connected = True
             robot.close()
 
+    def test_m_py_hardware_configuration_startup_and_transient_busy(self):
+        """Validates m.py hardware config (Port F CCW, Port B CW, gear_ratio 0.53) under transient busy startup."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+        front_arm = Motor(Port.E)
+        back_arm = Motor(Port.A)
+
+        # Simulate Port F being in transient busy state during reset_state
+        left_motor._transient_busy = True
+
+        robot = MDRobotBase(
+            left_motor=left_motor,
+            right_motor=right_motor,
+            wheel_diameter_left=63.4,
+            wheel_diameter_right=63.4,
+            axle_track=160.0
+        )
+        try:
+            robot.set_gear_ratio(0.53)
+            # reset_state must NOT fail with 'motor is not connected: Port F'
+            robot.reset_state(2150.0, 555.0, 0.0, 0.0)
+            self.assertFalse(robot._state_initialized)
+
+            # Motor becomes ready
+            left_motor._transient_busy = False
+            robot.update_state(0.0)
+            self.assertTrue(robot._state_initialized)
+
+            # LQR controller setup
+            robot.set_controller(1)
+            self.assertEqual(robot.get_controller(), 1)
+        finally:
+            left_motor._transient_busy = False
+            robot.close()
+
+    def test_port_f_vs_port_b_exact_disconnection_attribution(self):
+        """Attribution accurately distinguishes between Port F and Port B physical disconnections."""
+        left_motor = Motor(Port.F, Direction.COUNTERCLOCKWISE)
+        right_motor = Motor(Port.B, Direction.CLOCKWISE)
+
+        robot = MDRobotBase(left_motor, right_motor, 63.4, 160.0)
+        try:
+            # 1. Port F disconnected
+            left_motor.connected = False
+            with self.assertRaises(OSError) as ctx_f:
+                robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            self.assertIn("MDRobotBase motor is not connected: Port F", str(ctx_f.exception))
+            left_motor.connected = True
+
+            # 2. Port B disconnected
+            right_motor.connected = False
+            with self.assertRaises(OSError) as ctx_b:
+                robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            self.assertIn("MDRobotBase motor is not connected: Port B", str(ctx_b.exception))
+            right_motor.connected = True
+
+            # 3. Both healthy -> reset_state succeeds
+            robot.reset_state(0.0, 0.0, 0.0, 0.0)
+            self.assertTrue(robot._state_initialized)
+        finally:
+            left_motor.connected = True
+            right_motor.connected = True
+            robot.close()
+
 
 if __name__ == "__main__":
     unittest.main()

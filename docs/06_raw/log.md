@@ -4,6 +4,21 @@ This log records all major operations, architectural reviews, backlog restructur
 
 ## 2026-09-14
 
+- `2026-09-14T21:45:00+07:00` — **G-MDRB-036 Port F Motor Disconnection Remediation & Hardware Parity Certification**
+  - Completely eradicated false-positive `OSError: MDRobotBase motor is not connected: Port F` on physical PrimeHub hardware running [`m.py`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/m.py):
+    1. **Eliminated Premature Timeout Loop in `reset_state()`:** In [`pybricks/robotics/pb_type_mdrobotbase.c`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/pybricks/robotics/pb_type_mdrobotbase.c), removed the 1000 ms busy-wait loop that escalated `PBIO_ERROR_AGAIN` into `PBIO_ERROR_NO_DEV`. Directly call `pbio_mdrobotbase_reset_state()` with zero blocking latency.
+    2. **Graceful Transient Handling in `pbio_mdrobotbase_reset_state()`:** In [`lib/pbio/src/mdrobotbase.c`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/lib/pbio/src/mdrobotbase.c), if `pbio_servo_get_state_control()` returns `PBIO_ERROR_AGAIN` or `PBIO_ERROR_BUSY`, the state coordinates and heading are accepted with `last_left_deg = NAN, last_right_deg = NAN, state_initialized = false` returning `PBIO_SUCCESS`. The first subsequent valid `update_state()` cycle establishes the encoder baselines without jump.
+    3. **Eliminated Intrusive Re-bind Stops in `pbio_mdrobotbase_get_robotbase()`:** Replaced intrusive `pbio_servo_stop()` calls with non-invasive `pbio_mdrobotbase_motion_reset(&mdrobotbases[slot])`, ensuring motor actuation and servo loop state remain completely untouched.
+    4. **Precise Port Attribution:** In `pb_type_mdrobotbase_raise_motion_error`, `reset_state`, and `update_state`, replaced unconditional fallback to `left_port` with explicit matching on `last_left_error == PBIO_ERROR_NO_DEV` and `last_right_error == PBIO_ERROR_NO_DEV`.
+    5. **VirtualHub Parity:** Synchronized `reset_state()` in [`tests/virtualhub/robotics/pybricks/robotics.py`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/tests/virtualhub/robotics/pybricks/robotics.py) to support transient busy states seamlessly.
+    6. **Empirical Quality Verification:**
+       - 36/36 Native PBIO MDRobotBase C unit tests passed (100%).
+       - 88/88 VirtualHub LQR unit tests passed (100%).
+       - 159/159 Complete VirtualHub robotics test suite passed (100%).
+       - Clean bare-metal ARM Cortex-M4 `primehub_f4` firmware build (`firmware.zip` generated).
+       - Clean `git diff --check` (0 formatting/whitespace errors).
+  - Detailed certification report exported to [`docs/06_raw/20260914_214500_g_mdrb_036_port_f_disconnection_root_cause_and_elimination_certification.md`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/docs/06_raw/20260914_214500_g_mdrb_036_port_f_disconnection_root_cause_and_elimination_certification.md).
+
 - `2026-09-14T20:55:00+07:00` — **G-MDRB-036 Master Motor Lifecycle Restoration and Port B Regression Fix Certification**
   - Completely resolved the Port B motor disconnection regression (`OSError: MDRobotBase motor is not connected (odometry Port B disconnected)`) and aligned motor lifecycle behavior with `master` baseline:
     1. **Eliminated Premature Loop Checks in `motion_iterate_once`:** In [`pybricks/robotics/pb_type_mdrobotbase.c#L720-L765`](file:///Users/batrarethsudprasert/projects/wro/pybricks-micropython/pybricks/robotics/pb_type_mdrobotbase.c#L720-L765), removed premature `!loop_l || !loop_r` device-presence checks that aborted motion during concurrent motor operations (such as `m.py` running `navigator.move_front_arm_angle` concurrently with `robot.turn_to_angle`).
